@@ -284,6 +284,161 @@ vercel --prod
 - [ ] Queue management functions
 - [ ] Audit logs capture all events
 
+## Development Workflow
+
+### Implementing a Model Task
+
+1. **Find the specification**:
+   ```bash
+   # Open data-model.md and locate your entity section
+   # Example: For T069 (Agent model), find Section 1
+   ```
+
+2. **Create the TypeScript interface**:
+   ```typescript
+   // backend/src/models/agent.model.ts
+   // Copy fields from data-model.md Section 1
+   import { BaseModel } from './base.model';
+   // Use implementation-patterns.md "Model Implementation Example"
+   ```
+
+3. **Run the migration**:
+   ```bash
+   # Find corresponding migration task (T016 for agents)
+   npx supabase migration up
+   ```
+
+4. **Verify with contract test**:
+   ```bash
+   # Test should fail first (RED phase)
+   npm test -- backend/tests/contract/agents/list.test.ts
+   ```
+
+### Implementing an API Endpoint
+
+1. **Find the OpenAPI specification**:
+   ```bash
+   # Open rest-api.yaml and search for your endpoint
+   # Example: For T083 (auth routes), find lines 15-51
+   ```
+
+2. **Copy request/response schemas**:
+   ```typescript
+   // backend/src/api/auth.route.ts
+   // Use schemas from rest-api.yaml
+   // Follow pattern in implementation-patterns.md "API Route Implementation"
+   ```
+
+3. **Ensure test fails first**:
+   ```bash
+   # Run the contract test - it MUST fail
+   npm test -- backend/tests/contract/auth/magic-link.test.ts
+   # If it passes, you're not doing TDD correctly!
+   ```
+
+4. **Implement until test passes**:
+   ```typescript
+   // Make minimal changes to pass the test
+   // Then refactor while keeping tests green
+   ```
+
+### Implementing a WebSocket Handler
+
+1. **Find the message format**:
+   ```bash
+   # Open websocket-protocol.md
+   # Locate your message type (e.g., AGENT_CONNECT)
+   ```
+
+2. **Use the message handler pattern**:
+   ```typescript
+   // backend/src/websocket/handlers/agent-connect.ts
+   // Copy from implementation-patterns.md "Message Handler Pattern"
+   // Match exact message format from protocol
+   ```
+
+3. **Test with actual WebSocket connection**:
+   ```bash
+   # Use the WebSocket test pattern
+   npm test -- backend/tests/websocket/agent-connect.test.ts
+   ```
+
+### Implementing a Frontend Component
+
+1. **Check the shadcn/ui documentation**:
+   ```bash
+   # Visit https://ui.shadcn.com/docs/components
+   # Find the component you need (Card, Button, etc.)
+   ```
+
+2. **Use the component pattern**:
+   ```tsx
+   // frontend/src/components/agents/agent-card.tsx
+   // Start with implementation-patterns.md "shadcn/ui Component Pattern"
+   // Modify for your specific needs
+   ```
+
+3. **Connect to Zustand store**:
+   ```tsx
+   // Use the store pattern from implementation-patterns.md
+   const { agents, updateAgent } = useAgentStore();
+   ```
+
+### Quick Reference for Common Tasks
+
+```bash
+# When starting a new task, check its references
+grep "T069" task-references.md
+
+# Find the exact API specification
+grep -A 10 "/agents" rest-api.yaml
+
+# Check what fields a model needs
+grep -A 20 "Agent$" data-model.md
+
+# Find WebSocket message format
+grep -A 15 "AGENT_CONNECT" websocket-protocol.md
+
+# Run specific test in watch mode
+npm test -- --watch backend/tests/contract/auth
+
+# Check implementation checklist for your task
+grep -A 10 "T069" implementation-checklist.md
+```
+
+### TDD Workflow (CRITICAL)
+
+1. **Write the test first**:
+   ```bash
+   # Create test file
+   touch backend/tests/contract/auth/magic-link.test.ts
+   # Copy pattern from implementation-patterns.md
+   ```
+
+2. **Run test - it MUST fail**:
+   ```bash
+   npm test -- backend/tests/contract/auth/magic-link.test.ts
+   # Should see RED - test fails
+   ```
+
+3. **Write minimal code to pass**:
+   ```bash
+   # Implement just enough to make test pass
+   # Don't add extra features yet
+   ```
+
+4. **Run test - should pass**:
+   ```bash
+   npm test -- backend/tests/contract/auth/magic-link.test.ts
+   # Should see GREEN - test passes
+   ```
+
+5. **Refactor if needed**:
+   ```bash
+   # Clean up code while keeping tests green
+   # Run tests after each change
+   ```
+
 ## Next Steps
 
 1. **Add More Agents**: Connect additional AI agents for parallel processing

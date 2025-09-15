@@ -77,42 +77,78 @@
 
 ### Contract Tests - REST API
 - [ ] T027 [P] Contract test POST /auth/magic-link in backend/tests/contract/auth/magic-link.test.ts
+      → Ref: rest-api.yaml lines 15-33, implementation-patterns.md "Contract Test Pattern"
 - [ ] T028 [P] Contract test POST /auth/verify in backend/tests/contract/auth/verify.test.ts
+      → Ref: rest-api.yaml lines 35-51, schema: AuthResponse
 - [ ] T029 [P] Contract test GET /agents in backend/tests/contract/agents/list.test.ts
+      → Ref: rest-api.yaml lines 54-72, response: Agent[]
 - [ ] T030 [P] Contract test GET /agents/{id} in backend/tests/contract/agents/get.test.ts
+      → Ref: rest-api.yaml lines 74-87, response: Agent
 - [ ] T031 [P] Contract test POST /agents/{id}/restart in backend/tests/contract/agents/restart.test.ts
+      → Ref: rest-api.yaml lines 89-102, response: MessageResponse
 - [ ] T032 [P] Contract test POST /agents/{id}/stop in backend/tests/contract/agents/stop.test.ts
+      → Ref: rest-api.yaml lines 104-117, response: MessageResponse
 - [ ] T033 [P] Contract test GET /commands in backend/tests/contract/commands/list.test.ts
+      → Ref: rest-api.yaml lines 120-143, query params: status, agentId, limit, offset
 - [ ] T034 [P] Contract test POST /commands in backend/tests/contract/commands/create.test.ts
+      → Ref: rest-api.yaml lines 145-161, request: CreateCommand, response: Command
 - [ ] T035 [P] Contract test GET /commands/{id} in backend/tests/contract/commands/get.test.ts
+      → Ref: rest-api.yaml lines 163-176, response: Command
 - [ ] T036 [P] Contract test POST /commands/{id}/cancel in backend/tests/contract/commands/cancel.test.ts
+      → Ref: rest-api.yaml lines 178-195, optional body: reason
 - [ ] T037 [P] Contract test GET /commands/{id}/output in backend/tests/contract/commands/output.test.ts
+      → Ref: rest-api.yaml lines 197-217, response: TerminalOutput[]
 - [ ] T038 [P] Contract test GET /commands/{id}/traces in backend/tests/contract/commands/traces.test.ts
+      → Ref: rest-api.yaml lines 219-236, response: TraceEntry[]
 - [ ] T039 [P] Contract test POST /emergency-stop in backend/tests/contract/system/emergency-stop.test.ts
+      → Ref: rest-api.yaml lines 239-256, response: agentsStopped count
 - [ ] T040 [P] Contract test GET /presets in backend/tests/contract/presets/list.test.ts
+      → Ref: rest-api.yaml lines 259-274, response: CommandPreset[]
 - [ ] T041 [P] Contract test POST /presets in backend/tests/contract/presets/create.test.ts
+      → Ref: rest-api.yaml lines 276-293, request: CreateCommandPreset
 - [ ] T042 [P] Contract test GET /reports in backend/tests/contract/reports/list.test.ts
+      → Ref: rest-api.yaml lines 361-379, query: agentId, status
 - [ ] T043 [P] Contract test GET /audit-logs in backend/tests/contract/system/audit-logs.test.ts
+      → Ref: rest-api.yaml lines 434-460, query: eventType, userId, from, to
 
 ### WebSocket Protocol Tests
 - [ ] T044 [P] WebSocket test agent connection flow in backend/tests/websocket/agent-connect.test.ts
+      → Ref: websocket-protocol.md "Connection Lifecycle", message: AGENT_CONNECT
+      → Pattern: implementation-patterns.md "WebSocket Test Pattern"
 - [ ] T045 [P] WebSocket test agent heartbeat in backend/tests/websocket/agent-heartbeat.test.ts
+      → Ref: websocket-protocol.md lines 56-73, message: AGENT_HEARTBEAT
+      → Timing: 30-second intervals, 3 missed = disconnect
 - [ ] T046 [P] WebSocket test command execution flow in backend/tests/websocket/command-flow.test.ts
+      → Ref: websocket-protocol.md COMMAND_REQUEST → COMMAND_ACK → COMMAND_COMPLETE
 - [ ] T047 [P] WebSocket test terminal streaming in backend/tests/websocket/terminal-stream.test.ts
+      → Ref: websocket-protocol.md lines 89-104, message: TERMINAL_OUTPUT
+      → Requirement: <200ms latency
 - [ ] T048 [P] WebSocket test trace events in backend/tests/websocket/trace-events.test.ts
+      → Ref: websocket-protocol.md lines 106-131, message: TRACE_EVENT
 - [ ] T049 [P] WebSocket test token refresh in backend/tests/websocket/token-refresh.test.ts
+      → Ref: websocket-protocol.md "Token Refresh", research.md Section 4
 - [ ] T050 [P] WebSocket test reconnection logic in backend/tests/websocket/reconnection.test.ts
+      → Ref: websocket-protocol.md "Reconnection Strategy", exponential backoff
 
 ### Integration Tests (from Quickstart scenarios)
 - [ ] T051 [P] Integration test agent connection and status display in backend/tests/integration/agent-connection.test.ts
+      → Ref: quickstart.md Test 1, Expected: Agent shows "ONLINE" status
 - [ ] T052 [P] Integration test command execution with output in backend/tests/integration/command-execution.test.ts
+      → Ref: quickstart.md Test 2, Expected: Terminal shows real-time output
 - [ ] T053 [P] Integration test emergency stop functionality in backend/tests/integration/emergency-stop.test.ts
+      → Ref: quickstart.md Test 4, Expected: All agents stop immediately
 - [ ] T054 [P] Integration test command preset creation and usage in backend/tests/integration/presets.test.ts
+      → Ref: quickstart.md Test 5, Expected: Preset saves and executes
 - [ ] T055 [P] Integration test trace tree generation in backend/tests/integration/trace-tree.test.ts
+      → Ref: quickstart.md Test 6, Expected: Hierarchical view of LLM calls
 - [ ] T056 [P] Integration test queue management and cancellation in backend/tests/integration/queue.test.ts
+      → Ref: quickstart.md Test 7, Expected: Queue position shown, cancellation works
 - [ ] T057 [P] Integration test agent restart flow in backend/tests/integration/agent-restart.test.ts
+      → Ref: quickstart.md Test 8, Expected: Reconnects within 10 seconds
 - [ ] T058 [P] Integration test investigation report generation in backend/tests/integration/reports.test.ts
+      → Ref: quickstart.md Test 9, Expected: Structured report with findings
 - [ ] T059 [P] Integration test audit log capture in backend/tests/integration/audit-logs.test.ts
+      → Ref: quickstart.md Test 10, Expected: Complete audit trail
 
 ## Phase 3.4: Core Implementation (ONLY after tests are failing)
 
