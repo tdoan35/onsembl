@@ -1,4 +1,4 @@
-# Claude Code Context - Onsembl.ai Agent Control Center
+# Onsembl.ai Agent Control Center
 
 ## Project Overview
 
