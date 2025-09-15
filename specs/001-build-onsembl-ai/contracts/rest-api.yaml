@@ -1,0 +1,1167 @@
+openapi: 3.0.3
+info:
+  title: Onsembl.ai Control Center API
+  description: REST API for managing AI agents, commands, and system operations
+  version: 0.1.0
+  contact:
+    name: Onsembl Team
+    email: support@onsembl.ai
+
+servers:
+  - url: https://api.onsembl.ai/v1
+    description: Production server
+  - url: http://localhost:3000/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Authentication
+  /auth/magic-link:
+    post:
+      summary: Request magic link for authentication
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Magic link sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/verify:
+    post:
+      summary: Verify magic link token
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Agents
+  /agents:
+    get:
+      summary: List all agents
+      tags: [Agents]
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AgentStatus'
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /agents/{agentId}:
+    get:
+      summary: Get agent details
+      tags: [Agents]
+      parameters:
+        - $ref: '#/components/parameters/agentId'
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/{agentId}/restart:
+    post:
+      summary: Restart an agent
+      tags: [Agents]
+      parameters:
+        - $ref: '#/components/parameters/agentId'
+      responses:
+        '200':
+          description: Agent restart initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/{agentId}/stop:
+    post:
+      summary: Stop an agent
+      tags: [Agents]
+      parameters:
+        - $ref: '#/components/parameters/agentId'
+      responses:
+        '200':
+          description: Agent stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Commands
+  /commands:
+    get:
+      summary: List commands
+      tags: [Commands]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CommandStatus'
+        - name: agentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of commands
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commands:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Command'
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Send a command to agents
+      tags: [Commands]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommand'
+      responses:
+        '201':
+          description: Command created and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /commands/{commandId}:
+    get:
+      summary: Get command details
+      tags: [Commands]
+      parameters:
+        - $ref: '#/components/parameters/commandId'
+      responses:
+        '200':
+          description: Command details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /commands/{commandId}/cancel:
+    post:
+      summary: Cancel a command
+      tags: [Commands]
+      parameters:
+        - $ref: '#/components/parameters/commandId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Command cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /commands/{commandId}/output:
+    get:
+      summary: Get command terminal output
+      tags: [Commands]
+      parameters:
+        - $ref: '#/components/parameters/commandId'
+        - name: agentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: streamType
+          in: query
+          schema:
+            type: string
+            enum: [STDOUT, STDERR]
+      responses:
+        '200':
+          description: Terminal output
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  outputs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TerminalOutput'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /commands/{commandId}/traces:
+    get:
+      summary: Get command trace tree
+      tags: [Commands]
+      parameters:
+        - $ref: '#/components/parameters/commandId'
+      responses:
+        '200':
+          description: Trace tree
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  traces:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TraceEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Emergency Stop
+  /emergency-stop:
+    post:
+      summary: Emergency stop all agents
+      tags: [System]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Emergency stop executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  agentsStopped:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Command Presets
+  /presets:
+    get:
+      summary: List command presets
+      tags: [Presets]
+      responses:
+        '200':
+          description: List of presets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommandPreset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a command preset
+      tags: [Presets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommandPreset'
+      responses:
+        '201':
+          description: Preset created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandPreset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /presets/{presetId}:
+    get:
+      summary: Get preset details
+      tags: [Presets]
+      parameters:
+        - $ref: '#/components/parameters/presetId'
+      responses:
+        '200':
+          description: Preset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandPreset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update a preset
+      tags: [Presets]
+      parameters:
+        - $ref: '#/components/parameters/presetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommandPreset'
+      responses:
+        '200':
+          description: Preset updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandPreset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete a preset
+      tags: [Presets]
+      parameters:
+        - $ref: '#/components/parameters/presetId'
+      responses:
+        '204':
+          description: Preset deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Investigation Reports
+  /reports:
+    get:
+      summary: List investigation reports
+      tags: [Reports]
+      parameters:
+        - name: agentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, IN_PROGRESS, COMPLETE]
+      responses:
+        '200':
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reports:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InvestigationReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/{reportId}:
+    get:
+      summary: Get report details
+      tags: [Reports]
+      parameters:
+        - $ref: '#/components/parameters/reportId'
+      responses:
+        '200':
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigationReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reports/{reportId}/export:
+    get:
+      summary: Export report
+      tags: [Reports]
+      parameters:
+        - $ref: '#/components/parameters/reportId'
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, markdown, pdf]
+            default: json
+      responses:
+        '200':
+          description: Exported report
+          content:
+            application/json:
+              schema:
+                type: object
+            text/markdown:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Audit Logs
+  /audit-logs:
+    get:
+      summary: Query audit logs
+      tags: [System]
+      parameters:
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: agentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Execution Constraints
+  /constraints:
+    get:
+      summary: List execution constraints
+      tags: [System]
+      responses:
+        '200':
+          description: List of constraints
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  constraints:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExecutionConstraint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    agentId:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    commandId:
+      name: commandId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    presetId:
+      name: presetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    reportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # Enums
+    AgentType:
+      type: string
+      enum: [CLAUDE, GEMINI, CODEX]
+
+    AgentStatus:
+      type: string
+      enum: [ONLINE, OFFLINE, CONNECTING, ERROR]
+
+    AgentActivity:
+      type: string
+      enum: [IDLE, PROCESSING, QUEUED]
+
+    CommandType:
+      type: string
+      enum: [NATURAL, INVESTIGATE, REVIEW, PLAN, SYNTHESIZE]
+
+    CommandStatus:
+      type: string
+      enum: [PENDING, QUEUED, EXECUTING, COMPLETED, FAILED, CANCELLED]
+
+    StreamType:
+      type: string
+      enum: [STDOUT, STDERR]
+
+    TraceType:
+      type: string
+      enum: [LLM_PROMPT, TOOL_CALL, RESPONSE]
+
+    ReportStatus:
+      type: string
+      enum: [DRAFT, IN_PROGRESS, COMPLETE]
+
+    # Core Models
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AgentType'
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        activityState:
+          $ref: '#/components/schemas/AgentActivity'
+        hostMachine:
+          type: string
+        connectedAt:
+          type: string
+          format: date-time
+        disconnectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        healthMetrics:
+          type: object
+          properties:
+            cpuUsage:
+              type: number
+            memoryUsage:
+              type: number
+            uptime:
+              type: number
+            commandsProcessed:
+              type: integer
+            averageResponseTime:
+              type: number
+        config:
+          type: object
+          properties:
+            serverUrl:
+              type: string
+            autoReconnect:
+              type: boolean
+            maxRetries:
+              type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Command:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/CommandType'
+        targetAgents:
+          type: array
+          items:
+            type: string
+            format: uuid
+        broadcast:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/CommandStatus'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 100
+        executionConstraints:
+          type: object
+          properties:
+            timeLimitMs:
+              type: integer
+            tokenBudget:
+              type: integer
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateCommand:
+      type: object
+      required: [content, type]
+      properties:
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/CommandType'
+        targetAgents:
+          type: array
+          items:
+            type: string
+            format: uuid
+        broadcast:
+          type: boolean
+          default: false
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 50
+        executionConstraints:
+          type: object
+          properties:
+            timeLimitMs:
+              type: integer
+            tokenBudget:
+              type: integer
+
+    TerminalOutput:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        commandId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        streamType:
+          $ref: '#/components/schemas/StreamType'
+        content:
+          type: string
+        ansiCodes:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+
+    CommandPreset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/CommandType'
+        targetAgentTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentType'
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              default:
+                type: string
+                nullable: true
+        usageCount:
+          type: integer
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateCommandPreset:
+      type: object
+      required: [name, content, type]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/CommandType'
+        targetAgentTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentType'
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              default:
+                type: string
+
+    UpdateCommandPreset:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/CommandType'
+        targetAgentTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentType'
+        variables:
+          type: array
+          items:
+            type: object
+
+    TraceEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        commandId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          $ref: '#/components/schemas/TraceType'
+        name:
+          type: string
+        content:
+          type: object
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        tokensUsed:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraceEntry'
+
+    InvestigationReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        commandId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        summary:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        content:
+          type: object
+          properties:
+            sections:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  content:
+                    type: string
+                  type:
+                    type: string
+                  order:
+                    type: integer
+            findings:
+              type: array
+              items:
+                type: object
+                properties:
+                  description:
+                    type: string
+                  severity:
+                    type: string
+                  evidence:
+                    type: array
+                    items:
+                      type: string
+            recommendations:
+              type: array
+              items:
+                type: object
+                properties:
+                  action:
+                    type: string
+                  priority:
+                    type: string
+                  rationale:
+                    type: string
+        attachments:
+          type: array
+          items:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        agentId:
+          type: string
+          format: uuid
+          nullable: true
+        commandId:
+          type: string
+          format: uuid
+          nullable: true
+        details:
+          type: object
+        ipAddress:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ExecutionConstraint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        timeLimitMs:
+          type: integer
+          nullable: true
+        tokenBudget:
+          type: integer
+          nullable: true
+        memoryLimitMb:
+          type: integer
+          nullable: true
+        cpuLimitPercent:
+          type: integer
+          nullable: true
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # Utility Schemas
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
