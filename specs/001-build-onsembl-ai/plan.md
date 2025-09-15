@@ -33,7 +33,7 @@ Build a web-based Agent Control Center for orchestrating multiple AI coding agen
 
 ## Technical Context
 **Language/Version**: Node.js 20+ with TypeScript 5.x
-**Primary Dependencies**: Fastify 4.x, Next.js 14, Supabase Client, Bull/Redis, Pino
+**Primary Dependencies**: Fastify 4.x, Next.js 14, Supabase Client, Bull/Redis, Pino, shadcn/ui
 **Storage**: Supabase PostgreSQL (auth, agents, commands, audit logs), Redis (via Upstash for queues)
 **Testing**: Jest for backend, React Testing Library for frontend, Playwright for E2E
 **Target Platform**: Fly.io (backend), Vercel (frontend), cross-platform agents (Node.js)
@@ -174,7 +174,7 @@ packages/
 
 5. **Update agent file incrementally** (O(1) operation):
    - Run `/scripts/bash/update-agent-context.sh claude`
-   - Add Fastify, Next.js, Supabase context
+   - Add Fastify, Next.js, Supabase, shadcn/ui context
    - Update recent changes section
    - Output to repository root
 

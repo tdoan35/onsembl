@@ -46,7 +46,7 @@
 - [ ] T001 Create monorepo structure with backend/, frontend/, agent-wrapper/, packages/ directories
 - [ ] T002 Initialize root package.json with npm workspaces configuration
 - [ ] T003 [P] Initialize backend with Fastify, TypeScript, and dependencies in backend/
-- [ ] T004 [P] Initialize frontend with Next.js 14, TypeScript, Tailwind in frontend/
+- [ ] T004 [P] Initialize frontend with Next.js 14, TypeScript, Tailwind, shadcn/ui in frontend/
 - [ ] T005 [P] Initialize agent-wrapper with Node.js and TypeScript in agent-wrapper/
 - [ ] T006 [P] Create @onsembl/agent-protocol package in packages/agent-protocol/
 - [ ] T007 [P] Create @onsembl/command-queue package in packages/command-queue/
@@ -163,15 +163,15 @@
 - [ ] T097 Implement JWT token rotation in backend/src/websocket/token-manager.ts
 
 ### Frontend Components
-- [ ] T098 [P] Create app layout with sidebar in frontend/src/app/layout.tsx
-- [ ] T099 [P] Implement agent status cards in frontend/src/components/agents/agent-card.tsx
+- [ ] T098 [P] Create app layout with shadcn/ui Sidebar in frontend/src/app/layout.tsx
+- [ ] T099 [P] Implement agent status cards with shadcn/ui Card in frontend/src/components/agents/agent-card.tsx
 - [ ] T100 [P] Implement terminal viewer with xterm.js in frontend/src/components/terminal/terminal-viewer.tsx
-- [ ] T101 [P] Implement command input component in frontend/src/components/command/command-input.tsx
-- [ ] T102 [P] Implement trace tree viewer in frontend/src/components/trace/trace-tree.tsx
-- [ ] T103 [P] Implement preset manager in frontend/src/components/presets/preset-manager.tsx
-- [ ] T104 [P] Implement emergency stop button in frontend/src/components/system/emergency-stop.tsx
-- [ ] T105 [P] Implement report viewer in frontend/src/components/reports/report-viewer.tsx
-- [ ] T106 [P] Implement audit log viewer in frontend/src/components/audit/audit-viewer.tsx
+- [ ] T101 [P] Implement command input with shadcn/ui Input and Button in frontend/src/components/command/command-input.tsx
+- [ ] T102 [P] Implement trace tree viewer with shadcn/ui Tree in frontend/src/components/trace/trace-tree.tsx
+- [ ] T103 [P] Implement preset manager with shadcn/ui Dialog and Form in frontend/src/components/presets/preset-manager.tsx
+- [ ] T104 [P] Implement emergency stop with shadcn/ui AlertDialog in frontend/src/components/system/emergency-stop.tsx
+- [ ] T105 [P] Implement report viewer with shadcn/ui ScrollArea in frontend/src/components/reports/report-viewer.tsx
+- [ ] T106 [P] Implement audit log viewer with shadcn/ui Table in frontend/src/components/audit/audit-viewer.tsx
 
 ### Frontend Services & State
 - [ ] T107 [P] Create Zustand store for agent state in frontend/src/stores/agent.store.ts
@@ -182,12 +182,12 @@
 - [ ] T112 [P] Implement auth service with Supabase in frontend/src/services/auth.service.ts
 
 ### Frontend Pages
-- [ ] T113 Create dashboard page in frontend/src/app/dashboard/page.tsx
-- [ ] T114 [P] Create login page with magic link in frontend/src/app/login/page.tsx
-- [ ] T115 [P] Create presets page in frontend/src/app/presets/page.tsx
-- [ ] T116 [P] Create reports page in frontend/src/app/reports/page.tsx
-- [ ] T117 [P] Create audit logs page in frontend/src/app/audit/page.tsx
-- [ ] T118 [P] Create settings page in frontend/src/app/settings/page.tsx
+- [ ] T113 Create dashboard page with shadcn/ui layout components in frontend/src/app/dashboard/page.tsx
+- [ ] T114 [P] Create login page with shadcn/ui Form and Card in frontend/src/app/login/page.tsx
+- [ ] T115 [P] Create presets page with shadcn/ui DataTable in frontend/src/app/presets/page.tsx
+- [ ] T116 [P] Create reports page with shadcn/ui Tabs in frontend/src/app/reports/page.tsx
+- [ ] T117 [P] Create audit logs page with shadcn/ui DataTable in frontend/src/app/audit/page.tsx
+- [ ] T118 [P] Create settings page with shadcn/ui Form components in frontend/src/app/settings/page.tsx
 
 ### Agent Wrapper Implementation
 - [ ] T119 [P] Create agent wrapper CLI in agent-wrapper/src/cli.ts

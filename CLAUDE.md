@@ -5,7 +5,7 @@ Building Onsembl.ai - a web-based Agent Control Center for orchestrating multipl
 
 ## Current Tech Stack
 - **Backend**: Node.js 20+, TypeScript 5.x, Fastify 4.x with @fastify/websocket
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Zustand
+- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Zustand
 - **Database**: Supabase (PostgreSQL, Auth, Realtime)
 - **Queue**: BullMQ with Redis (Upstash)
 - **Logging**: Pino with structured logging
