@@ -13,6 +13,11 @@
 export { TraceCollector } from './collector.js';
 export { TreeBuilder } from './tree-builder.js';
 export { MetricsCalculator } from './metrics.js';
+export { TraceTreeBuilder } from './builder.js';
+export { TraceAggregator } from './aggregator.js';
+
+// Note: TraceEntry, TraceTree, and TraceType types are temporarily defined locally
+// in builder.ts and aggregator.ts until agent-protocol package exports are fixed
 
 // Export all types
 export * from './types.js';
@@ -34,6 +39,21 @@ export type {
   TimelineEvent,
   TraceExportOptions
 } from './types.js';
+
+// Export types from builder and aggregator
+export type {
+  TraceBuilderOptions,
+  TraceBuilderStats
+} from './builder.js';
+
+export type {
+  AggregationOptions,
+  TraceMetrics,
+  HotPath,
+  TypeGrouping,
+  TimeWindowMetrics,
+  AggregationResult
+} from './aggregator.js';
 
 export type {
   TraceCollectorEvents

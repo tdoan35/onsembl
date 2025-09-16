@@ -183,8 +183,9 @@ export interface InvestigationReportMessage extends WebSocketMessage<Investigati
 export interface ErrorPayload {
   code: string;
   message: string;
-  details: Record<string, any>;
-  recoverable: boolean;
+  details?: Record<string, any>;
+  recoverable?: boolean;
+  originalMessageId?: string;
 }
 
 export interface ErrorMessage extends WebSocketMessage<ErrorPayload> {

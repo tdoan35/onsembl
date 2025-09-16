@@ -153,15 +153,15 @@
 ## Phase 3.4: Core Implementation (ONLY after tests are failing)
 
 ### Shared Packages Implementation
-- [ ] T060 [P] Implement WebSocket message types in packages/agent-protocol/src/types.ts
-- [ ] T061 [P] Implement message validation in packages/agent-protocol/src/validation.ts
-- [ ] T062 [P] Implement agent-protocol CLI in packages/agent-protocol/src/cli.ts
-- [ ] T063 [P] Implement BullMQ queue wrapper in packages/command-queue/src/queue.ts
-- [ ] T064 [P] Implement command priority logic in packages/command-queue/src/priority.ts
-- [ ] T065 [P] Implement command-queue CLI in packages/command-queue/src/cli.ts
-- [ ] T066 [P] Implement trace tree builder in packages/trace-collector/src/builder.ts
-- [ ] T067 [P] Implement trace aggregation in packages/trace-collector/src/aggregator.ts
-- [ ] T068 [P] Implement trace-collector CLI in packages/trace-collector/src/cli.ts
+- [x] T060 [P] Implement WebSocket message types in packages/agent-protocol/src/types.ts
+- [x] T061 [P] Implement message validation in packages/agent-protocol/src/validation.ts
+- [x] T062 [P] Implement agent-protocol CLI in packages/agent-protocol/src/cli.ts
+- [x] T063 [P] Implement BullMQ queue wrapper in packages/command-queue/src/queue.ts
+- [x] T064 [P] Implement command priority logic in packages/command-queue/src/priority.ts
+- [x] T065 [P] Implement command-queue CLI in packages/command-queue/src/cli.ts
+- [x] T066 [P] Implement trace tree builder in packages/trace-collector/src/builder.ts
+- [x] T067 [P] Implement trace aggregation in packages/trace-collector/src/aggregator.ts
+- [x] T068 [P] Implement trace-collector CLI in packages/trace-collector/src/cli.ts
 
 ### Backend Models & Services
 - [ ] T069 [P] Agent model with Supabase client in backend/src/models/agent.ts

@@ -175,13 +175,15 @@ export class ErrorMessageBuilder {
   /**
    * Creates a standard validation error
    */
-  static validationError(details: Record<string, any> = {}): ErrorMessage {
-    return this.error({
-      code: 'INVALID_MESSAGE',
-      message: 'Message validation failed',
-      details,
-      recoverable: true
-    });
+  static validationError(message: string, originalMessageId?: string): ErrorMessage {
+    const payload: ErrorPayload = {
+      code: 'VALIDATION_FAILED',
+      message: message || 'Message validation failed'
+    };
+    if (originalMessageId) {
+      payload.originalMessageId = originalMessageId;
+    }
+    return this.error(payload);
   }
 
   /**

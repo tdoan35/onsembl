@@ -17,7 +17,7 @@ export * from './queue-manager.js';
 export { Queue, Worker, Job, QueueEvents } from 'bullmq';
 
 // Export core classes
-export { CommandQueue } from './queue.js';
+export { QueueManager, CommandQueue } from './queue.js';
 export { CommandQueueProcessor, createAgentCommandProcessor, createMockProcessor } from './processor.js';
 export { ConfigManager, validateQueueConfig, getConfigFromEnv, defaultQueueConfig } from './config.js';
 
