@@ -102,6 +102,12 @@ dist/
 build/
 *.tsbuildinfo
 
+# Compiled test files
+backend/tests/**/*.js
+backend/tests/**/*.js.map
+backend/tests/**/*.d.ts
+backend/tests/**/*.d.ts.map
+
 # Jest coverage
 coverage/
 
