@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // Root-specific overrides
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "references": [
+    { "path": "./backend" },
+    { "path": "./frontend" },
+    { "path": "./agent-wrapper" },
+    { "path": "./packages/agent-protocol" },
+    { "path": "./packages/command-queue" },
+    { "path": "./packages/trace-collector" }
+  ]
+}

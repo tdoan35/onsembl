@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Agent wrapper specific settings
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "jest"],
+    "lib": ["ES2022"], // Node.js CLI wrapper
+    "noEmit": false // CLI needs to emit JS files
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "dist"
+  ],
+  "references": [
+    { "path": "../packages/agent-protocol" },
+    { "path": "../packages/command-queue" }
+  ]
+}

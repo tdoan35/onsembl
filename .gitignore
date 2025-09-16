@@ -96,3 +96,21 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# TypeScript build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Jest coverage
+coverage/
+
+# Playwright test results
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Project-specific
+*.log
+.env*
+!.env.example

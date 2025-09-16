@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Package specific settings
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "jest"],
+    "lib": ["ES2022"], // Shared library
+    "noEmit": false, // Package needs to emit declaration files
+    "exactOptionalPropertyTypes": false, // Temporarily disable to work with BullMQ and ioredis
+    "noPropertyAccessFromIndexSignature": false, // Allow process.env.VAR syntax
+    "strictPropertyInitialization": false // Allow uninitialized properties in classes
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "dist"
+  ]
+}

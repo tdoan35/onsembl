@@ -43,70 +43,70 @@
 - **Packages**: `packages/{name}/src/`, `packages/{name}/tests/`
 
 ## Phase 3.1: Setup
-- [ ] T001 Create monorepo structure with backend/, frontend/, agent-wrapper/, packages/ directories
-- [ ] T002 Initialize root package.json with npm workspaces configuration
-- [ ] T003 [P] Initialize backend with Fastify, TypeScript, and dependencies in backend/
-- [ ] T004 [P] Initialize frontend with Next.js 14, TypeScript, Tailwind, shadcn/ui in frontend/
-- [ ] T005 [P] Initialize agent-wrapper with Node.js and TypeScript in agent-wrapper/
-- [ ] T006 [P] Create @onsembl/agent-protocol package in packages/agent-protocol/
-- [ ] T007 [P] Create @onsembl/command-queue package in packages/command-queue/
-- [ ] T008 [P] Create @onsembl/trace-collector package in packages/trace-collector/
-- [ ] T009 Configure TypeScript with shared tsconfig in root and project-specific configs
-- [ ] T010 [P] Setup ESLint and Prettier with consistent rules across all projects
-- [ ] T011 [P] Create .env.example with all required environment variables
-- [ ] T012 Setup Jest testing framework for backend and packages
-- [ ] T013 [P] Setup React Testing Library for frontend
-- [ ] T014 [P] Setup Playwright for E2E tests
+- [x] T001 Create monorepo structure with backend/, frontend/, agent-wrapper/, packages/ directories
+- [x] T002 Initialize root package.json with npm workspaces configuration
+- [x] T003 [P] Initialize backend with Fastify, TypeScript, and dependencies in backend/
+- [x] T004 [P] Initialize frontend with Next.js 14, TypeScript, Tailwind, shadcn/ui in frontend/
+- [x] T005 [P] Initialize agent-wrapper with Node.js and TypeScript in agent-wrapper/
+- [x] T006 [P] Create @onsembl/agent-protocol package in packages/agent-protocol/
+- [x] T007 [P] Create @onsembl/command-queue package in packages/command-queue/
+- [x] T008 [P] Create @onsembl/trace-collector package in packages/trace-collector/
+- [x] T009 Configure TypeScript with shared tsconfig in root and project-specific configs
+- [x] T010 [P] Setup ESLint and Prettier with consistent rules across all projects
+- [x] T011 [P] Create .env.example with all required environment variables
+- [x] T012 Setup Jest testing framework for backend and packages
+- [x] T013 [P] Setup React Testing Library for frontend
+- [x] T014 [P] Setup Playwright for E2E tests
 
 ## Phase 3.2: Database & Infrastructure Setup
-- [ ] T015 Create Supabase project and configure authentication
-- [ ] T016 Write database migration for agents table in supabase/migrations/001_agents.sql
-- [ ] T017 [P] Write database migration for commands table in supabase/migrations/002_commands.sql
-- [ ] T018 [P] Write database migration for terminal_outputs table in supabase/migrations/003_terminal_outputs.sql
-- [ ] T019 [P] Write database migration for command_presets table in supabase/migrations/004_command_presets.sql
-- [ ] T020 [P] Write database migration for trace_entries table in supabase/migrations/005_trace_entries.sql
-- [ ] T021 [P] Write database migration for investigation_reports table in supabase/migrations/006_investigation_reports.sql
-- [ ] T022 [P] Write database migration for audit_logs table in supabase/migrations/007_audit_logs.sql
-- [ ] T023 [P] Write database migration for execution_constraints table in supabase/migrations/008_execution_constraints.sql
-- [ ] T024 [P] Write database migration for command_queue table in supabase/migrations/009_command_queue.sql
-- [ ] T025 Setup Redis/Upstash connection for BullMQ queues
-- [ ] T026 Configure RLS policies for single-tenant access in Supabase
+- [x] T015 Create Supabase project and configure authentication
+- [x] T016 Write database migration for agents table in supabase/migrations/001_agents.sql
+- [x] T017 [P] Write database migration for commands table in supabase/migrations/002_commands.sql
+- [x] T018 [P] Write database migration for terminal_outputs table in supabase/migrations/003_terminal_outputs.sql
+- [x] T019 [P] Write database migration for command_presets table in supabase/migrations/004_command_presets.sql
+- [x] T020 [P] Write database migration for trace_entries table in supabase/migrations/005_trace_entries.sql
+- [x] T021 [P] Write database migration for investigation_reports table in supabase/migrations/006_investigation_reports.sql
+- [x] T022 [P] Write database migration for audit_logs table in supabase/migrations/007_audit_logs.sql
+- [x] T023 [P] Write database migration for execution_constraints table in supabase/migrations/008_execution_constraints.sql
+- [x] T024 [P] Write database migration for command_queue table in supabase/migrations/009_command_queue.sql
+- [x] T025 Setup Redis/Upstash connection for BullMQ queues
+- [x] T026 Configure RLS policies for single-tenant access in Supabase
 
 ## Phase 3.3: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.4
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
 ### Contract Tests - REST API
-- [ ] T027 [P] Contract test POST /auth/magic-link in backend/tests/contract/auth/magic-link.test.ts
+- [x] T027 [P] Contract test POST /auth/magic-link in backend/tests/contract/auth/magic-link.test.ts
       → Ref: rest-api.yaml lines 15-33, implementation-patterns.md "Contract Test Pattern"
-- [ ] T028 [P] Contract test POST /auth/verify in backend/tests/contract/auth/verify.test.ts
+- [x] T028 [P] Contract test POST /auth/verify in backend/tests/contract/auth/verify.test.ts
       → Ref: rest-api.yaml lines 35-51, schema: AuthResponse
-- [ ] T029 [P] Contract test GET /agents in backend/tests/contract/agents/list.test.ts
+- [x] T029 [P] Contract test GET /agents in backend/tests/contract/agents/list.test.ts
       → Ref: rest-api.yaml lines 54-72, response: Agent[]
-- [ ] T030 [P] Contract test GET /agents/{id} in backend/tests/contract/agents/get.test.ts
+- [x] T030 [P] Contract test GET /agents/{id} in backend/tests/contract/agents/get.test.ts
       → Ref: rest-api.yaml lines 74-87, response: Agent
-- [ ] T031 [P] Contract test POST /agents/{id}/restart in backend/tests/contract/agents/restart.test.ts
+- [x] T031 [P] Contract test POST /agents/{id}/restart in backend/tests/contract/agents/restart.test.ts
       → Ref: rest-api.yaml lines 89-102, response: MessageResponse
-- [ ] T032 [P] Contract test POST /agents/{id}/stop in backend/tests/contract/agents/stop.test.ts
+- [x] T032 [P] Contract test POST /agents/{id}/stop in backend/tests/contract/agents/stop.test.ts
       → Ref: rest-api.yaml lines 104-117, response: MessageResponse
-- [ ] T033 [P] Contract test GET /commands in backend/tests/contract/commands/list.test.ts
+- [x] T033 [P] Contract test GET /commands in backend/tests/contract/commands/list.test.ts
       → Ref: rest-api.yaml lines 120-143, query params: status, agentId, limit, offset
-- [ ] T034 [P] Contract test POST /commands in backend/tests/contract/commands/create.test.ts
+- [x] T034 [P] Contract test POST /commands in backend/tests/contract/commands/create.test.ts
       → Ref: rest-api.yaml lines 145-161, request: CreateCommand, response: Command
-- [ ] T035 [P] Contract test GET /commands/{id} in backend/tests/contract/commands/get.test.ts
+- [x] T035 [P] Contract test GET /commands/{id} in backend/tests/contract/commands/get.test.ts
       → Ref: rest-api.yaml lines 163-176, response: Command
-- [ ] T036 [P] Contract test POST /commands/{id}/cancel in backend/tests/contract/commands/cancel.test.ts
+- [x] T036 [P] Contract test POST /commands/{id}/cancel in backend/tests/contract/commands/cancel.test.ts
       → Ref: rest-api.yaml lines 178-195, optional body: reason
-- [ ] T037 [P] Contract test GET /commands/{id}/output in backend/tests/contract/commands/output.test.ts
+- [x] T037 [P] Contract test GET /commands/{id}/output in backend/tests/contract/commands/output.test.ts
       → Ref: rest-api.yaml lines 197-217, response: TerminalOutput[]
-- [ ] T038 [P] Contract test GET /commands/{id}/traces in backend/tests/contract/commands/traces.test.ts
+- [x] T038 [P] Contract test GET /commands/{id}/traces in backend/tests/contract/commands/traces.test.ts
       → Ref: rest-api.yaml lines 219-236, response: TraceEntry[]
-- [ ] T039 [P] Contract test POST /emergency-stop in backend/tests/contract/system/emergency-stop.test.ts
+- [x] T039 [P] Contract test POST /emergency-stop in backend/tests/contract/system/emergency-stop.test.ts
       → Ref: rest-api.yaml lines 239-256, response: agentsStopped count
-- [ ] T040 [P] Contract test GET /presets in backend/tests/contract/presets/list.test.ts
+- [x] T040 [P] Contract test GET /presets in backend/tests/contract/presets/list.test.ts
       → Ref: rest-api.yaml lines 259-274, response: CommandPreset[]
-- [ ] T041 [P] Contract test POST /presets in backend/tests/contract/presets/create.test.ts
+- [x] T041 [P] Contract test POST /presets in backend/tests/contract/presets/create.test.ts
       → Ref: rest-api.yaml lines 276-293, request: CreateCommandPreset
-- [ ] T042 [P] Contract test GET /reports in backend/tests/contract/reports/list.test.ts
+- [x] T042 [P] Contract test GET /reports in backend/tests/contract/reports/list.test.ts
       → Ref: rest-api.yaml lines 361-379, query: agentId, status
 - [ ] T043 [P] Contract test GET /audit-logs in backend/tests/contract/system/audit-logs.test.ts
       → Ref: rest-api.yaml lines 434-460, query: eventType, userId, from, to

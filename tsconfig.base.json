@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Onsembl.ai Base",
+  "compilerOptions": {
+    // Language and Environment
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    // Module System
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    // Type Checking - Strict Mode
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    // Additional Checks
+    "noUnusedLocals": false, // Let ESLint handle this
+    "noUnusedParameters": false, // Let ESLint handle this
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+
+    // Emit
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "importHelpers": true,
+
+    // Interop Constraints
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    // Completeness
+    "skipDefaultLibCheck": true,
+
+    // Projects
+    "incremental": true,
+    "composite": true,
+
+    // Path Mapping
+    "baseUrl": ".",
+    "paths": {
+      "@onsembl/agent-protocol": ["./packages/agent-protocol/src"],
+      "@onsembl/agent-protocol/*": ["./packages/agent-protocol/src/*"],
+      "@onsembl/command-queue": ["./packages/command-queue/src"],
+      "@onsembl/command-queue/*": ["./packages/command-queue/src/*"],
+      "@onsembl/trace-collector": ["./packages/trace-collector/src"],
+      "@onsembl/trace-collector/*": ["./packages/trace-collector/src/*"]
+    }
+  },
+  "watchOptions": {
+    // Use efficient file watching
+    "watchFile": "useFsEvents",
+    "watchDirectory": "useFsEvents",
+    "fallbackPolling": "dynamicPriority",
+    "synchronousWatchDirectory": true,
+    "excludeDirectories": ["**/node_modules", "**/.git"]
+  },
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/.next",
+    "**/coverage",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
+}

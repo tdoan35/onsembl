@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Generated files
+*.d.ts
+!*.env.d.ts
+!global.d.ts
+
+# Public assets (images, fonts, etc.)
+public/
+
+# Package manager lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Changelog
+CHANGELOG.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Environment files
+.env*
+
+# Documentation that shouldn't be formatted
+docs/api/
+
+# Third-party code
+vendor/
+
+# Minified files
+*.min.js
+*.min.css
+
+# Git
+.git/

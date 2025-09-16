@@ -1,0 +1,41 @@
+{
+  "name": "@onsembl/agent-wrapper",
+  "version": "0.1.0",
+  "description": "Node.js CLI wrappers for AI coding agents",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "onsembl-agent": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli.ts",
+    "build": "tsc --build",
+    "start": "node dist/cli.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.0",
+    "inquirer": "^9.2.0",
+    "ws": "^8.14.0",
+    "pino": "^8.16.0",
+    "pino-pretty": "^10.2.0",
+    "zod": "^3.22.0",
+    "@onsembl/agent-protocol": "*",
+    "@onsembl/command-queue": "*"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
