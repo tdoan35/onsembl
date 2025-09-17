@@ -15,17 +15,55 @@ export interface CorsOptions {
 }
 
 /**
+ * Dynamic origin validation with enhanced pattern matching
+ */
+function validateOrigin(origin: string, allowedOrigins: (string | RegExp)[]): boolean {
+  if (!origin) return true; // Allow requests with no origin (mobile apps, etc.)
+
+  return allowedOrigins.some(allowed => {
+    if (typeof allowed === 'string') {
+      // Exact match
+      if (allowed === origin) return true;
+
+      // Wildcard subdomain matching (e.g., "*.example.com")
+      if (allowed.startsWith('*.')) {
+        const domain = allowed.substring(2);
+        return origin.endsWith(`.${domain}`) || origin === domain;
+      }
+
+      // Protocol-agnostic matching
+      if (allowed.startsWith('//')) {
+        return origin.includes(allowed.substring(2));
+      }
+    } else if (allowed instanceof RegExp) {
+      return allowed.test(origin);
+    }
+
+    return false;
+  });
+}
+
+/**
  * Get CORS configuration based on environment
  */
 export function getCorsConfig(): CorsOptions {
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isDevelopment = process.env['NODE_ENV'] === 'development';
+  const isProduction = process.env['NODE_ENV'] === 'production';
 
   // Parse allowed origins from environment
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
+  const allowedOrigins: (string | RegExp)[] = (process.env['CORS_ORIGINS']?.split(',') || [
     'http://localhost:3000',
     'http://localhost:3001',
-  ];
+  ]).map(origin => {
+    // Convert glob patterns to RegExp
+    if (origin.includes('*')) {
+      const escapedOrigin = origin
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*');
+      return new RegExp(`^${escapedOrigin}$`);
+    }
+    return origin.trim();
+  });
 
   if (isDevelopment) {
     // Permissive CORS in development
@@ -62,13 +100,8 @@ export function getCorsConfig(): CorsOptions {
           return callback(null, true);
         }
 
-        // Check if origin is in allowed list
-        const isAllowed = allowedOrigins.some(allowed => {
-          if (allowed instanceof RegExp) {
-            return allowed.test(origin);
-          }
-          return allowed === origin;
-        });
+        // Use enhanced origin validation
+        const isAllowed = validateOrigin(origin, allowedOrigins);
 
         if (isAllowed) {
           callback(null, true);
@@ -110,10 +143,18 @@ export function getCorsConfig(): CorsOptions {
  * Configure CORS for WebSocket connections
  */
 export function configureWebSocketCors(fastify: FastifyInstance) {
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
+  const allowedOrigins: (string | RegExp)[] = (process.env['CORS_ORIGINS']?.split(',') || [
     'http://localhost:3000',
     'http://localhost:3001',
-  ];
+  ]).map(origin => {
+    if (origin.includes('*')) {
+      const escapedOrigin = origin
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*');
+      return new RegExp(`^${escapedOrigin}$`);
+    }
+    return origin.trim();
+  });
 
   fastify.addHook('onRoute', (routeOptions) => {
     if (routeOptions.websocket) {
@@ -123,8 +164,8 @@ export function configureWebSocketCors(fastify: FastifyInstance) {
         const origin = request.headers.origin;
 
         // Check origin for WebSocket connections
-        if (origin && process.env.NODE_ENV === 'production') {
-          const isAllowed = allowedOrigins.includes(origin);
+        if (origin && process.env['NODE_ENV'] === 'production') {
+          const isAllowed = validateOrigin(origin, allowedOrigins);
 
           if (!isAllowed) {
             fastify.log.warn({ origin }, 'WebSocket connection rejected due to CORS');
@@ -159,7 +200,7 @@ export function securityHeaders(fastify: FastifyInstance) {
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
 
     // Content Security Policy
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       reply.header(
         'Content-Security-Policy',
         "default-src 'self'; " +
@@ -173,7 +214,7 @@ export function securityHeaders(fastify: FastifyInstance) {
     }
 
     // Strict Transport Security (HSTS)
-    if (process.env.NODE_ENV === 'production' && request.protocol === 'https') {
+    if (process.env['NODE_ENV'] === 'production' && request.protocol === 'https') {
       reply.header(
         'Strict-Transport-Security',
         'max-age=31536000; includeSubDomains; preload'
@@ -192,7 +233,7 @@ export function securityHeaders(fastify: FastifyInstance) {
  * Configure API versioning headers
  */
 export function apiVersioning(fastify: FastifyInstance) {
-  const apiVersion = process.env.API_VERSION || '1.0.0';
+  const apiVersion = process.env['API_VERSION'] || '1.0.0';
 
   fastify.addHook('onSend', async (request, reply, payload) => {
     reply.header('X-API-Version', apiVersion);

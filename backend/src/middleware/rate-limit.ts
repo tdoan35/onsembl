@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { LRUCache } from 'lru-cache';
+import Redis from 'ioredis';
 
 interface RateLimitOptions {
   max: number;
@@ -18,7 +19,140 @@ interface RateLimitEntry {
 }
 
 /**
- * In-memory rate limiter using LRU cache
+ * Redis-based rate limiter with in-memory fallback
+ */
+class RedisRateLimiter {
+  private redis: Redis | null = null;
+  private fallbackCache: LRUCache<string, RateLimitEntry>;
+
+  constructor(private options: RateLimitOptions) {
+    // Try to connect to Redis if available
+    const redisUrl = process.env['REDIS_URL'] || process.env['UPSTASH_REDIS_URL'];
+    if (redisUrl) {
+      try {
+        this.redis = new Redis(redisUrl, {
+          retryDelayOnFailover: 100,
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
+
+        this.redis.on('error', (error) => {
+          console.warn('Redis rate limiter error:', error.message);
+          this.redis = null; // Fall back to in-memory
+        });
+      } catch (error) {
+        console.warn('Failed to connect to Redis, using in-memory fallback');
+      }
+    }
+
+    // Initialize fallback cache
+    this.fallbackCache = new LRUCache<string, RateLimitEntry>({
+      max: 10000,
+      ttl: options.window,
+    });
+  }
+
+  async check(key: string): Promise<{
+    allowed: boolean;
+    limit: number;
+    remaining: number;
+    resetTime: number;
+  }> {
+    if (this.redis) {
+      return this.checkRedis(key);
+    } else {
+      return this.checkMemory(key);
+    }
+  }
+
+  private async checkRedis(key: string): Promise<{
+    allowed: boolean;
+    limit: number;
+    remaining: number;
+    resetTime: number;
+  }> {
+    try {
+      const now = Date.now();
+      const resetTime = now + this.options.window;
+      const windowKey = `${key}:${Math.floor(now / this.options.window)}`;
+
+      // Use Redis transaction to ensure atomicity
+      const pipeline = this.redis!.pipeline();
+      pipeline.incr(windowKey);
+      pipeline.expire(windowKey, Math.ceil(this.options.window / 1000));
+
+      const [countResult] = await pipeline.exec();
+      const count = countResult ? (countResult[1] as number) : 1;
+
+      const allowed = count <= this.options.max;
+      const remaining = Math.max(0, this.options.max - count);
+
+      return {
+        allowed,
+        limit: this.options.max,
+        remaining,
+        resetTime,
+      };
+    } catch (error) {
+      // Fall back to memory cache on Redis error
+      console.warn('Redis rate limiter error, falling back to memory:', error);
+      this.redis = null;
+      return this.checkMemory(key);
+    }
+  }
+
+  private checkMemory(key: string): {
+    allowed: boolean;
+    limit: number;
+    remaining: number;
+    resetTime: number;
+  } {
+    const now = Date.now();
+    let entry = this.fallbackCache.get(key);
+
+    if (!entry || now > entry.resetTime) {
+      // Create new entry
+      entry = {
+        count: 0,
+        resetTime: now + this.options.window,
+      };
+    }
+
+    entry.count++;
+    this.fallbackCache.set(key, entry);
+
+    const allowed = entry.count <= this.options.max;
+    const remaining = Math.max(0, this.options.max - entry.count);
+
+    return {
+      allowed,
+      limit: this.options.max,
+      remaining,
+      resetTime: entry.resetTime,
+    };
+  }
+
+  reset(key: string) {
+    if (this.redis) {
+      this.redis.del(key).catch(() => {
+        // Ignore Redis errors for reset operations
+      });
+    }
+    this.fallbackCache.delete(key);
+  }
+
+  resetAll() {
+    if (this.redis) {
+      this.redis.flushdb().catch(() => {
+        // Ignore Redis errors for reset operations
+      });
+    }
+    this.fallbackCache.clear();
+  }
+}
+
+/**
+ * In-memory rate limiter using LRU cache (legacy)
  */
 class RateLimiter {
   private cache: LRUCache<string, RateLimitEntry>;
@@ -81,7 +215,7 @@ function defaultKeyGenerator(request: FastifyRequest): string {
  * Rate limiting middleware factory
  */
 export function createRateLimiter(options: RateLimitOptions) {
-  const limiter = new RateLimiter(options);
+  const limiter = new RedisRateLimiter(options);
   const keyGenerator = options.keyGenerator || defaultKeyGenerator;
 
   return async function rateLimitMiddleware(
@@ -152,9 +286,9 @@ export function createRateLimiter(options: RateLimitOptions) {
  */
 export function globalRateLimiter(fastify: FastifyInstance) {
   const limiter = createRateLimiter({
-    max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-    window: parseInt(process.env.RATE_LIMIT_WINDOW || '900000', 10), // 15 minutes
-    allowList: process.env.RATE_LIMIT_ALLOW_LIST?.split(','),
+    max: parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10),
+    window: parseInt(process.env['RATE_LIMIT_WINDOW'] || '900000', 10), // 15 minutes
+    allowList: process.env['RATE_LIMIT_ALLOW_LIST']?.split(','),
     message: 'Too many requests, please try again later.',
   });
 

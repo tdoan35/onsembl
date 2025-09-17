@@ -2,6 +2,15 @@ import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 
 /**
+ * Generate request ID in format: req-{timestamp}-{random}
+ */
+function generateRequestId(): string {
+  const timestamp = Date.now().toString(36);
+  const random = randomUUID().replace(/-/g, '').substring(0, 8);
+  return `req-${timestamp}-${random}`;
+}
+
+/**
  * Request ID middleware - adds unique ID to each request for tracing
  */
 export function requestIdMiddleware(fastify: FastifyInstance) {
@@ -13,7 +22,7 @@ export function requestIdMiddleware(fastify: FastifyInstance) {
       request.headers['x-trace-id'];
 
     // Generate or use existing ID
-    const requestId = (existingId as string) || randomUUID();
+    const requestId = (existingId as string) || generateRequestId();
 
     // Attach to request and reply
     (request as any).id = requestId;
@@ -89,7 +98,7 @@ export function correlationIdMiddleware(fastify: FastifyInstance) {
     const correlationId =
       request.headers['x-correlation-id'] ||
       (request as any).id ||
-      randomUUID();
+      generateRequestId();
 
     // Attach to request
     (request as any).correlationId = correlationId;
@@ -162,7 +171,7 @@ export function registerRequestIdMiddleware(fastify: FastifyInstance) {
   correlationIdMiddleware(fastify);
 
   // Only add trace context in production or if explicitly enabled
-  if (process.env.ENABLE_TRACING === 'true' || process.env.NODE_ENV === 'production') {
+  if (process.env['ENABLE_TRACING'] === 'true' || process.env['NODE_ENV'] === 'production') {
     traceContextMiddleware(fastify);
   }
 

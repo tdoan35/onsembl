@@ -164,99 +164,99 @@
 - [x] T068 [P] Implement trace-collector CLI in packages/trace-collector/src/cli.ts
 
 ### Backend Models & Services
-- [ ] T069 [P] Agent model with Supabase client in backend/src/models/agent.ts
-- [ ] T070 [P] Command model in backend/src/models/command.ts
-- [ ] T071 [P] TerminalOutput model in backend/src/models/terminal-output.ts
-- [ ] T072 [P] CommandPreset model in backend/src/models/command-preset.ts
-- [ ] T073 [P] TraceEntry model in backend/src/models/trace-entry.ts
-- [ ] T074 [P] InvestigationReport model in backend/src/models/investigation-report.ts
-- [ ] T075 [P] AuditLog model in backend/src/models/audit-log.ts
-- [ ] T076 [P] ExecutionConstraint model in backend/src/models/execution-constraint.ts
-- [ ] T077 [P] CommandQueue model in backend/src/models/command-queue.ts
-- [ ] T078 [P] AgentService with CRUD operations in backend/src/services/agent.service.ts
-- [ ] T079 [P] CommandService with queue management in backend/src/services/command.service.ts
-- [ ] T080 [P] AuthService with Supabase magic links in backend/src/services/auth.service.ts
-- [ ] T081 [P] AuditService for logging events in backend/src/services/audit.service.ts
+- [x] T069 [P] Agent model with Supabase client in backend/src/models/agent.ts
+- [x] T070 [P] Command model in backend/src/models/command.ts
+- [x] T071 [P] TerminalOutput model in backend/src/models/terminal-output.ts
+- [x] T072 [P] CommandPreset model in backend/src/models/command-preset.ts
+- [x] T073 [P] TraceEntry model in backend/src/models/trace-entry.ts
+- [x] T074 [P] InvestigationReport model in backend/src/models/investigation-report.ts
+- [x] T075 [P] AuditLog model in backend/src/models/audit-log.ts
+- [x] T076 [P] ExecutionConstraint model in backend/src/models/execution-constraint.ts
+- [x] T077 [P] CommandQueue model in backend/src/models/command-queue.ts
+- [x] T078 [P] AgentService with CRUD operations in backend/src/services/agent.service.ts
+- [x] T079 [P] CommandService with queue management in backend/src/services/command.service.ts
+- [x] T080 [P] AuthService with Supabase magic links in backend/src/services/auth.service.ts
+- [x] T081 [P] AuditService for logging events in backend/src/services/audit.service.ts
 
 ### Backend API Implementation
-- [ ] T082 Setup Fastify server with plugins in backend/src/server.ts
-- [ ] T083 Implement auth routes in backend/src/api/auth.ts
-- [ ] T084 Implement agent routes in backend/src/api/agents.ts
-- [ ] T085 Implement command routes in backend/src/api/commands.ts
-- [ ] T086 Implement preset routes in backend/src/api/presets.ts
-- [ ] T087 Implement report routes in backend/src/api/reports.ts
-- [ ] T088 Implement system routes (emergency-stop, audit) in backend/src/api/system.ts
-- [ ] T089 Implement constraint routes in backend/src/api/constraints.ts
+- [x] T082 Setup Fastify server with plugins in backend/src/server.ts
+- [x] T083 Implement auth routes in backend/src/api/auth.ts
+- [x] T084 Implement agent routes in backend/src/api/agents.ts
+- [x] T085 Implement command routes in backend/src/api/commands.ts
+- [x] T086 Implement preset routes in backend/src/api/presets.ts
+- [x] T087 Implement report routes in backend/src/api/reports.ts
+- [x] T088 Implement system routes (emergency-stop, audit) in backend/src/api/system.ts
+- [x] T089 Implement constraint routes in backend/src/api/constraints.ts
 
 ### WebSocket Implementation
-- [ ] T090 Setup @fastify/websocket plugin in backend/src/websocket/setup.ts
-- [ ] T091 Implement agent WebSocket handler in backend/src/websocket/agent-handler.ts
-- [ ] T092 Implement dashboard WebSocket handler in backend/src/websocket/dashboard-handler.ts
-- [ ] T093 Implement connection pooling in backend/src/websocket/connection-pool.ts
-- [ ] T094 Implement heartbeat management in backend/src/websocket/heartbeat.ts
-- [ ] T095 Implement message routing in backend/src/websocket/message-router.ts
-- [ ] T096 Implement terminal streaming in backend/src/websocket/terminal-stream.ts
-- [ ] T097 Implement JWT token rotation in backend/src/websocket/token-manager.ts
+- [x] T090 Setup @fastify/websocket plugin in backend/src/websocket/setup.ts
+- [x] T091 Implement agent WebSocket handler in backend/src/websocket/agent-handler.ts
+- [x] T092 Implement dashboard WebSocket handler in backend/src/websocket/dashboard-handler.ts
+- [x] T093 Implement connection pooling in backend/src/websocket/connection-pool.ts
+- [x] T094 Implement heartbeat management in backend/src/websocket/heartbeat.ts
+- [x] T095 Implement message routing in backend/src/websocket/message-router.ts
+- [x] T096 Implement terminal streaming in backend/src/websocket/terminal-stream.ts
+- [x] T097 Implement JWT token rotation in backend/src/websocket/token-manager.ts
 
 ### Frontend Components
-- [ ] T098 [P] Create app layout with shadcn/ui Sidebar in frontend/src/app/layout.tsx
-- [ ] T099 [P] Implement agent status cards with shadcn/ui Card in frontend/src/components/agents/agent-card.tsx
-- [ ] T100 [P] Implement terminal viewer with xterm.js in frontend/src/components/terminal/terminal-viewer.tsx
-- [ ] T101 [P] Implement command input with shadcn/ui Input and Button in frontend/src/components/command/command-input.tsx
-- [ ] T102 [P] Implement trace tree viewer with shadcn/ui Tree in frontend/src/components/trace/trace-tree.tsx
-- [ ] T103 [P] Implement preset manager with shadcn/ui Dialog and Form in frontend/src/components/presets/preset-manager.tsx
-- [ ] T104 [P] Implement emergency stop with shadcn/ui AlertDialog in frontend/src/components/system/emergency-stop.tsx
-- [ ] T105 [P] Implement report viewer with shadcn/ui ScrollArea in frontend/src/components/reports/report-viewer.tsx
-- [ ] T106 [P] Implement audit log viewer with shadcn/ui Table in frontend/src/components/audit/audit-viewer.tsx
+- [x] T098 [P] Create app layout with shadcn/ui Sidebar in frontend/src/app/layout.tsx
+- [x] T099 [P] Implement agent status cards with shadcn/ui Card in frontend/src/components/agents/agent-card.tsx
+- [x] T100 [P] Implement terminal viewer with xterm.js in frontend/src/components/terminal/terminal-viewer.tsx
+- [x] T101 [P] Implement command input with shadcn/ui Input and Button in frontend/src/components/command/command-input.tsx
+- [x] T102 [P] Implement trace tree viewer with shadcn/ui Tree in frontend/src/components/trace/trace-tree.tsx
+- [x] T103 [P] Implement preset manager with shadcn/ui Dialog and Form in frontend/src/components/presets/preset-manager.tsx
+- [x] T104 [P] Implement emergency stop with shadcn/ui AlertDialog in frontend/src/components/system/emergency-stop.tsx
+- [x] T105 [P] Implement report viewer with shadcn/ui ScrollArea in frontend/src/components/reports/report-viewer.tsx
+- [x] T106 [P] Implement audit log viewer with shadcn/ui Table in frontend/src/components/audit/audit-viewer.tsx
 
 ### Frontend Services & State
-- [ ] T107 [P] Create Zustand store for agent state in frontend/src/stores/agent.store.ts
-- [ ] T108 [P] Create Zustand store for command state in frontend/src/stores/command.store.ts
-- [ ] T109 [P] Create Zustand store for UI state in frontend/src/stores/ui.store.ts
-- [ ] T110 [P] Implement WebSocket client service in frontend/src/services/websocket.service.ts
-- [ ] T111 [P] Implement API client service in frontend/src/services/api.service.ts
-- [ ] T112 [P] Implement auth service with Supabase in frontend/src/services/auth.service.ts
+- [x] T107 [P] Create Zustand store for agent state in frontend/src/stores/agent.store.ts
+- [x] T108 [P] Create Zustand store for command state in frontend/src/stores/command.store.ts
+- [x] T109 [P] Create Zustand store for UI state in frontend/src/stores/ui.store.ts
+- [x] T110 [P] Implement WebSocket client service in frontend/src/services/websocket.service.ts
+- [x] T111 [P] Implement API client service in frontend/src/services/api.service.ts
+- [x] T112 [P] Implement auth service with Supabase in frontend/src/services/auth.service.ts
 
 ### Frontend Pages
-- [ ] T113 Create dashboard page with shadcn/ui layout components in frontend/src/app/dashboard/page.tsx
-- [ ] T114 [P] Create login page with shadcn/ui Form and Card in frontend/src/app/login/page.tsx
-- [ ] T115 [P] Create presets page with shadcn/ui DataTable in frontend/src/app/presets/page.tsx
-- [ ] T116 [P] Create reports page with shadcn/ui Tabs in frontend/src/app/reports/page.tsx
-- [ ] T117 [P] Create audit logs page with shadcn/ui DataTable in frontend/src/app/audit/page.tsx
-- [ ] T118 [P] Create settings page with shadcn/ui Form components in frontend/src/app/settings/page.tsx
+- [x] T113 Create dashboard page with shadcn/ui layout components in frontend/src/app/dashboard/page.tsx
+- [x] T114 [P] Create login page with shadcn/ui Form and Card in frontend/src/app/login/page.tsx
+- [x] T115 [P] Create presets page with shadcn/ui DataTable in frontend/src/app/presets/page.tsx
+- [x] T116 [P] Create reports page with shadcn/ui Tabs in frontend/src/app/reports/page.tsx
+- [x] T117 [P] Create audit logs page with shadcn/ui DataTable in frontend/src/app/audit/page.tsx
+- [x] T118 [P] Create settings page with shadcn/ui Form components in frontend/src/app/settings/page.tsx
 
 ### Agent Wrapper Implementation
-- [ ] T119 [P] Create agent wrapper CLI in agent-wrapper/src/cli.ts
-- [ ] T120 [P] Implement process spawning for Claude in agent-wrapper/src/agents/claude.ts
-- [ ] T121 [P] Implement process spawning for Gemini in agent-wrapper/src/agents/gemini.ts
-- [ ] T122 [P] Implement process spawning for Codex in agent-wrapper/src/agents/codex.ts
-- [ ] T123 [P] Implement WebSocket client in agent-wrapper/src/websocket-client.ts
-- [ ] T124 [P] Implement stdout/stderr capture in agent-wrapper/src/stream-capture.ts
-- [ ] T125 [P] Implement command execution in agent-wrapper/src/command-executor.ts
-- [ ] T126 [P] Implement config loader in agent-wrapper/src/config.ts
-- [ ] T127 [P] Implement reconnection logic in agent-wrapper/src/reconnection.ts
+- [x] T119 [P] Create agent wrapper CLI in agent-wrapper/src/cli.ts
+- [x] T120 [P] Implement process spawning for Claude in agent-wrapper/src/agents/claude.ts
+- [x] T121 [P] Implement process spawning for Gemini in agent-wrapper/src/agents/gemini.ts
+- [x] T122 [P] Implement process spawning for Codex in agent-wrapper/src/agents/codex.ts
+- [x] T123 [P] Implement WebSocket client in agent-wrapper/src/websocket-client.ts
+- [x] T124 [P] Implement stdout/stderr capture in agent-wrapper/src/stream-capture.ts
+- [x] T125 [P] Implement command execution in agent-wrapper/src/command-executor.ts
+- [x] T126 [P] Implement config loader in agent-wrapper/src/config.ts
+- [x] T127 [P] Implement reconnection logic in agent-wrapper/src/reconnection.ts
 
 ## Phase 3.5: Integration & Middleware
-- [ ] T128 Setup JWT authentication middleware in backend/src/middleware/auth.ts
-- [ ] T129 Implement request ID middleware in backend/src/middleware/request-id.ts
-- [ ] T130 Implement Pino logging middleware in backend/src/middleware/logging.ts
-- [ ] T131 Implement rate limiting middleware in backend/src/middleware/rate-limit.ts
-- [ ] T132 Implement CORS configuration in backend/src/middleware/cors.ts
-- [ ] T133 Connect AgentService to Supabase realtime in backend/src/services/agent.service.ts
-- [ ] T134 Connect CommandService to BullMQ in backend/src/services/command.service.ts
-- [ ] T135 Implement error handling middleware in backend/src/middleware/error-handler.ts
+- [x] T128 Setup JWT authentication middleware in backend/src/middleware/auth.ts
+- [x] T129 Implement request ID middleware in backend/src/middleware/request-id.ts
+- [x] T130 Implement Pino logging middleware in backend/src/middleware/logging.ts
+- [x] T131 Implement rate limiting middleware in backend/src/middleware/rate-limit.ts
+- [x] T132 Implement CORS configuration in backend/src/middleware/cors.ts
+- [x] T133 Connect AgentService to Supabase realtime in backend/src/services/agent.service.ts
+- [x] T134 Connect CommandService to BullMQ in backend/src/services/command.service.ts
+- [x] T135 Implement error handling middleware in backend/src/middleware/error-handler.ts
 
 ## Phase 3.6: Polish & Performance
-- [ ] T136 [P] Unit tests for agent-protocol validation in packages/agent-protocol/tests/
-- [ ] T137 [P] Unit tests for command-queue priority in packages/command-queue/tests/
-- [ ] T138 [P] Unit tests for trace-collector aggregation in packages/trace-collector/tests/
-- [ ] T139 [P] Performance test WebSocket latency (<200ms) in backend/tests/performance/latency.test.ts
-- [ ] T140 [P] Load test 10+ concurrent agents in backend/tests/performance/concurrency.test.ts
-- [ ] T141 [P] Create API documentation from OpenAPI spec
-- [ ] T142 [P] Create deployment guide for Fly.io
-- [ ] T143 [P] Create deployment guide for Vercel
-- [ ] T144 Run quickstart validation checklist
-- [ ] T145 E2E test full user journey with Playwright
+- [x] T136 [P] Unit tests for agent-protocol validation in packages/agent-protocol/tests/
+- [x] T137 [P] Unit tests for command-queue priority in packages/command-queue/tests/
+- [x] T138 [P] Unit tests for trace-collector aggregation in packages/trace-collector/tests/
+- [x] T139 [P] Performance test WebSocket latency (<200ms) in backend/tests/performance/latency.test.ts
+- [x] T140 [P] Load test 10+ concurrent agents in backend/tests/performance/concurrency.test.ts
+- [x] T141 [P] Create API documentation from OpenAPI spec
+- [x] T142 [P] Create deployment guide for Fly.io
+- [x] T143 [P] Create deployment guide for Vercel
+- [x] T144 Run quickstart validation checklist
+- [x] T145 E2E test full user journey with Playwright
 
 ## Dependencies
 - Setup (T001-T014) blocks everything

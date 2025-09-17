@@ -1,9 +1,9 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  displayName: 'trace-collector',
+  displayName: 'command-queue',
   testEnvironment: 'node',
 
-  // TypeScript support
+  // TypeScript support with ESM
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts'],
 
@@ -22,10 +22,13 @@ module.exports = {
     }],
   },
 
-  // Module name mapping
-  moduleNameMapping: {
+  // Module name mapping (fixed typo)
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
+
+  // Module resolution
+  resolver: 'ts-jest-resolver',
 
   // Coverage
   collectCoverageFrom: [
@@ -36,8 +39,8 @@ module.exports = {
     '!src/**/__mocks__/**/*',
   ],
 
-  // Setup files
-  setupFilesAfterEnv: ['<rootDir>/../../jest.setup.js'],
+  // Setup files - comment out if not available
+  // setupFilesAfterEnv: ['<rootDir>/../../jest.setup.js'],
 
   // Test timeout
   testTimeout: 10000,
@@ -59,4 +62,12 @@ module.exports = {
   modulePathIgnorePatterns: [
     '<rootDir>/dist/',
   ],
+
+  // ES modules support
+  globals: {
+    'ts-jest': {
+      useESM: true,
+      tsconfig: './tsconfig.json',
+    },
+  },
 };

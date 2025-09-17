@@ -10,7 +10,7 @@ interface TestServerOptions {
   logLevel?: string;
 }
 
-export function createTestServer(options: TestServerOptions = {}): FastifyInstance {
+export async function createTestServer(options: TestServerOptions = {}): Promise<FastifyInstance> {
   const {
     withAuth = true,
     withCors = true,
@@ -24,14 +24,14 @@ export function createTestServer(options: TestServerOptions = {}): FastifyInstan
 
   // Register plugins
   if (withCors) {
-    server.register(cors, {
+    await server.register(cors, {
       origin: true,
       credentials: true,
     });
   }
 
   if (withAuth) {
-    server.register(jwt, {
+    await server.register(jwt, {
       secret: process.env.JWT_SECRET || 'test-secret-key',
     });
 

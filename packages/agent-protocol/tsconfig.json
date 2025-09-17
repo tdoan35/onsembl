@@ -9,10 +9,10 @@
     "noEmit": false // Package needs to emit declaration files
   },
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "src/**/*"
   ],
   "exclude": [
-    "dist"
+    "dist",
+    "tests/**/*"
   ]
 }

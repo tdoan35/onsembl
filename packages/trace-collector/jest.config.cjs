@@ -1,11 +1,10 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  displayName: 'agent-protocol',
+  displayName: 'trace-collector',
   testEnvironment: 'node',
 
-  // TypeScript support
-  preset: 'ts-jest/presets/default-esm',
-  extensionsToTreatAsEsm: ['.ts'],
+  // Use CommonJS mode for simplicity
+  preset: 'ts-jest',
 
   // Test files
   testMatch: [
@@ -17,13 +16,12 @@ module.exports = {
   // Transform configuration
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      useESM: true,
       tsconfig: './tsconfig.json',
     }],
   },
 
-  // Module name mapping
-  moduleNameMapping: {
+  // Module name mapping to handle .js imports in TypeScript
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 

@@ -33,7 +33,7 @@ describe('Integration: Trace Tree Generation', () => {
   const traceIndex = new Map<string, TraceEvent>();
 
   beforeAll(async () => {
-    server = createTestServer({ withAuth: true });
+    server = await createTestServer({ withAuth: true });
     authToken = generateTestToken(server);
 
     // Register WebSocket plugin
@@ -793,17 +793,20 @@ describe('Integration: Trace Tree Generation', () => {
 
       // Create a large number of traces
       const TRACE_COUNT = 100;
-      const traces = Array.from({ length: TRACE_COUNT }, (_, i) => ({
-        id: uuidv4(),
-        commandId,
-        parentId: i === 0 ? null : (i % 10 === 0 ? null : traces[Math.floor(i / 10)]?.id),
-        type: ['LLM_PROMPT', 'TOOL_CALL', 'RESPONSE'][i % 3] as any,
-        name: `Trace ${i}`,
-        content: {},
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        durationMs: Math.floor(Math.random() * 1000),
-      }));
+      const traces: any[] = [];
+      for (let i = 0; i < TRACE_COUNT; i++) {
+        traces.push({
+          id: uuidv4(),
+          commandId,
+          parentId: i === 0 ? null : (i % 10 === 0 ? null : traces[Math.floor(i / 10)]?.id),
+          type: ['LLM_PROMPT', 'TOOL_CALL', 'RESPONSE'][i % 3] as any,
+          name: `Trace ${i}`,
+          content: {},
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: Math.floor(Math.random() * 1000),
+        });
+      }
 
       // Send all traces
       for (const trace of traces) {

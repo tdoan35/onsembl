@@ -34,13 +34,18 @@ module.exports = {
   ],
 
   // Module resolution
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@onsembl/agent-protocol$': '<rootDir>/../packages/agent-protocol/src',
     '^@onsembl/command-queue$': '<rootDir>/../packages/command-queue/src',
     '^@onsembl/trace-collector$': '<rootDir>/../packages/trace-collector/src',
   },
+
+  // Transform node_modules that use ESM
+  transformIgnorePatterns: [
+    'node_modules/(?!(uuid|nanoid)/)',
+  ],
 
   // Test environment
   testEnvironment: 'node',
@@ -82,11 +87,4 @@ module.exports = {
 
   // Clear mocks automatically between tests
   clearMocks: true,
-
-  // Globals
-  globals: {
-    'ts-jest': {
-      useESM: true,
-    },
-  },
 };

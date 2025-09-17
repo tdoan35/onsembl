@@ -20,16 +20,21 @@ const configSchema = z.object({
   // CORS
   corsOrigin: z.string().or(z.array(z.string())).default('*'),
 
-  // Database (Supabase)
-  supabaseUrl: z.string().optional(),
-  supabaseAnonKey: z.string().optional(),
-  supabaseServiceKey: z.string().optional(),
+  // API URLs
+  API_URL: z.string().optional(),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
+
+  // Database (Supabase) - optional in development
+  SUPABASE_URL: z.string().default('http://localhost:54321'),
+  SUPABASE_ANON_KEY: z.string().default('mock-anon-key'),
+  SUPABASE_SERVICE_KEY: z.string().optional().default('mock-service-key'),
 
   // Redis (Upstash)
-  redisUrl: z.string().optional(),
+  REDIS_URL: z.string().optional(),
 
   // JWT
-  jwtSecret: z.string().optional(),
+  JWT_SECRET: z.string().default('supersecretkey'),
+  JWT_EXPIRES_IN: z.string().default('24h'),
 
   // WebSocket
   wsPath: z.string().default('/ws'),
@@ -49,37 +54,42 @@ export type Config = z.infer<typeof configSchema>;
 function loadConfig(): Config {
   const env = {
     // Server
-    port: process.env.PORT,
-    host: process.env.HOST,
+    port: process.env['BACKEND_PORT'] || process.env['PORT'],
+    host: process.env['BACKEND_HOST'] || process.env['HOST'],
 
     // Environment
-    nodeEnv: process.env.NODE_ENV,
+    nodeEnv: process.env['NODE_ENV'],
 
     // Logging
-    logLevel: process.env.LOG_LEVEL,
+    logLevel: process.env['LOG_LEVEL'],
 
     // CORS
-    corsOrigin: process.env.CORS_ORIGIN,
+    corsOrigin: process.env['CORS_ORIGIN'],
+
+    // API URLs
+    API_URL: process.env['API_URL'],
+    FRONTEND_URL: process.env['FRONTEND_URL'],
 
     // Database
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-    supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_URL: process.env['SUPABASE_URL'],
+    SUPABASE_ANON_KEY: process.env['SUPABASE_ANON_KEY'],
+    SUPABASE_SERVICE_KEY: process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_SERVICE_KEY'],
 
     // Redis
-    redisUrl: process.env.REDIS_URL,
+    REDIS_URL: process.env['REDIS_URL'],
 
     // JWT
-    jwtSecret: process.env.JWT_SECRET,
+    JWT_SECRET: process.env['JWT_SECRET'],
+    JWT_EXPIRES_IN: process.env['JWT_EXPIRES_IN'],
 
     // WebSocket
-    wsPath: process.env.WS_PATH,
-    wsMaxConnections: process.env.WS_MAX_CONNECTIONS,
-    wsMaxPayload: process.env.WS_MAX_PAYLOAD,
+    wsPath: process.env['WS_PATH'],
+    wsMaxConnections: process.env['WS_MAX_CONNECTIONS'],
+    wsMaxPayload: process.env['WS_MAX_PAYLOAD'],
 
     // Agent configuration
-    maxConcurrentAgents: process.env.MAX_CONCURRENT_AGENTS,
-    commandTimeoutMs: process.env.COMMAND_TIMEOUT_MS,
+    maxConcurrentAgents: process.env['MAX_CONCURRENT_AGENTS'],
+    commandTimeoutMs: process.env['COMMAND_TIMEOUT_MS'],
   };
 
   try {

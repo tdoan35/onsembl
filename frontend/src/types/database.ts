@@ -15,7 +15,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['agents']['Row'], 'id' | 'created_at' | 'updated_at'>;\n        Update: Partial<Database['public']['Tables']['agents']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['agents']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['agents']['Insert']>;
       };
       commands: {
         Row: {
@@ -31,7 +32,8 @@ export type Database = {
           completed_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['commands']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['commands']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['commands']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['commands']['Insert']>;
       };
       terminal_outputs: {
         Row: {
@@ -43,7 +45,8 @@ export type Database = {
           timestamp: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['terminal_outputs']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['terminal_outputs']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['terminal_outputs']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['terminal_outputs']['Insert']>;
       };
       command_presets: {
         Row: {
@@ -57,7 +60,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['command_presets']['Row'], 'id' | 'created_at' | 'updated_at'>;\n        Update: Partial<Database['public']['Tables']['command_presets']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['command_presets']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['command_presets']['Insert']>;
       };
       trace_entries: {
         Row: {
@@ -72,7 +76,8 @@ export type Database = {
           duration_ms: number | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['trace_entries']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['trace_entries']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['trace_entries']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['trace_entries']['Insert']>;
       };
       investigation_reports: {
         Row: {
@@ -85,7 +90,8 @@ export type Database = {
           recommendations: string[] | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['investigation_reports']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['investigation_reports']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['investigation_reports']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['investigation_reports']['Insert']>;
       };
       audit_logs: {
         Row: {
@@ -99,7 +105,8 @@ export type Database = {
           user_agent: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>;
       };
       execution_constraints: {
         Row: {
@@ -113,7 +120,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['execution_constraints']['Row'], 'id' | 'created_at' | 'updated_at'>;\n        Update: Partial<Database['public']['Tables']['execution_constraints']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['execution_constraints']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['execution_constraints']['Insert']>;
       };
       command_queue: {
         Row: {
@@ -125,7 +133,8 @@ export type Database = {
           estimated_duration_ms: number | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['command_queue']['Row'], 'id' | 'created_at'>;\n        Update: Partial<Database['public']['Tables']['command_queue']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['command_queue']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['command_queue']['Insert']>;
       };
     };
     Views: {

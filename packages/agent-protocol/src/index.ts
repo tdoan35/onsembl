@@ -237,3 +237,33 @@ export const RATE_LIMITS = {
   MAX_CONNECTIONS_PER_IP: 10,
   MAX_AGENTS_PER_USER: 5
 } as const;
+
+// Agent Type constants
+export const AgentType = {
+  CLAUDE: 'CLAUDE' as const,
+  GEMINI: 'GEMINI' as const,
+  CODEX: 'CODEX' as const
+} as const;
+
+// Command Status constants
+export const CommandStatus = {
+  PENDING: 'PENDING' as const,
+  QUEUED: 'QUEUED' as const,
+  EXECUTING: 'EXECUTING' as const,
+  COMPLETED: 'COMPLETED' as const,
+  FAILED: 'FAILED' as const,
+  CANCELLED: 'CANCELLED' as const
+} as const;
+
+// Terminal Output Type constants
+export const TerminalOutputType = {
+  STDOUT: 'STDOUT' as const,
+  STDERR: 'STDERR' as const
+} as const;
+
+// Trace Event Type constants
+export const TraceEventType = {
+  LLM_PROMPT: 'LLM_PROMPT' as const,
+  TOOL_CALL: 'TOOL_CALL' as const,
+  RESPONSE: 'RESPONSE' as const
+} as const;

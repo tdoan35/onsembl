@@ -1,1 +1,188 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';\nimport { createClient } from '@supabase/supabase-js';\nimport type { Database } from '@/types/database';\n\n// Environment variables\nconst supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;\nconst supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;\n\n// Client for use in Client Components\nexport const supabase = createClientComponentClient<Database>();\n\n// Standard client for use in Server Components and API routes\nexport const supabaseClient = createClient<Database>(\n  supabaseUrl,\n  supabaseAnonKey,\n  {\n    auth: {\n      persistSession: true,\n      autoRefreshToken: true,\n      detectSessionInUrl: true,\n    },\n    realtime: {\n      params: {\n        eventsPerSecond: 10,\n      },\n    },\n  },\n);\n\n// Auth helpers\nexport const auth = {\n  async signIn(email: string, password: string) {\n    const { data, error } = await supabase.auth.signInWithPassword({\n      email,\n      password,\n    });\n    \n    if (error) throw error;\n    return data;\n  },\n\n  async signUp(email: string, password: string, metadata?: Record<string, any>) {\n    const { data, error } = await supabase.auth.signUp({\n      email,\n      password,\n      options: {\n        data: metadata,\n      },\n    });\n    \n    if (error) throw error;\n    return data;\n  },\n\n  async signOut() {\n    const { error } = await supabase.auth.signOut();\n    if (error) throw error;\n  },\n\n  async getSession() {\n    const { data, error } = await supabase.auth.getSession();\n    if (error) throw error;\n    return data.session;\n  },\n\n  async getUser() {\n    const { data, error } = await supabase.auth.getUser();\n    if (error) throw error;\n    return data.user;\n  },\n\n  onAuthStateChange(callback: (event: string, session: any) => void) {\n    return supabase.auth.onAuthStateChange(callback);\n  },\n};\n\n// Realtime subscriptions\nexport const realtime = {\n  subscribeToAgents(callback: (payload: any) => void) {\n    return supabase\n      .channel('agents')\n      .on(\n        'postgres_changes',\n        { event: '*', schema: 'public', table: 'agents' },\n        callback,\n      )\n      .subscribe();\n  },\n\n  subscribeToCommands(callback: (payload: any) => void, agentId?: string) {\n    const channel = supabase.channel('commands');\n    \n    if (agentId) {\n      return channel\n        .on(\n          'postgres_changes',\n          { \n            event: '*', \n            schema: 'public', \n            table: 'commands',\n            filter: `agent_id=eq.${agentId}`,\n          },\n          callback,\n        )\n        .subscribe();\n    }\n    \n    return channel\n      .on(\n        'postgres_changes',\n        { event: '*', schema: 'public', table: 'commands' },\n        callback,\n      )\n      .subscribe();\n  },\n\n  subscribeToTerminalOutput(commandId: string, callback: (payload: any) => void) {\n    return supabase\n      .channel(`terminal-${commandId}`)\n      .on(\n        'postgres_changes',\n        { \n          event: 'INSERT', \n          schema: 'public', \n          table: 'terminal_outputs',\n          filter: `command_id=eq.${commandId}`,\n        },\n        callback,\n      )\n      .subscribe();\n  },\n\n  unsubscribe(subscription: any) {\n    supabase.removeChannel(subscription);\n  },\n};\n\n// Storage helpers\nexport const storage = {\n  async uploadAgentLog(file: File, agentId: string) {\n    const fileName = `${agentId}/${Date.now()}-${file.name}`;\n    const { data, error } = await supabase.storage\n      .from('agent-logs')\n      .upload(fileName, file);\n    \n    if (error) throw error;\n    return data;\n  },\n\n  async uploadCommandOutput(file: File, commandId: string) {\n    const fileName = `${commandId}/${Date.now()}-${file.name}`;\n    const { data, error } = await supabase.storage\n      .from('command-outputs')\n      .upload(fileName, file);\n    \n    if (error) throw error;\n    return data;\n  },\n\n  async uploadTraceExport(file: File, traceId: string) {\n    const fileName = `${traceId}/${Date.now()}-${file.name}`;\n    const { data, error } = await supabase.storage\n      .from('trace-exports')\n      .upload(fileName, file);\n    \n    if (error) throw error;\n    return data;\n  },\n\n  async getPublicUrl(bucket: string, path: string) {\n    const { data } = supabase.storage\n      .from(bucket)\n      .getPublicUrl(path);\n    \n    return data.publicUrl;\n  },\n\n  async downloadFile(bucket: string, path: string) {\n    const { data, error } = await supabase.storage\n      .from(bucket)\n      .download(path);\n    \n    if (error) throw error;\n    return data;\n  },\n};\n\nexport default supabase;
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+
+// Environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+// Client for use in Client Components
+export const supabase = createClientComponentClient<Database>();
+
+// Standard client for use in Server Components and API routes
+export const supabaseClient = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+  },
+);
+
+// Auth helpers
+export const auth = {
+  async signIn(email: string, password: string) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async signUp(email: string, password: string, metadata?: Record<string, any>) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+      },
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  },
+
+  async getSession() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  },
+
+  async getUser() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user;
+  },
+
+  onAuthStateChange(callback: (event: string, session: any) => void) {
+    return supabase.auth.onAuthStateChange(callback);
+  },
+};
+
+// Realtime subscriptions
+export const realtime = {
+  subscribeToAgents(callback: (payload: any) => void) {
+    return supabase
+      .channel('agents')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'agents' },
+        callback,
+      )
+      .subscribe();
+  },
+
+  subscribeToCommands(callback: (payload: any) => void, agentId?: string) {
+    const channel = supabase.channel('commands');
+
+    if (agentId) {
+      return channel
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'commands',
+            filter: `agent_id=eq.${agentId}`,
+          },
+          callback,
+        )
+        .subscribe();
+    }
+
+    return channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'commands' },
+        callback,
+      )
+      .subscribe();
+  },
+
+  subscribeToTerminalOutput(commandId: string, callback: (payload: any) => void) {
+    return supabase
+      .channel(`terminal-${commandId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'terminal_outputs',
+          filter: `command_id=eq.${commandId}`,
+        },
+        callback,
+      )
+      .subscribe();
+  },
+
+  unsubscribe(subscription: any) {
+    supabase.removeChannel(subscription);
+  },
+};
+
+// Storage helpers
+export const storage = {
+  async uploadAgentLog(file: File, agentId: string) {
+    const fileName = `${agentId}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('agent-logs')
+      .upload(fileName, file);
+
+    if (error) throw error;
+    return data;
+  },
+
+  async uploadCommandOutput(file: File, commandId: string) {
+    const fileName = `${commandId}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('command-outputs')
+      .upload(fileName, file);
+
+    if (error) throw error;
+    return data;
+  },
+
+  async uploadTraceExport(file: File, traceId: string) {
+    const fileName = `${traceId}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('trace-exports')
+      .upload(fileName, file);
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getPublicUrl(bucket: string, path: string) {
+    const { data } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(path);
+
+    return data.publicUrl;
+  },
+
+  async downloadFile(bucket: string, path: string) {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .download(path);
+
+    if (error) throw error;
+    return data;
+  },
+};
+
+export default supabase;

@@ -24,8 +24,8 @@ export function createLogger(config?: {
   pretty?: boolean;
   redact?: string[];
 }) {
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  const level = config?.level || process.env.LOG_LEVEL || 'info';
+  const isDevelopment = process.env['NODE_ENV'] === 'development';
+  const level = config?.level || process.env['LOG_LEVEL'] || 'info';
 
   return pino({
     level,
@@ -230,20 +230,103 @@ export function performanceLogger(fastify: FastifyInstance) {
     level: 'warn',
   }).child({ component: 'performance' });
 
-  const slowThreshold = parseInt(process.env.SLOW_REQUEST_THRESHOLD || '1000', 10);
+  const slowThreshold = parseInt(process.env['SLOW_REQUEST_THRESHOLD'] || '1000', 10);
+  const verySlowThreshold = parseInt(process.env['VERY_SLOW_REQUEST_THRESHOLD'] || '5000', 10);
+
+  // Track request timing details
+  const requestTiming = new Map<string, {
+    startTime: number;
+    dbQueries: number;
+    externalCalls: number;
+    memoryUsage: NodeJS.MemoryUsage;
+  }>();
+
+  fastify.addHook('onRequest', async (request: FastifyRequest) => {
+    const requestId = (request as any).id;
+    if (requestId) {
+      requestTiming.set(requestId, {
+        startTime: process.hrtime.bigint(),
+        dbQueries: 0,
+        externalCalls: 0,
+        memoryUsage: process.memoryUsage(),
+      });
+    }
+  });
 
   fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
     const responseTime = reply.getResponseTime();
+    const requestId = (request as any).id;
+    const timing = requestTiming.get(requestId);
 
-    if (responseTime > slowThreshold) {
-      perfLog.warn({
-        event: 'slow_request',
-        method: request.method,
-        url: request.url,
-        responseTime,
-        threshold: slowThreshold,
-        requestId: (request as any).id,
-      });
+    if (timing) {
+      const endTime = process.hrtime.bigint();
+      const totalTime = Number(endTime - timing.startTime) / 1000000; // Convert to milliseconds
+      const currentMemory = process.memoryUsage();
+
+      // Calculate memory delta
+      const memoryDelta = {
+        heapUsed: currentMemory.heapUsed - timing.memoryUsage.heapUsed,
+        heapTotal: currentMemory.heapTotal - timing.memoryUsage.heapTotal,
+        external: currentMemory.external - timing.memoryUsage.external,
+        rss: currentMemory.rss - timing.memoryUsage.rss,
+      };
+
+      if (responseTime > slowThreshold) {
+        const logLevel = responseTime > verySlowThreshold ? 'error' : 'warn';
+
+        perfLog[logLevel]({
+          event: responseTime > verySlowThreshold ? 'very_slow_request' : 'slow_request',
+          method: request.method,
+          url: request.url,
+          responseTime,
+          totalTime,
+          threshold: slowThreshold,
+          dbQueries: timing.dbQueries,
+          externalCalls: timing.externalCalls,
+          memoryDelta,
+          statusCode: reply.statusCode,
+          requestId,
+          userAgent: request.headers['user-agent'],
+          ip: request.ip,
+        });
+      }
+
+      // Track performance metrics
+      if (responseTime > 100) { // Log performance data for requests > 100ms
+        perfLog.info({
+          event: 'performance_metrics',
+          method: request.method,
+          url: request.url,
+          responseTime,
+          totalTime,
+          memoryDelta,
+          statusCode: reply.statusCode,
+          requestId,
+        });
+      }
+
+      requestTiming.delete(requestId);
+    }
+  });
+
+  // Track database query timing (if using an ORM that supports hooks)
+  fastify.addHook('onRequest', async (request: FastifyRequest) => {
+    const requestId = (request as any).id;
+    if (requestId && requestTiming.has(requestId)) {
+      // Add DB query counter to request context
+      (request as any).incrementDbQuery = () => {
+        const timing = requestTiming.get(requestId);
+        if (timing) {
+          timing.dbQueries++;
+        }
+      };
+
+      (request as any).incrementExternalCall = () => {
+        const timing = requestTiming.get(requestId);
+        if (timing) {
+          timing.externalCalls++;
+        }
+      };
     }
   });
 }
