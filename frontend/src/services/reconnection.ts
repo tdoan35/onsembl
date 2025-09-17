@@ -52,7 +52,7 @@ export class ReconnectionManager {
     // Calculate delay
     const delay = this.strategy.getDelay(this.currentAttempt)
 
-    console.log(`Scheduling reconnection attempt ${this.currentAttempt + 1} in ${delay}ms`)
+    // Scheduling reconnection attempt
 
     // Clear any existing timer
     this.clearTimer()
@@ -85,7 +85,7 @@ export class ReconnectionManager {
    * Give up reconnection attempts
    */
   private giveUp(): void {
-    console.log('Max reconnection attempts reached, giving up')
+    // Max reconnection attempts reached
     this.isActive = false
     this.clearTimer()
 

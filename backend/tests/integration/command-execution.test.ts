@@ -1,217 +1,161 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import WebSocket from 'ws';
-import { createTestServer, TestContext } from '../helpers/test-server';
-import { MessageType } from '@onsembl/agent-protocol';
+import { FastifyInstance } from 'fastify';
+import { buildApp } from '../../src/app.js';
+import type { WebSocketMessage } from '@onsembl/agent-protocol/websocket';
 
-describe('Integration: Command Execution with Real-time Output', () => {
-  let ctx: TestContext;
-  let wsUrl: string;
+describe('Command Execution Flow Integration', () => {
+  let app: FastifyInstance;
+  let serverUrl: string;
+  let dashboardWs: WebSocket;
+  let agentWs: WebSocket;
 
   beforeAll(async () => {
-    ctx = await createTestServer();
+    // Build and start the app
+    app = await buildApp({ logger: false });
+    await app.listen({ port: 0 });
 
-    await ctx.server.register(require('@fastify/websocket'));
-
-    const activeCommands = new Map();
-
-    // WebSocket handler
-    ctx.server.register(async function (fastify) {
-      fastify.get('/ws/agent', { websocket: true }, (connection, req) => {
-        let agentId: string;
-
-        connection.socket.on('message', (message) => {
-          const data = JSON.parse(message.toString());
-
-          if (data.type === MessageType.AGENT_CONNECT) {
-            agentId = data.payload.agentId;
-            connection.socket.send(JSON.stringify({
-              type: 'CONNECTION_ACK',
-              payload: { agentId },
-            }));
-          }
-
-          if (data.type === MessageType.COMMAND_REQUEST) {
-            const commandId = 'cmd-' + Date.now();
-            activeCommands.set(commandId, {
-              id: commandId,
-              agentId,
-              command: data.payload.command,
-              status: 'executing',
-            });
-
-            // Send acknowledgment
-            connection.socket.send(JSON.stringify({
-              type: 'COMMAND_ACK',
-              payload: {
-                commandId,
-                status: 'executing',
-              },
-            }));
-
-            // Simulate command execution with output
-            const outputs = [
-              'Starting command execution...',
-              'Processing...',
-              'Command completed successfully!',
-            ];
-
-            outputs.forEach((output, index) => {
-              setTimeout(() => {
-                connection.socket.send(JSON.stringify({
-                  type: MessageType.TERMINAL_OUTPUT,
-                  payload: {
-                    commandId,
-                    agentId,
-                    output: output + '\\n',
-                    type: 'stdout',
-                    timestamp: new Date().toISOString(),
-                    sequence: index + 1,
-                  },
-                }));
-
-                // Send completion after last output
-                if (index === outputs.length - 1) {
-                  setTimeout(() => {
-                    connection.socket.send(JSON.stringify({
-                      type: 'COMMAND_COMPLETE',
-                      payload: {
-                        commandId,
-                        status: 'completed',
-                        exitCode: 0,
-                      },
-                    }));
-                    activeCommands.set(commandId, {
-                      ...activeCommands.get(commandId),
-                      status: 'completed',
-                    });
-                  }, 50);
-                }
-              }, (index + 1) * 100);
-            });
-          }
-        });
-      });
-    });
-
-    // REST endpoint to execute command
-    ctx.server.post('/agents/:id/execute', async (request, reply) => {
-      // Trigger command via WebSocket to connected agent
-      return reply.send({
-        message: 'Command queued',
-        queuePosition: 1,
-      });
-    });
-
-    await ctx.server.listen({ port: 0 });
-    const address = ctx.server.server.address() as any;
-    wsUrl = `ws://localhost:${address.port}/ws/agent`;
+    const address = app.server.address();
+    const port = typeof address === 'object' ? address?.port : 3001;
+    serverUrl = `ws://localhost:${port}/ws`;
   });
 
   afterAll(async () => {
-    await ctx.cleanup();
+    await app.close();
   });
 
-  it('should execute command and stream output in real-time', async () => {
-    const ws = new WebSocket(wsUrl);
-    const outputs: string[] = [];
-    let commandId: string;
-
-    await new Promise<void>((resolve) => {
-      ws.on('open', () => {
-        ws.send(JSON.stringify({
-          type: MessageType.AGENT_CONNECT,
-          payload: {
-            agentId: 'agent-exec-1',
-            token: 'valid-token',
-          },
-        }));
-      });
-
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-
-        if (message.type === 'CONNECTION_ACK') {
-          // Request command execution
-          ws.send(JSON.stringify({
-            type: MessageType.COMMAND_REQUEST,
-            payload: {
-              command: 'npm test',
-              arguments: {},
-              priority: 1,
-            },
-          }));
-        }
-
-        if (message.type === 'COMMAND_ACK') {
-          commandId = message.payload.commandId;
-          expect(message.payload.status).toBe('executing');
-        }
-
-        if (message.type === MessageType.TERMINAL_OUTPUT) {
-          expect(message.payload.commandId).toBe(commandId);
-          expect(message.payload.type).toBe('stdout');
-          outputs.push(message.payload.output.trim());
-        }
-
-        if (message.type === 'COMMAND_COMPLETE') {
-          expect(message.payload.commandId).toBe(commandId);
-          expect(message.payload.status).toBe('completed');
-          expect(message.payload.exitCode).toBe(0);
-
-          // Verify all outputs received
-          expect(outputs).toEqual([
-            'Starting command execution...',
-            'Processing...',
-            'Command completed successfully!',
-          ]);
-
-          ws.close();
-          resolve();
-        }
-      });
-    });
+  beforeEach(() => {
+    // Clean up any existing connections
+    if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
+      dashboardWs.close();
+    }
+    if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+      agentWs.close();
+    }
   });
 
-  it('should handle command with error output', async () => {
-    const ws = new WebSocket(wsUrl);
-    let hasStderr = false;
+  it('should execute command from dashboard to agent', async () => {
+    const token = 'valid-test-token';
+    const testCommand = 'echo "Hello World"';
+    const testAgentId = 'test-agent-1';
+    const testDashboardId = 'test-dashboard-1';
 
-    await new Promise<void>((resolve) => {
-      ws.on('open', () => {
-        ws.send(JSON.stringify({
-          type: MessageType.AGENT_CONNECT,
-          payload: {
-            agentId: 'agent-exec-2',
-            token: 'valid-token',
-          },
-        }));
+    const commandFlow = await new Promise<{
+      requested: boolean;
+      queued: boolean;
+      executing: boolean;
+      completed: boolean;
+    }>((resolve) => {
+      const result = {
+        requested: false,
+        queued: false,
+        executing: false,
+        completed: false
+      };
+
+      // Connect dashboard first
+      dashboardWs = new WebSocket(serverUrl, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
+      dashboardWs.on('open', () => {
+        // Send dashboard connect
+        const connectMessage: WebSocketMessage = {
+          type: 'dashboard:connect',
+          dashboardId: testDashboardId,
+          timestamp: new Date().toISOString()
+        };
+        dashboardWs.send(JSON.stringify(connectMessage));
 
-        if (message.type === 'CONNECTION_ACK') {
-          // Simulate error command
-          ws.send(JSON.stringify({
-            type: MessageType.TERMINAL_OUTPUT,
-            payload: {
-              commandId: 'cmd-error',
-              agentId: 'agent-exec-2',
-              output: 'Error: Command failed\\n',
-              type: 'stderr',
-              timestamp: new Date().toISOString(),
-              sequence: 1,
-            },
-          }));
+        // Connect agent
+        agentWs = new WebSocket(serverUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-          hasStderr = true;
+        agentWs.on('open', () => {
+          // Send agent connect
+          const agentConnectMessage: WebSocketMessage = {
+            type: 'agent:connect',
+            agentId: testAgentId,
+            agentType: 'claude',
+            timestamp: new Date().toISOString()
+          };
+          agentWs.send(JSON.stringify(agentConnectMessage));
+
+          // Send command request from dashboard
           setTimeout(() => {
-            expect(hasStderr).toBe(true);
-            ws.close();
-            resolve();
+            const commandMessage: WebSocketMessage = {
+              type: 'command:request',
+              agentId: testAgentId,
+              command: testCommand,
+              args: [],
+              timestamp: new Date().toISOString()
+            };
+            dashboardWs.send(JSON.stringify(commandMessage));
+            result.requested = true;
           }, 100);
+        });
+
+        agentWs.on('message', (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+
+            if (message.type === 'command:execute') {
+              result.executing = true;
+
+              // Simulate command execution
+              setTimeout(() => {
+                const outputMessage: WebSocketMessage = {
+                  type: 'terminal:output',
+                  agentId: testAgentId,
+                  output: {
+                    type: 'stdout',
+                    content: 'Hello World',
+                    timestamp: new Date().toISOString()
+                  },
+                  timestamp: new Date().toISOString()
+                };
+                agentWs.send(JSON.stringify(outputMessage));
+
+                // Send completion
+                const completeMessage: WebSocketMessage = {
+                  type: 'command:complete',
+                  commandId: message.commandId,
+                  agentId: testAgentId,
+                  exitCode: 0,
+                  timestamp: new Date().toISOString()
+                };
+                agentWs.send(JSON.stringify(completeMessage));
+              }, 100);
+            }
+          } catch (error) {
+            // Ignore parse errors
+          }
+        });
+      });
+
+      dashboardWs.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+
+          if (message.type === 'command:queued') {
+            result.queued = true;
+          } else if (message.type === 'command:status' && message.status === 'completed') {
+            result.completed = true;
+            setTimeout(() => resolve(result), 100);
+          }
+        } catch (error) {
+          // Ignore parse errors
         }
       });
+
+      // Timeout after 5 seconds
+      setTimeout(() => resolve(result), 5000);
     });
+
+    expect(commandFlow.requested).toBe(true);
+    expect(commandFlow.queued).toBe(true);
+    expect(commandFlow.executing).toBe(true);
+    expect(commandFlow.completed).toBe(true);
   });
 });

@@ -1,0 +1,18 @@
+{
+  "name": "websocket-test-suite",
+  "version": "1.0.0",
+  "description": "Test suite for Onsembl.ai WebSocket implementation",
+  "scripts": {
+    "test:all": "bash run-tests.sh",
+    "test:agent": "node test-agent.js",
+    "test:dashboard": "node test-dashboard.js",
+    "test:stress": "node stress-test.js",
+    "test:quick": "node quick-test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "wscat": "^6.0.1"
+  }
+}
