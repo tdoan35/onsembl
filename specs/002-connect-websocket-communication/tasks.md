@@ -41,20 +41,20 @@
 - All paths shown are relative to repository root
 
 ## Phase 3.1: Setup
-- [ ] T001 Update packages/agent-protocol with WebSocket message types from contracts
-- [ ] T002 Install WebSocket dependencies (@fastify/websocket for backend)
-- [ ] T003 [P] Configure TypeScript paths for shared types import
+- [x] T001 Update packages/agent-protocol with WebSocket message types from contracts
+- [x] T002 Install WebSocket dependencies (@fastify/websocket for backend)
+- [x] T003 [P] Configure TypeScript paths for shared types import
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
 ### Contract Tests
-- [ ] T004 [P] Contract test for WebSocket handshake in backend/tests/contract/websocket-handshake.test.ts
-- [ ] T005 [P] Contract test for message serialization in packages/agent-protocol/tests/serialization.test.ts
-- [ ] T006 [P] Contract test for dashboard:connect message in backend/tests/contract/dashboard-connect.test.ts
-- [ ] T007 [P] Contract test for command:request message in backend/tests/contract/command-request.test.ts
-- [ ] T008 [P] Contract test for agent:status broadcast in backend/tests/contract/agent-status.test.ts
-- [ ] T009 [P] Contract test for terminal:output streaming in backend/tests/contract/terminal-output.test.ts
+- [x] T004 [P] Contract test for WebSocket handshake in backend/tests/contract/websocket-handshake.test.ts
+- [x] T005 [P] Contract test for message serialization in packages/agent-protocol/tests/serialization.test.ts
+- [x] T006 [P] Contract test for dashboard:connect message in backend/tests/contract/dashboard-connect.test.ts
+- [x] T007 [P] Contract test for command:request message in backend/tests/contract/command-request.test.ts
+- [x] T008 [P] Contract test for agent:status broadcast in backend/tests/contract/agent-status.test.ts
+- [x] T009 [P] Contract test for terminal:output streaming in backend/tests/contract/terminal-output.test.ts
 
 ### Integration Tests
 - [ ] T010 [P] Integration test: Dashboard connects and receives agent list in backend/tests/integration/dashboard-connection.test.ts
@@ -70,14 +70,14 @@
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 ### Shared Types & Protocol
-- [ ] T017 [P] WebSocket message types in packages/agent-protocol/src/websocket-messages.ts
-- [ ] T018 [P] Connection state types in packages/agent-protocol/src/connection-types.ts
-- [ ] T019 [P] Message validation utilities in packages/agent-protocol/src/validation.ts
+- [x] T017 [P] WebSocket message types in packages/agent-protocol/src/websocket-messages.ts
+- [x] T018 [P] Connection state types in packages/agent-protocol/src/connection-types.ts
+- [x] T019 [P] Message validation utilities in packages/agent-protocol/src/websocket-validation.ts
 
 ### Backend WebSocket Infrastructure
-- [ ] T020 WebSocket plugin setup in backend/src/plugins/websocket.ts
-- [ ] T021 Connection manager service in backend/src/services/connection-manager.ts
-- [ ] T022 [P] Dashboard connection handler in backend/src/websocket/dashboard-handler.ts
+- [x] T020 WebSocket plugin setup in backend/src/plugins/websocket.ts
+- [x] T021 Connection manager service in backend/src/services/connection-manager.ts
+- [x] T022 [P] Dashboard connection handler in backend/src/websocket/dashboard-handler.ts (existing)
 - [ ] T023 [P] Agent connection handler in backend/src/websocket/agent-handler.ts (stub for existing agents)
 - [ ] T024 Message broadcaster service in backend/src/services/broadcaster.ts
 - [ ] T025 [P] Command queue integration in backend/src/services/command-queue-adapter.ts
