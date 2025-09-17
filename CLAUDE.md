@@ -53,6 +53,10 @@ Working on MVP with core features:
 - E2E tests with Playwright
 - Real Supabase/Redis instances for testing
 
+## TypeScript Conventions
+- Use `.js` extensions for all local imports (ES modules)
+- Access `process.env` properties with bracket notation: `process.env['npm_package_version']` not `process.env.npm_package_version`
+
 ## Performance Requirements
 - <200ms terminal streaming latency
 - Support 10+ concurrent agent connections

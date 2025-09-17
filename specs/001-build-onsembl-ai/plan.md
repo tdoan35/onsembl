@@ -4,6 +4,7 @@
 **Input**: Feature specification from `/specs/001-build-onsembl-ai/spec.md`
 
 ## Execution Flow (/plan command scope)
+
 ```
 1. Load feature spec from Input path
    → If not found: ERROR "No feature spec at {path}"
@@ -25,33 +26,41 @@
 ```
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
+
 - Phase 2: /tasks command creates tasks.md
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-Build a web-based Agent Control Center for orchestrating multiple AI coding agents (Claude, Gemini, Codex) through a unified dashboard. The system enables real-time monitoring, command distribution, and resource management of locally-running agents via WebSocket connections, with Fastify backend on Fly.io and Next.js 14 frontend.
+
+Build a web-based Agent Control Center for orchestrating multiple AI coding agents (Claude, Gemini,
+Codex) through a unified dashboard. The system enables real-time monitoring, command distribution,
+and resource management of locally-running agents via WebSocket connections, with Fastify backend on
+Fly.io and Next.js 14 frontend.
 
 ## Technical Context
-**Language/Version**: Node.js 20+ with TypeScript 5.x
-**Primary Dependencies**: Fastify 4.x, Next.js 14, Supabase Client, Bull/Redis, Pino, shadcn/ui
-**Storage**: Supabase PostgreSQL (auth, agents, commands, audit logs), Redis (via Upstash for queues)
-**Testing**: Jest for backend, React Testing Library for frontend, Playwright for E2E
-**Target Platform**: Fly.io (backend), Vercel (frontend), cross-platform agents (Node.js)
-**Project Type**: web - requires frontend+backend structure
+
+**Language/Version**: Node.js 20+ with TypeScript 5.x **Primary Dependencies**: Fastify 4.x, Next.js
+14, Supabase Client, Bull/Redis, Pino, shadcn/ui **Storage**: Supabase PostgreSQL (auth, agents,
+commands, audit logs), Redis (via Upstash for queues) **Testing**: Jest for backend, React Testing
+Library for frontend, Playwright for E2E **Target Platform**: Fly.io (backend), Vercel (frontend),
+cross-platform agents (Node.js) **Project Type**: web - requires frontend+backend structure
 **Performance Goals**: <200ms terminal streaming latency, handle 10+ concurrent agents
-**Constraints**: Single-tenant MVP, 30-day audit retention, JWT-based agent auth
-**Scale/Scope**: MVP supporting 3 agent types, 10 concurrent connections, real-time streaming
+**Constraints**: Single-tenant MVP, 30-day audit retention, JWT-based agent auth **Scale/Scope**:
+MVP supporting 3 agent types, 10 concurrent connections, real-time streaming
 
 ## Constitution Check
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Simplicity**:
+
 - Projects: 3 (backend, frontend, agent-wrapper)
 - Using framework directly? Yes - Fastify, Next.js, no wrapper classes
 - Single data model? Yes - shared TypeScript types between projects
 - Avoiding patterns? Yes - direct Supabase/Redis usage, no Repository pattern
 
 **Architecture**:
+
 - EVERY feature as library? Planning modular libraries for:
   - @onsembl/agent-protocol (WebSocket protocol & types)
   - @onsembl/command-queue (Bull queue management)
@@ -64,6 +73,7 @@ Build a web-based Agent Control Center for orchestrating multiple AI coding agen
 - Library docs: llms.txt format will be included
 
 **Testing (NON-NEGOTIABLE)**:
+
 - RED-GREEN-Refactor cycle enforced? Yes
 - Git commits show tests before implementation? Will be enforced
 - Order: Contract→Integration→E2E→Unit strictly followed? Yes
@@ -72,11 +82,13 @@ Build a web-based Agent Control Center for orchestrating multiple AI coding agen
 - FORBIDDEN: Implementation before test - understood
 
 **Observability**:
+
 - Structured logging included? Yes - Pino with request IDs
 - Frontend logs → backend? Yes - unified log streaming
 - Error context sufficient? Yes - full stack traces, agent state
 
 **Versioning**:
+
 - Version number assigned? 0.1.0 for MVP
 - BUILD increments on every change? Yes - CI/CD will handle
 - Breaking changes handled? N/A for MVP
@@ -84,6 +96,7 @@ Build a web-based Agent Control Center for orchestrating multiple AI coding agen
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/001-build-onsembl-ai/
 ├── plan.md              # This file (/plan command output)
@@ -95,6 +108,7 @@ specs/001-build-onsembl-ai/
 ```
 
 ### Source Code (repository root)
+
 ```
 # Option 2: Web application (when "frontend" + "backend" detected)
 backend/
@@ -126,6 +140,7 @@ packages/
 **Structure Decision**: Option 2 - Web application with shared packages
 
 ## Phase 0: Outline & Research
+
 1. **Extract unknowns from Technical Context** above:
    - Fastify WebSocket plugin best practices for high-concurrency
    - Bull queue patterns for command interruption/cancellation
@@ -135,6 +150,7 @@ packages/
    - Monaco Editor integration for terminal rendering
 
 2. **Generate and dispatch research agents**:
+
    ```
    For each unknown in Technical Context:
      Task: "Research {unknown} for {feature context}"
@@ -150,7 +166,8 @@ packages/
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
 ## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+
+_Prerequisites: research.md complete_
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Agent, Command, TerminalOutput, CommandPreset
@@ -178,12 +195,14 @@ packages/
    - Update recent changes section
    - Output to repository root
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, CLAUDE.md
+**Output**: data-model.md, /contracts/\*, failing tests, quickstart.md, CLAUDE.md
 
 ## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+
+_This section describes what the /tasks command will do - DO NOT execute during /plan_
 
 **Task Generation Strategy**:
+
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
@@ -192,6 +211,7 @@ packages/
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
+
 - TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Backend API before frontend components
@@ -199,6 +219,7 @@ packages/
 - Mark [P] for parallel execution (independent files)
 
 **Estimated Output**: 35-40 numbered, ordered tasks in tasks.md covering:
+
 - Supabase schema setup
 - Backend API implementation
 - WebSocket handlers
@@ -209,35 +230,41 @@ packages/
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
 ## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
 
-**Phase 3**: Task execution (/tasks command creates tasks.md)
-**Phase 4**: Implementation (execute tasks.md following constitutional principles)
-**Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
+_These phases are beyond the scope of the /plan command_
+
+**Phase 3**: Task execution (/tasks command creates tasks.md) **Phase 4**: Implementation (execute
+tasks.md following constitutional principles) **Phase 5**: Validation (run tests, execute
+quickstart.md, performance validation)
 
 ## Complexity Tracking
-*Fill ONLY if Constitution Check has violations that must be justified*
+
+_Fill ONLY if Constitution Check has violations that must be justified_
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| None | - | - |
+| --------- | ---------- | ------------------------------------ |
+| None      | -          | -                                    |
 
 ## Progress Tracking
-*This checklist is updated during execution flow*
+
+_This checklist is updated during execution flow_
 
 **Phase Status**:
+
 - [x] Phase 0: Research complete (/plan command)
 - [x] Phase 1: Design complete (/plan command)
 - [x] Phase 2: Task planning complete (/plan command - describe approach only)
-- [ ] Phase 3: Tasks generated (/tasks command)
+- [x] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [x] Initial Constitution Check: PASS
 - [x] Post-Design Constitution Check: PASS
 - [x] All NEEDS CLARIFICATION resolved
 - [x] Complexity deviations documented
 
 ---
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+
+_Based on Constitution v2.1.1 - See `/memory/constitution.md`_

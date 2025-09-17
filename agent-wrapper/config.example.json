@@ -1,0 +1,27 @@
+{
+  "serverUrl": "ws://localhost:3000/v1/ws/agent",
+  "agentId": "auto-generate",
+  "agentType": "CLAUDE",
+  "authToken": "your-jwt-token-here",
+  "autoReconnect": true,
+  "maxRetries": -1,
+  "retryDelay": 5000,
+  "heartbeatInterval": 30000,
+  "logLevel": "info",
+  "logFile": "./logs/agent.log",
+  "maxPayloadSize": 1048576,
+  "streamBuffer": {
+    "maxSize": 10000,
+    "flushInterval": 100
+  },
+  "commands": {
+    "claude": "claude-code",
+    "gemini": "gemini",
+    "codex": "codex"
+  },
+  "environment": {
+    "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+    "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+  }
+}

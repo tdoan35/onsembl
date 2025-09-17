@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Package specific settings
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "jest"],
+    "lib": ["ES2022"], // Shared library
+    "noEmit": false // Package needs to emit declaration files
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "tests"
+  ]
+}

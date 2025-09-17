@@ -1,0 +1,73 @@
+/** @type {import('jest').Config} */
+module.exports = {
+  displayName: 'command-queue',
+  testEnvironment: 'node',
+
+  // TypeScript support with ESM
+  preset: 'ts-jest/presets/default-esm',
+  extensionsToTreatAsEsm: ['.ts'],
+
+  // Test files
+  testMatch: [
+    '<rootDir>/src/**/*.test.ts',
+    '<rootDir>/tests/**/*.test.ts',
+    '<rootDir>/src/**/__tests__/**/*.ts',
+  ],
+
+  // Transform configuration
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
+      useESM: true,
+      tsconfig: './tsconfig.json',
+    }],
+  },
+
+  // Module name mapping (fixed typo)
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+
+  // Module resolution
+  resolver: 'ts-jest-resolver',
+
+  // Coverage
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/*.test.ts',
+    '!src/**/__tests__/**/*',
+    '!src/**/__mocks__/**/*',
+  ],
+
+  // Setup files - comment out if not available
+  // setupFilesAfterEnv: ['<rootDir>/../../jest.setup.js'],
+
+  // Test timeout
+  testTimeout: 10000,
+
+  // Root directory
+  rootDir: '.',
+
+  // Clear mocks between tests
+  clearMocks: true,
+  restoreMocks: true,
+
+  // Ignore patterns
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+  ],
+
+  // Module paths
+  modulePathIgnorePatterns: [
+    '<rootDir>/dist/',
+  ],
+
+  // ES modules support
+  globals: {
+    'ts-jest': {
+      useESM: true,
+      tsconfig: './tsconfig.json',
+    },
+  },
+};

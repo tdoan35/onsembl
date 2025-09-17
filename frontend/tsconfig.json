@@ -1,0 +1,38 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Frontend-specific settings for Next.js
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "noEmit": true, // Next.js handles compilation
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@onsembl/agent-protocol": ["../packages/agent-protocol/src"],
+      "@onsembl/agent-protocol/*": ["../packages/agent-protocol/src/*"],
+      "@onsembl/command-queue": ["../packages/command-queue/src"],
+      "@onsembl/command-queue/*": ["../packages/command-queue/src/*"],
+      "@onsembl/trace-collector": ["../packages/trace-collector/src"],
+      "@onsembl/trace-collector/*": ["../packages/trace-collector/src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist"
+  ]
+}

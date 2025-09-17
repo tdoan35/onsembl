@@ -1,0 +1,23 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Backend-specific settings
+    "outDir": "./dist",
+    "rootDir": "./",
+    "types": ["node", "jest"],
+    "lib": ["ES2022"], // Node.js backend
+    "noEmit": false // Backend needs to emit JS files
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "dist"
+  ],
+  "references": [
+    { "path": "../packages/agent-protocol" },
+    { "path": "../packages/command-queue" },
+    { "path": "../packages/trace-collector" }
+  ]
+}
