@@ -129,6 +129,11 @@ export class MessageValidator {
   }
 }
 
+// Export WebSocket message types and utilities
+export * from './websocket-messages.js';
+export * from './connection-types.js';
+export * from './websocket-validation.js';
+
 // Export version information
 export const PACKAGE_VERSION = '0.1.0';
 export const PROTOCOL_VERSION = '1.0.0';
