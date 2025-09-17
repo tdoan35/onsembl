@@ -2,161 +2,142 @@
 
 **Feature**: Fix Silent Database Connection Failures
 **Date**: 2025-09-17
-**Status**: Complete
+**Status**: Complete - Revised with Supabase CLI approach
 
 ## Research Findings
 
-### 1. Database Adapter Pattern for Dual-Mode Support
+### 1. Local Development Approach
 
-**Decision**: Implement a unified database adapter interface
+**Decision**: Use Supabase CLI for local development
 **Rationale**:
-- Allows seamless switching between Supabase and local PostgreSQL
-- Maintains single codebase for all database operations
-- Simplifies testing with consistent interface
+- Complete parity with production environment (Auth, Realtime, Storage, Edge Functions)
+- No need for database adapter pattern or dual code paths
+- Single Supabase client works for both local and cloud
+- Simplifies codebase and reduces maintenance burden
 **Alternatives considered**:
-- Separate service implementations: Rejected - code duplication
-- Environment-based conditionals: Rejected - scattered logic, hard to maintain
-- Mock services only: Rejected - doesn't provide real development environment
+- Separate PostgreSQL adapter: Rejected - requires maintaining two different code paths
+- Docker PostgreSQL: Rejected - Supabase CLI already provides PostgreSQL
+- Database adapter pattern: Rejected - unnecessary complexity when Supabase CLI provides full parity
 
 ### 2. Connection Detection Strategy
 
-**Decision**: Environment variable presence determines database mode
+**Decision**: Check for SUPABASE_URL, default to localhost:54321 if not set
 **Rationale**:
-- Check for SUPABASE_URL and SUPABASE_ANON_KEY first
-- Fall back to DATABASE_URL for local PostgreSQL
-- Clear precedence order prevents confusion
+- Simple environment-based detection
+- Local Supabase always runs on standard port 54321
+- Clear precedence: explicit URL > local default
 **Alternatives considered**:
+- Complex adapter pattern: Rejected - overengineered for the problem
 - Configuration file: Rejected - less flexible for deployments
-- Command-line flags: Rejected - complicates startup scripts
-- Auto-detection via network probe: Rejected - slow startup, unreliable
+- Multiple database modes: Rejected - unnecessary with Supabase CLI
 
-### 3. Local PostgreSQL Client Choice
+### 3. Error Handling Strategy
 
-**Decision**: Use 'pg' package for local PostgreSQL connections
-**Rationale**:
-- Lightweight, well-maintained, native PostgreSQL client
-- Already in Node.js ecosystem, good TypeScript support
-- Direct SQL execution without ORM overhead
-**Alternatives considered**:
-- Prisma: Rejected - heavy ORM, requires schema generation
-- TypeORM: Rejected - complex setup for simple needs
-- Knex: Rejected - query builder adds unnecessary abstraction
-
-### 4. Schema Management Approach
-
-**Decision**: SQL migration files with version tracking
-**Rationale**:
-- Matches Supabase migration pattern
-- Version control friendly
-- Can be applied to both Supabase and local databases
-**Alternatives considered**:
-- ORM migrations: Rejected - ties to specific ORM tool
-- Manual schema sync: Rejected - error-prone, no audit trail
-- Docker PostgreSQL image: Considered - good for consistent dev environment
-
-### 5. Error Handling Strategy
-
-**Decision**: Fail fast with descriptive errors at startup
+**Decision**: Fail fast with actionable error messages
 **Rationale**:
 - Prevents silent failures in production
-- Developers get immediate feedback
-- Clear action items in error messages
+- Provides clear guidance: "Run `supabase start` for local development"
+- Immediate feedback for developers
 **Alternatives considered**:
-- Retry logic: Will implement for transient failures only
+- Silent fallback to mock: Rejected - hides configuration problems
+- Complex retry logic: Overkill for development setup issues
 - Graceful degradation: Rejected - data loss risk
-- Queue operations: Rejected - complex for MVP
 
-### 6. Connection Health Monitoring
+### 4. Health Monitoring
 
-**Decision**: Periodic health checks with exponential backoff
+**Decision**: Simple health checks using Supabase client
 **Rationale**:
-- Detects connection loss quickly
-- Prevents thundering herd on reconnect
-- Logs connection state changes
+- Use existing Supabase client capabilities
+- No need for separate health check infrastructure
+- WebSocket status events for real-time monitoring
 **Alternatives considered**:
-- On-demand checks: Rejected - adds latency to operations
-- Connection pooling only: Insufficient - doesn't detect all failures
+- Complex health check service: Rejected - overengineered
 - External monitoring: Good addition but not replacement
+- No health checks: Rejected - need connection validation
 
-### 7. Development Environment Setup
+### 5. Development Environment Setup
 
-**Decision**: Docker Compose for local PostgreSQL
+**Decision**: Document Supabase CLI setup process
 **Rationale**:
-- Consistent across all developer machines
-- Includes proper initialization
-- Easy to reset for testing
+- Official tool from Supabase team
+- Includes all necessary services (Auth, Storage, Realtime)
+- Simple commands: `supabase start/stop/status`
 **Alternatives considered**:
-- Native PostgreSQL install: Rejected - version inconsistencies
-- SQLite for dev: Rejected - different SQL dialect
-- In-memory database: Rejected - doesn't persist across restarts
+- Docker Compose custom setup: Rejected - Supabase CLI is simpler
+- Manual PostgreSQL: Rejected - missing other Supabase services
+- Cloud-only development: Rejected - requires internet, costs money
 
-### 8. Configuration Validation
+### 6. Configuration Validation
 
-**Decision**: Startup validation with Zod schemas
+**Decision**: Minimal validation - just check if Supabase is reachable
 **Rationale**:
-- Type-safe configuration
-- Clear validation errors
-- Runtime and compile-time safety
+- Don't need complex schema validation
+- Supabase client handles connection details
+- Focus on developer experience over configuration complexity
 **Alternatives considered**:
-- Manual validation: Rejected - error-prone
-- JSON Schema: Rejected - less TypeScript integration
-- No validation: Rejected - runtime failures
+- Zod schema validation: Still useful for other configs but not for database
+- Complex validation: Rejected - overengineered
+- No validation: Need basic connection check
 
 ## Technical Decisions Summary
 
-1. **Database Adapter Interface**: Single interface, multiple implementations
-2. **Connection Priority**: Supabase → Local PostgreSQL → Error
-3. **Local Client**: pg package for PostgreSQL
-4. **Schema Management**: Versioned SQL migrations
-5. **Error Strategy**: Fail fast with clear messages
-6. **Health Monitoring**: Periodic checks with backoff
-7. **Dev Environment**: Docker Compose PostgreSQL
-8. **Config Validation**: Zod schema validation
+1. **Local Development**: Supabase CLI for full parity
+2. **Connection Logic**: Single Supabase client, environment-based URL
+3. **Error Messages**: Clear, actionable guidance for developers
+4. **Health Checks**: Simple connectivity validation
+5. **No Adapter Pattern**: Single code path for all environments
+6. **Setup Documentation**: Clear Supabase CLI instructions
 
-## Implementation Order
+## Implementation Order (Simplified)
 
-1. Config validation module
-2. Database adapter interface
-3. Supabase adapter implementation
-4. Local PostgreSQL adapter implementation
-5. Connection health monitor
-6. Migration runner
-7. Service updates for error handling
-8. Docker Compose setup
-9. Integration tests
-10. Documentation updates
+1. Add connection validation on startup
+2. Improve error messages with setup instructions
+3. Add health check endpoint
+4. Document Supabase CLI setup
+5. Add WebSocket status events
+6. Write integration tests
+7. Update quickstart guide
 
 ## Risk Mitigation
 
-- **Data Loss**: Explicit transaction handling, proper error propagation
-- **Connection Leaks**: Connection pooling with limits
-- **Performance**: Connection reuse, prepared statements
-- **Security**: Environment variable validation, no hardcoded credentials
-- **Migration Conflicts**: Version locking, sequential application
+- **Setup Confusion**: Clear documentation and error messages
+- **Connection Loss**: Health checks and status monitoring
+- **Local vs Cloud**: Environment detection with clear logging
+- **Missing Supabase**: Actionable error with setup command
 
-## Dependencies to Add
+## Dependencies
 
-```json
-{
-  "pg": "^8.11.0",
-  "zod": "^3.22.0",
-  "@types/pg": "^8.10.0"
-}
-```
+No new dependencies needed! Just use existing `@supabase/supabase-js`.
 
 ## Environment Variables
 
-Required for Supabase mode:
+For cloud Supabase:
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_ANON_KEY`: Supabase anonymous key
 
-Required for local mode:
-- `DATABASE_URL`: PostgreSQL connection string
+For local Supabase (optional, defaults work):
+- `SUPABASE_URL`: http://localhost:54321 (default if not set)
+- `SUPABASE_ANON_KEY`: Local development key from `supabase status`
 
-Optional:
-- `DB_POOL_SIZE`: Connection pool size (default: 10)
-- `DB_HEALTH_CHECK_INTERVAL`: Health check interval in ms (default: 30000)
+## Supabase CLI Commands
+
+```bash
+# Install Supabase CLI
+npm install -g supabase
+
+# Start local Supabase
+supabase start
+
+# Check status
+supabase status
+
+# Stop local Supabase
+supabase stop
+
+# Run migrations
+supabase migration up
+```
 
 ---
 
-*Research complete. All technical decisions made with justification.*
+*Research complete. Simplified approach using Supabase CLI for local development.*

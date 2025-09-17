@@ -1,39 +1,42 @@
-# Data Model: Database Connection Management
+# Data Model: Supabase Connection Management
 
 **Feature**: Fix Silent Database Connection Failures
 **Date**: 2025-09-17
+**Status**: Simplified for Supabase CLI approach
 
 ## Core Entities
 
-### 1. DatabaseConfig
-Represents the configuration for database connection.
+### 1. SupabaseConfig
+Represents the configuration for Supabase connection.
 
 **Fields**:
-- `mode`: enum('supabase' | 'local' | 'mock') - Active database mode
-- `supabaseUrl?`: string - Supabase project URL
-- `supabaseKey?`: string - Supabase anonymous key
-- `databaseUrl?`: string - Local PostgreSQL connection string
-- `poolSize`: number - Connection pool size (default: 10)
+- `url`: string - Supabase project URL (defaults to http://localhost:54321 for local)
+- `anonKey`: string - Supabase anonymous key
+- `environment`: enum('local' | 'cloud') - Detected environment
 - `healthCheckInterval`: number - Health check interval in ms (default: 30000)
 - `maxRetries`: number - Maximum connection retries (default: 3)
 - `retryDelay`: number - Delay between retries in ms (default: 1000)
 
 **Validation Rules**:
-- If mode is 'supabase', supabaseUrl and supabaseKey are required
-- If mode is 'local', databaseUrl is required
-- poolSize must be between 1 and 100
+- url must be a valid URL
+- anonKey must be present
 - healthCheckInterval must be >= 5000ms
 - maxRetries must be between 0 and 10
 - retryDelay must be between 100 and 10000ms
 
-### 2. DatabaseConnection
-Represents an active database connection instance.
+**Environment Detection**:
+- If SUPABASE_URL is not set or is localhost:54321 → 'local'
+- Otherwise → 'cloud'
+
+### 2. ConnectionStatus
+Represents the current Supabase connection status.
 
 **Fields**:
-- `id`: string - Unique connection identifier
-- `mode`: enum('supabase' | 'local' | 'mock') - Connection mode
+- `id`: string - Unique status identifier
+- `environment`: enum('local' | 'cloud') - Current environment
 - `status`: enum('connecting' | 'connected' | 'disconnected' | 'error') - Current status
-- `createdAt`: timestamp - Connection creation time
+- `url`: string - Connected Supabase URL
+- `connectedAt`: timestamp - Connection establishment time
 - `lastHealthCheck`: timestamp - Last successful health check
 - `errorCount`: number - Consecutive error count
 - `lastError?`: string - Last error message
@@ -47,124 +50,79 @@ Represents an active database connection instance.
 - `disconnected` → `connecting` (on reconnect attempt)
 
 ### 3. HealthCheckResult
-Represents the result of a database health check.
+Represents the result of a Supabase health check.
 
 **Fields**:
-- `connectionId`: string - Associated connection ID
 - `timestamp`: timestamp - Check execution time
 - `success`: boolean - Whether check succeeded
 - `latency`: number - Response time in ms
 - `error?`: string - Error message if failed
-- `details?`: object - Additional diagnostic information
+- `environment`: enum('local' | 'cloud') - Environment checked
 
 **Validation Rules**:
 - latency must be >= 0
 - If success is false, error must be present
 - timestamp must not be in the future
 
-### 4. DatabaseOperation
-Represents a database operation for audit/debugging.
+## Service Integration
 
-**Fields**:
-- `id`: string - Operation identifier
-- `connectionId`: string - Connection used
-- `type`: enum('query' | 'insert' | 'update' | 'delete' | 'transaction') - Operation type
-- `table?`: string - Target table name
-- `startTime`: timestamp - Operation start time
-- `endTime?`: timestamp - Operation end time
-- `success`: boolean - Whether operation succeeded
-- `error?`: string - Error message if failed
-- `affectedRows?`: number - Number of rows affected
-
-**Validation Rules**:
-- endTime must be after startTime
-- If success is false, error must be present
-- affectedRows must be >= 0 if present
-
-## Relationships
-
-```
-DatabaseConfig (1) ←→ (1) DatabaseConnection
-  - One config creates one connection instance
-  - Config changes require new connection
-
-DatabaseConnection (1) ←→ (N) HealthCheckResult
-  - One connection has multiple health check results
-  - Results ordered by timestamp
-
-DatabaseConnection (1) ←→ (N) DatabaseOperation
-  - One connection handles multiple operations
-  - Operations tracked for debugging
-
-DatabaseOperation (N) ←→ (1) Service
-  - Operations initiated by service methods
-  - Service name tracked for context
-```
-
-## Database Adapter Interface
-
+### Supabase Client Initialization
 ```typescript
-interface IDatabaseAdapter {
-  // Connection Management
-  connect(config: DatabaseConfig): Promise<void>
-  disconnect(): Promise<void>
-  isConnected(): boolean
-  getMode(): 'supabase' | 'local' | 'mock'
+// Single client for all environments
+const supabase = createClient(
+  process.env.SUPABASE_URL || 'http://localhost:54321',
+  process.env.SUPABASE_ANON_KEY || '<local-anon-key>'
+)
+```
 
-  // Health Monitoring
-  healthCheck(): Promise<HealthCheckResult>
-  getConnectionStatus(): DatabaseConnection
+### Connection Validation
+- On startup: Validate Supabase is reachable
+- If local not running: Show "Run `supabase start` for local development"
+- If cloud not configured: Show "Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables"
+- Log environment clearly: "Connected to local Supabase at localhost:54321" or "Connected to Supabase Cloud"
 
-  // Query Execution
-  query<T>(sql: string, params?: any[]): Promise<T[]>
-  insert<T>(table: string, data: Partial<T>): Promise<T>
-  update<T>(table: string, id: string, data: Partial<T>): Promise<T>
-  delete(table: string, id: string): Promise<void>
+### Health Monitoring
+- Simple query to validate connection: `SELECT 1`
+- WebSocket channel subscription to test realtime
+- Check response time for performance monitoring
+- Emit status events for dashboard display
 
-  // Transaction Support
-  transaction<T>(callback: (client: any) => Promise<T>): Promise<T>
+## Error Messages
+
+### Startup Errors
+- **Local not running**: "Local Supabase not found. Run `supabase start` to start local development environment."
+- **Missing config**: "Supabase not configured. Either run `supabase start` for local development or set SUPABASE_URL and SUPABASE_ANON_KEY."
+- **Invalid credentials**: "Invalid Supabase credentials. Please check your SUPABASE_ANON_KEY."
+- **Network error**: "Cannot connect to Supabase at {url}. Please check your network connection."
+
+### Runtime Errors
+- **Connection lost**: "Lost connection to Supabase. Attempting to reconnect..."
+- **Operation failed**: "Database operation failed: {details}"
+- **Timeout**: "Supabase operation timed out after {timeout}ms"
+
+## WebSocket Events
+
+### Status Events (emitted to dashboard)
+- `database:status` - Current connection status
+- `database:connected` - Successfully connected
+- `database:disconnected` - Connection lost
+- `database:error` - Connection error occurred
+- `database:health` - Health check result
+
+### Event Payloads
+```typescript
+interface DatabaseStatusEvent {
+  environment: 'local' | 'cloud'
+  status: 'connecting' | 'connected' | 'disconnected' | 'error'
+  url: string
+  message?: string
+  timestamp: string
 }
 ```
 
-## Service Integration Points
+## Existing Supabase Schema
 
-### AgentService
-- Uses adapter for agent CRUD operations
-- Handles connection errors with user-friendly messages
-- Retries on transient failures
-
-### CommandService
-- Uses adapter for command logging
-- Queues commands if connection temporarily lost
-- Ensures command history persistence
-
-### TerminalService
-- Uses adapter for output streaming
-- Buffers output during connection issues
-- Flushes buffer on reconnect
-
-### AuditService
-- Uses adapter for audit logging
-- Critical operations logged even in mock mode
-- Never silently fails
-
-## Error Handling
-
-### Connection Errors
-- **ECONNREFUSED**: "Cannot connect to database. Please check if PostgreSQL is running."
-- **ENOTFOUND**: "Database host not found. Please check your connection settings."
-- **ECONNRESET**: "Database connection lost. Attempting to reconnect..."
-- **Invalid credentials**: "Database authentication failed. Please check your credentials."
-
-### Operation Errors
-- **Table not found**: "Database schema not initialized. Please run migrations."
-- **Constraint violation**: "Operation violates database constraints: {details}"
-- **Timeout**: "Database operation timed out after {timeout}ms"
-- **Transaction rollback**: "Transaction failed and was rolled back: {reason}"
-
-## Migration Schema
-
-### Required Tables (matching existing Supabase schema)
+The following tables already exist in Supabase (no changes needed):
 - agents
 - commands
 - terminal_outputs
@@ -175,11 +133,33 @@ interface IDatabaseAdapter {
 - execution_constraints
 - command_queues
 
-### Version Tracking
-- schema_migrations table tracks applied migrations
-- Each migration has version, name, applied_at timestamp
-- Migrations applied in order, never skipped
+## Supabase CLI Setup
+
+### Installation
+```bash
+npm install -g supabase
+```
+
+### Commands
+```bash
+# Start local Supabase
+supabase start
+
+# Check status and get local credentials
+supabase status
+
+# Stop local Supabase
+supabase stop
+
+# Reset local database
+supabase db reset
+```
+
+### Local Credentials (from `supabase status`)
+- API URL: http://localhost:54321
+- anon key: (shown in status output)
+- service_role key: (for admin operations)
 
 ---
 
-*Data model complete. Ready for contract generation and testing.*
+*Data model simplified for Supabase CLI approach. No adapter pattern needed.*

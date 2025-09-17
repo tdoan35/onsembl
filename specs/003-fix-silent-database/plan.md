@@ -30,18 +30,19 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-Fix the backend's silent database connection failures by implementing proper error handling and a local PostgreSQL fallback. The system currently creates empty mock services when Supabase is not configured, causing all operations to fail silently with no data persistence. We'll create a database abstraction layer supporting both Supabase (production) and local PostgreSQL (development) with clear error messages and mode logging.
+Fix the backend's silent database connection failures by implementing proper error handling and clear developer guidance. The system currently creates empty mock services when Supabase is not configured, causing all operations to fail silently with no data persistence. We'll improve error messages, add connection validation, and provide clear instructions for using Supabase CLI for local development, maintaining full parity between local and production environments.
 
 ## Technical Context
 **Language/Version**: Node.js 20+, TypeScript 5.x
-**Primary Dependencies**: Fastify 4.x, @supabase/supabase-js, pg (PostgreSQL client)
-**Storage**: PostgreSQL (Supabase cloud or local instance)
+**Primary Dependencies**: Fastify 4.x, @supabase/supabase-js
+**Storage**: Supabase (cloud or local via CLI)
 **Testing**: Vitest, Playwright for E2E
 **Target Platform**: Linux server (Fly.io), Local development (macOS/Linux/Windows)
 **Project Type**: web - backend service with frontend dashboard
 **Performance Goals**: Support 10+ concurrent agent connections, 100 messages/second per agent
 **Constraints**: <200ms database operation latency, maintain existing service interfaces
 **Scale/Scope**: MVP with single-tenant architecture, all authenticated users control all agents
+**Local Dev**: Supabase CLI for full stack parity
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
@@ -53,20 +54,20 @@ Fix the backend's silent database connection failures by implementing proper err
 - Avoiding patterns? Yes - no unnecessary abstraction layers ✓
 
 **Architecture**:
-- EVERY feature as library? Database adapter as library ✓
+- EVERY feature as library? Connection management as library ✓
 - Libraries listed:
-  - `database-adapter`: Unified interface for Supabase/local PostgreSQL
-  - `config-validator`: Environment and database config validation
-  - `schema-initializer`: Local database schema setup
-- CLI per library: Each library exposes CLI commands ✓
+  - `supabase-connection`: Connection validation and health monitoring
+  - `config-validator`: Environment validation with helpful error messages
+  - `error-handler`: Clear, actionable error messages for developers
+- CLI per library: Simplified CLI for connection testing ✓
 - Library docs: llms.txt format planned ✓
 
 **Testing (NON-NEGOTIABLE)**:
 - RED-GREEN-Refactor cycle enforced? Yes ✓
 - Git commits show tests before implementation? Yes ✓
 - Order: Contract→Integration→E2E→Unit strictly followed? Yes ✓
-- Real dependencies used? Yes - actual PostgreSQL instances ✓
-- Integration tests for: new database adapter, connection handling ✓
+- Real dependencies used? Yes - actual Supabase instances ✓
+- Integration tests for: connection validation, error handling ✓
 - FORBIDDEN: Implementation before test - understood ✓
 
 **Observability**:
@@ -190,50 +191,45 @@ ios/ or android/
 **Task Generation Strategy**:
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
-- Database configuration validation tasks
-- Database adapter interface and implementations
-- Health monitoring and WebSocket events
-- Service error handling improvements
-- Migration and schema initialization
-- Integration and E2E test scenarios
+- Focus on error handling and developer experience
+- Connection validation and health monitoring
+- Clear error messages with actionable guidance
+- Supabase CLI setup documentation
 
 **Specific Task Categories**:
-1. **Configuration & Validation** (3-4 tasks)
-   - Zod schema for database config
-   - Environment variable validation
-   - Startup checks and error messages
+1. **Configuration & Validation** (2-3 tasks)
+   - Environment variable validation with helpful errors
+   - Detect local vs cloud Supabase
+   - Startup validation and connection testing
 
-2. **Database Adapter** (6-8 tasks)
-   - Interface definition [P]
-   - Supabase adapter implementation [P]
-   - Local PostgreSQL adapter [P]
-   - Connection pooling and health checks
-   - Error handling and retry logic
+2. **Error Handling** (3-4 tasks)
+   - Replace silent failures with clear error messages
+   - Add "Run `supabase start`" guidance when not configured
+   - Connection failure recovery suggestions
+   - Health check implementation
 
-3. **Service Updates** (4-5 tasks)
-   - Update AgentService with error handling
-   - Update CommandService with persistence checks
-   - Update TerminalService with buffering
-   - Update AuditService for critical logging
+3. **Service Updates** (2-3 tasks)
+   - Update mock service creation to show errors
+   - Add connection validation before operations
+   - Add proper error propagation
 
-4. **Testing** (8-10 tasks)
+4. **Testing** (4-5 tasks)
    - Contract tests for health API [P]
-   - Integration tests for adapter switching
-   - E2E tests for persistence verification
-   - WebSocket event tests
-   - Error scenario tests
+   - Integration tests for error scenarios
+   - E2E test for local Supabase setup
+   - Connection validation tests
 
-5. **Documentation & Setup** (3-4 tasks)
-   - Docker Compose configuration
-   - Migration scripts
-   - CLI commands for database operations
+5. **Documentation & Setup** (2-3 tasks)
+   - Supabase CLI setup guide
+   - Local development quickstart
+   - Migration instructions for local Supabase
 
 **Ordering Strategy**:
 - TDD order: Tests before implementation
-- Config → Adapter → Services → Integration
+- Error handling → Connection validation → Documentation
 - Mark [P] for parallel execution (independent files)
 
-**Estimated Output**: 28-35 numbered, ordered tasks in tasks.md
+**Estimated Output**: 15-20 numbered, ordered tasks in tasks.md
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 

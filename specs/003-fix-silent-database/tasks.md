@@ -1,213 +1,96 @@
 # Tasks: Fix Silent Database Connection Failures
 
-**Input**: Design documents from `/specs/003-fix-silent-database/`
-**Prerequisites**: plan.md (required), research.md, data-model.md, contracts/
-
-## Execution Flow (main)
-```
-1. Load plan.md from feature directory
-   → If not found: ERROR "No implementation plan found"
-   → Extract: tech stack, libraries, structure
-2. Load optional design documents:
-   → data-model.md: Extract entities → model tasks
-   → contracts/: Each file → contract test task
-   → research.md: Extract decisions → setup tasks
-3. Generate tasks by category:
-   → Setup: project init, dependencies, linting
-   → Tests: contract tests, integration tests
-   → Core: models, services, CLI commands
-   → Integration: DB, middleware, logging
-   → Polish: unit tests, performance, docs
-4. Apply task rules:
-   → Different files = mark [P] for parallel
-   → Same file = sequential (no [P])
-   → Tests before implementation (TDD)
-5. Number tasks sequentially (T001, T002...)
-6. Generate dependency graph
-7. Create parallel execution examples
-8. Validate task completeness:
-   → All contracts have tests?
-   → All entities have models?
-   → All endpoints implemented?
-9. Return: SUCCESS (tasks ready for execution)
-```
+**Feature**: Implement proper Supabase connection handling with clear error messages
+**Approach**: Use Supabase CLI for local development, single code path for all environments
+**Date**: 2025-09-17
 
 ## Format: `[ID] [P?] Description`
 - **[P]**: Can run in parallel (different files, no dependencies)
 - Include exact file paths in descriptions
 
-## Path Conventions
-- **Web app**: `backend/src/`, `backend/tests/`, `frontend/src/`
-- All paths relative to repository root
-
-## Phase 3.1: Setup & Dependencies
-- [ ] T001 Install database dependencies (pg@8.11.0, zod@3.22.0, @types/pg@8.10.0) in backend/package.json
-- [ ] T002 Create Docker Compose configuration for local PostgreSQL in backend/docker-compose.yml
-- [ ] T003 [P] Set up environment variable template in backend/.env.example with database config vars
-- [ ] T004 [P] Create database directory structure: backend/src/database/ with adapter/, config/, migrations/
-
-## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+## Phase 1: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE PHASE 2
 
 ### Contract Tests
-- [ ] T005 [P] Contract test GET /api/health/database in backend/tests/contract/health-database.test.ts
-- [ ] T006 [P] Contract test POST /api/health/database/check in backend/tests/contract/health-database-check.test.ts
-- [ ] T007 [P] Contract test GET /api/config/database in backend/tests/contract/config-database.test.ts
+- [ ] T001 [P] Contract test GET /api/health endpoint with database status in backend/tests/contract/health.test.ts
+- [ ] T002 [P] Contract test WebSocket database:status event in backend/tests/contract/websocket-database.test.ts
 
 ### Integration Tests
-- [ ] T008 [P] Integration test: Database mode detection (Supabase → Local → Mock) in backend/tests/integration/database-mode.test.ts
-- [ ] T009 [P] Integration test: Agent persistence across restart in backend/tests/integration/agent-persistence.test.ts
-- [ ] T010 [P] Integration test: Connection loss and recovery in backend/tests/integration/connection-recovery.test.ts
-- [ ] T011 [P] Integration test: Health check monitoring in backend/tests/integration/health-monitoring.test.ts
-- [ ] T012 [P] Integration test: Database operation error handling in backend/tests/integration/database-errors.test.ts
+- [ ] T003 [P] Integration test: Supabase connection validation on startup in backend/tests/integration/supabase-connection.test.ts
+- [ ] T004 [P] Integration test: Error messages when Supabase not configured in backend/tests/integration/supabase-errors.test.ts
+- [ ] T005 [P] Integration test: Agent persistence with Supabase in backend/tests/integration/agent-persistence.test.ts
+- [ ] T006 [P] Integration test: Health check monitoring in backend/tests/integration/health-monitoring.test.ts
 
-### WebSocket Event Tests
-- [ ] T013 [P] WebSocket test: database:status events in backend/tests/websocket/database-status.test.ts
-- [ ] T014 [P] WebSocket test: database:error events in backend/tests/websocket/database-error.test.ts
-- [ ] T015 [P] WebSocket test: database:health periodic updates in backend/tests/websocket/database-health.test.ts
-
-## Phase 3.3: Core Implementation (ONLY after tests are failing)
+## Phase 2: Core Implementation (ONLY after tests are failing)
 
 ### Configuration & Validation
-- [ ] T016 [P] DatabaseConfig Zod schema in backend/src/database/config/database-config.schema.ts
-- [ ] T017 [P] Environment variable validator in backend/src/database/config/env-validator.ts
-- [ ] T018 Database mode detector (checks env vars, sets mode) in backend/src/database/config/mode-detector.ts
+- [ ] T007 Create Supabase connection validator in backend/src/database/supabase-validator.ts
+- [ ] T008 Add environment detection (local vs cloud) in backend/src/database/environment-detector.ts
+- [ ] T009 Update server.ts to validate Supabase on startup in backend/src/server.ts
 
-### Database Adapter Interface & Base
-- [ ] T019 [P] IDatabaseAdapter interface definition in backend/src/database/adapter/database-adapter.interface.ts
-- [ ] T020 [P] Base adapter with common functionality in backend/src/database/adapter/base-adapter.ts
-- [ ] T021 [P] Connection pool manager in backend/src/database/adapter/connection-pool.ts
-
-### Adapter Implementations
-- [ ] T022 [P] Supabase adapter implementation in backend/src/database/adapter/supabase-adapter.ts
-- [ ] T023 [P] Local PostgreSQL adapter in backend/src/database/adapter/postgres-adapter.ts
-- [ ] T024 [P] Mock adapter for testing in backend/src/database/adapter/mock-adapter.ts
+### Error Handling
+- [ ] T010 Create clear error messages with setup instructions in backend/src/database/error-messages.ts
+- [ ] T011 Update mock service creation to show errors in backend/src/services/index.ts
+- [ ] T012 Add connection validation before database operations in backend/src/services/base.service.ts
 
 ### Health Monitoring
-- [ ] T025 Health check service with periodic checks in backend/src/database/health/health-check.service.ts
-- [ ] T026 Connection status tracker in backend/src/database/health/connection-status.ts
-- [ ] T027 Retry logic with exponential backoff in backend/src/database/health/retry-manager.ts
+- [ ] T013 Implement Supabase health check service in backend/src/database/health-check.service.ts
+- [ ] T014 Update /api/health endpoint with database status in backend/src/routes/health.ts
+- [ ] T015 Add WebSocket database:status events in backend/src/websocket/database-handler.ts
 
-### API Endpoints
-- [ ] T028 GET /api/health/database endpoint in backend/src/routes/health.ts
-- [ ] T029 POST /api/health/database/check endpoint in backend/src/routes/health.ts
-- [ ] T030 GET /api/config/database endpoint in backend/src/routes/config.ts
-
-### WebSocket Event Handlers
-- [ ] T031 Database status event emitter in backend/src/websocket/events/database-events.ts
-- [ ] T032 Client event handlers (health:request, reconnect) in backend/src/websocket/handlers/database-handlers.ts
-
-## Phase 3.4: Service Integration
-
-### Service Error Handling Updates
-- [ ] T033 Update AgentService with adapter error handling in backend/src/services/agent.service.ts
-- [ ] T034 Update CommandService with persistence verification in backend/src/services/command.service.ts
-- [ ] T035 Update TerminalService with output buffering in backend/src/services/terminal.service.ts
-- [ ] T036 Update AuditService for critical operation logging in backend/src/services/audit.service.ts
-
-### Server Initialization
-- [ ] T037 Update server.ts to use database adapter instead of mock services in backend/src/server.ts
-- [ ] T038 Add startup validation and mode logging in backend/src/server.ts
-- [ ] T039 Initialize health monitoring on server start in backend/src/server.ts
-
-## Phase 3.5: Database Setup & Migration
-
-### Migration Scripts
-- [ ] T040 [P] Create initial schema migration SQL in backend/src/database/migrations/001_initial_schema.sql
-- [ ] T041 [P] Migration runner script in backend/src/database/migrations/runner.ts
-- [ ] T042 [P] Database CLI commands (migrate, status, reset) in backend/src/cli/database.ts
-
-### Docker & Local Setup
-- [ ] T043 Docker Compose PostgreSQL service with init script in backend/docker-compose.yml
-- [ ] T044 [P] Database initialization script in backend/scripts/init-db.sh
-
-## Phase 3.6: Polish & Documentation
-
-### E2E Tests
-- [ ] T045 E2E test: Full quickstart flow validation in backend/tests/e2e/quickstart-flow.spec.ts
-- [ ] T046 E2E test: Database mode switching in backend/tests/e2e/database-modes.spec.ts
-
-### Performance & Monitoring
-- [ ] T047 Performance test: <200ms database operations in backend/tests/performance/database-latency.test.ts
-- [ ] T048 Load test: 100 operations/second in backend/tests/performance/database-load.test.ts
+## Phase 3: Documentation & Setup
 
 ### Documentation
-- [ ] T049 [P] Update backend/README.md with database setup instructions
-- [ ] T050 [P] Create backend/docs/database-architecture.md with adapter pattern explanation
-- [ ] T051 [P] Update troubleshooting guide in backend/docs/troubleshooting.md
+- [ ] T016 [P] Create Supabase CLI setup guide in backend/docs/supabase-setup.md
+- [ ] T017 [P] Update backend/README.md with Supabase instructions
+- [ ] T018 [P] Add troubleshooting guide for common Supabase issues in backend/docs/troubleshooting.md
+
+### Developer Experience
+- [ ] T019 Add .env.example with Supabase configuration template in backend/.env.example
+- [ ] T020 Create Supabase initialization script in backend/scripts/setup-supabase.sh
 
 ## Dependencies
-- Setup (T001-T004) must complete first
-- All tests (T005-T015) MUST be written and MUST FAIL before implementation
-- Config/validation (T016-T018) before adapters
-- Adapters (T019-T024) before health monitoring
-- Health monitoring (T025-T027) before endpoints
-- All core implementation before service integration
-- Service integration before database setup
-- Everything before polish phase
+- All tests (T001-T006) MUST be written and MUST FAIL before implementation
+- Configuration (T007-T009) before error handling
+- Error handling (T010-T012) before health monitoring
+- Core implementation before documentation
 
 ## Parallel Execution Examples
 
-**Batch 1 - Setup (can run together):**
+**Batch 1 - All Tests (can run together):**
 ```bash
-# Terminal 1
-Task agent T003  # Environment template
+# Terminal 1-2: Contract tests
+npm run test backend/tests/contract/health.test.ts
+npm run test backend/tests/contract/websocket-database.test.ts
 
-# Terminal 2
-Task agent T004  # Directory structure
+# Terminal 3-6: Integration tests
+npm run test backend/tests/integration/supabase-connection.test.ts
+npm run test backend/tests/integration/supabase-errors.test.ts
+npm run test backend/tests/integration/agent-persistence.test.ts
+npm run test backend/tests/integration/health-monitoring.test.ts
 ```
 
-**Batch 2 - All Tests (can run together after setup):**
+**Batch 2 - Documentation (can run together after implementation):**
 ```bash
-# Terminal 1-3: Contract tests
-Task agent T005  # GET /api/health/database test
-Task agent T006  # POST /api/health/database/check test
-Task agent T007  # GET /api/config/database test
-
-# Terminal 4-8: Integration tests
-Task agent T008  # Database mode detection test
-Task agent T009  # Agent persistence test
-Task agent T010  # Connection recovery test
-Task agent T011  # Health monitoring test
-Task agent T012  # Error handling test
-
-# Terminal 9-11: WebSocket tests
-Task agent T013  # database:status event test
-Task agent T014  # database:error event test
-Task agent T015  # database:health event test
-```
-
-**Batch 3 - Core Components (can run together after tests fail):**
-```bash
-# Terminal 1-3: Configuration
-Task agent T016  # DatabaseConfig schema
-Task agent T017  # Environment validator
-Task agent T019  # IDatabaseAdapter interface
-
-# Terminal 4-6: Adapters
-Task agent T022  # Supabase adapter
-Task agent T023  # PostgreSQL adapter
-Task agent T024  # Mock adapter
+# Terminal 1-3
+Task agent T016  # Supabase setup guide
+Task agent T017  # Update README
+Task agent T018  # Troubleshooting guide
 ```
 
 ## Validation Checklist
-- [x] All contracts have test tasks (T005-T007)
-- [x] All entities have implementation tasks (DatabaseConfig, adapters)
-- [x] All API endpoints have tasks (T028-T030)
-- [x] WebSocket events covered (T031-T032)
-- [x] All services updated (T033-T036)
-- [x] Performance requirements tested (T047-T048)
-- [x] Documentation tasks included (T049-T051)
+- [x] Tests cover all error scenarios
+- [x] Clear error messages with actionable guidance
+- [x] Health monitoring implemented
+- [x] Documentation includes Supabase CLI setup
+- [x] Single code path for all environments
+- [x] No unnecessary abstraction layers
 
 ## Task Count Summary
-- **Total Tasks**: 51
-- **Parallel Tasks**: 28 marked with [P]
-- **Setup**: 4 tasks
-- **Tests**: 11 tasks (MUST complete first)
-- **Core Implementation**: 16 tasks
-- **Service Integration**: 7 tasks
-- **Database Setup**: 5 tasks
-- **Polish**: 8 tasks
+- **Total Tasks**: 20 (reduced from 51)
+- **Parallel Tasks**: 8 marked with [P]
+- **Tests**: 6 tasks (MUST complete first)
+- **Core Implementation**: 9 tasks
+- **Documentation**: 5 tasks
 
 ---
-*Ready for execution. Remember: Tests first (TDD), use parallel execution where marked [P].*
+*Simplified approach using Supabase CLI. No database adapter pattern needed.*
