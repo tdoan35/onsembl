@@ -96,10 +96,10 @@
 - [x] T034 [P] Terminal buffer implementation in frontend/src/services/terminal-buffer.ts
 
 ### Frontend Store Integration
-- [ ] T035 WebSocket store updates in frontend/src/stores/websocket.store.ts
-- [ ] T036 Agent store WebSocket integration in frontend/src/stores/agent.store.ts
-- [ ] T037 Terminal store updates in frontend/src/stores/terminal.store.ts
-- [ ] T038 Command store updates in frontend/src/stores/command.store.ts
+- [x] T035 WebSocket store updates in frontend/src/stores/websocket.store.ts
+- [x] T036 Agent store WebSocket integration in frontend/src/stores/agent.store.ts
+- [x] T037 Terminal store updates in frontend/src/stores/terminal.store.ts
+- [x] T038 Command store updates in frontend/src/stores/command.store.ts
 
 ### Frontend UI Integration
 - [ ] T039 WebSocket hook in frontend/src/hooks/useWebSocket.ts

@@ -3,7 +3,7 @@
 ## Summary
 Implementation of WebSocket communication for real-time agent monitoring is in progress. Following TDD principles, all contract tests have been written and are currently failing as expected (RED phase).
 
-## Completed Tasks (34 of 63)
+## Completed Tasks (38 of 63)
 
 ### Phase 3.1: Setup ✅ (3/3)
 - ✅ T001: WebSocket message types added to agent-protocol package
@@ -23,7 +23,7 @@ Implementation of WebSocket communication for real-time agent monitoring is in p
 **E2E Tests (0/2)** - Not started
 
 ### Phase 3.3: Core Implementation (14/24)
-### Phase 3.4: Frontend Implementation (4/13)
+### Phase 3.4: Frontend Implementation (8/13)
 **Shared Types & Protocol (3/3)** ✅
 - ✅ T017: WebSocket message types (`websocket-messages.ts`)
 - ✅ T018: Connection state types (`connection-types.ts`)
@@ -49,6 +49,12 @@ Implementation of WebSocket communication for real-time agent monitoring is in p
 - ✅ T032: Reconnection logic with exponential backoff
 - ✅ T033: Message handler registry
 - ✅ T034: Terminal buffer implementation
+
+**Frontend Store Integration (4/4)** ✅
+- ✅ T035: WebSocket store updates
+- ✅ T036: Agent store WebSocket integration
+- ✅ T037: Terminal store updates
+- ✅ T038: Command store updates
 
 ## Current State
 - **TDD Phase**: RED (tests written and failing)
