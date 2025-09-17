@@ -78,16 +78,16 @@
 - [x] T020 WebSocket plugin setup in backend/src/plugins/websocket.ts
 - [x] T021 Connection manager service in backend/src/services/connection-manager.ts
 - [x] T022 [P] Dashboard connection handler in backend/src/websocket/dashboard-handler.ts (existing)
-- [ ] T023 [P] Agent connection handler in backend/src/websocket/agent-handler.ts (stub for existing agents)
-- [ ] T024 Message broadcaster service in backend/src/services/broadcaster.ts
-- [ ] T025 [P] Command queue integration in backend/src/services/command-queue-adapter.ts
+- [x] T023 [P] Agent connection handler in backend/src/websocket/agent-handler.ts (stub for existing agents)
+- [x] T024 Message broadcaster service in backend/src/services/broadcaster.ts
+- [x] T025 [P] Command queue integration in backend/src/services/command-queue-adapter.ts
 
 ### Backend Message Handlers
-- [ ] T026 [P] Dashboard connect handler in backend/src/websocket/handlers/dashboard-connect.ts
-- [ ] T027 [P] Command request handler in backend/src/websocket/handlers/command-request.ts
-- [ ] T028 [P] Command interrupt handler in backend/src/websocket/handlers/command-interrupt.ts
-- [ ] T029 [P] Heartbeat handler in backend/src/websocket/handlers/heartbeat.ts
-- [ ] T030 [P] Error handler in backend/src/websocket/handlers/error.ts
+- [x] T026 [P] Dashboard connect handler in backend/src/websocket/handlers/dashboard-connect.ts
+- [x] T027 [P] Command request handler in backend/src/websocket/handlers/command-request.ts
+- [x] T028 [P] Command interrupt handler in backend/src/websocket/handlers/command-interrupt.ts
+- [x] T029 [P] Heartbeat handler in backend/src/websocket/handlers/heartbeat.ts
+- [x] T030 [P] Error handler in backend/src/websocket/handlers/error.ts
 
 ### Frontend WebSocket Service
 - [ ] T031 WebSocket service class in frontend/src/services/websocket.service.ts

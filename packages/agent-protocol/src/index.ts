@@ -13,11 +13,9 @@
 export {
   MessageType,
   type WebSocketMessage,
-  type AgentType,
   type AgentStatus,
   type AgentActivityState,
   type CommandType,
-  type CommandStatus,
   type StreamType,
   type TraceType,
   type ErrorType,
@@ -131,7 +129,16 @@ export class MessageValidator {
 
 // Export WebSocket message types and utilities
 export * from './websocket-messages.js';
-export * from './connection-types.js';
+export {
+  ConnectionInfo,
+  ConnectionMetadata,
+  ReconnectionConfig,
+  DEFAULT_RECONNECTION_CONFIG,
+  ConnectionEvents,
+  ReconnectionStrategy,
+  WebSocketManagerOptions,
+  WebSocketStats
+} from './connection-types.js';
 export * from './websocket-validation.js';
 
 // Export version information
@@ -243,22 +250,6 @@ export const RATE_LIMITS = {
   MAX_AGENTS_PER_USER: 5
 } as const;
 
-// Agent Type constants
-export const AgentType = {
-  CLAUDE: 'CLAUDE' as const,
-  GEMINI: 'GEMINI' as const,
-  CODEX: 'CODEX' as const
-} as const;
-
-// Command Status constants
-export const CommandStatus = {
-  PENDING: 'PENDING' as const,
-  QUEUED: 'QUEUED' as const,
-  EXECUTING: 'EXECUTING' as const,
-  COMPLETED: 'COMPLETED' as const,
-  FAILED: 'FAILED' as const,
-  CANCELLED: 'CANCELLED' as const
-} as const;
 
 // Terminal Output Type constants
 export const TerminalOutputType = {
