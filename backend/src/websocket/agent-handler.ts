@@ -171,10 +171,7 @@ export class AgentWebSocketHandler extends EventEmitter {
           this.sendError(connection.socket, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type: ${message.type}`);
       }
 
-      // Send acknowledgment if not a heartbeat/ping
-      if (![MessageType.AGENT_HEARTBEAT, MessageType.PING].includes(message.type)) {
-        this.sendAck(connection.socket, message.id);
-      }
+      // Note: Acknowledgments are handled within each message handler
 
     } catch (error) {
       this.server.log.error({
@@ -195,8 +192,20 @@ export class AgentWebSocketHandler extends EventEmitter {
     const { agentId, agentType, version, hostMachine, capabilities } = message.payload;
 
     try {
-      // Authenticate agent (simplified for now - in production, validate JWT)
-      // TODO: Implement proper JWT validation
+      // Authenticate agent using WebSocketAuth
+      const token = connection.metadata.headers['authorization']?.replace('Bearer ', '') ||
+                   connection.metadata.query?.token as string;
+
+      if (!token) {
+        this.sendError(connection.socket, 'UNAUTHORIZED', 'No authentication token provided');
+        return;
+      }
+
+      const authContext = await this.dependencies.auth.validateToken(token);
+      if (!authContext) {
+        this.sendError(connection.socket, 'UNAUTHORIZED', 'Invalid authentication token');
+        return;
+      }
 
       // Register agent with service
       await this.services.agentService.connectAgent({
@@ -221,10 +230,13 @@ export class AgentWebSocketHandler extends EventEmitter {
         agentId
       });
 
-      // Send success response
+      // Send success response with connection details
       this.sendMessage(connection.socket, MessageType.ACK, {
         messageId: message.id,
-        success: true
+        success: true,
+        connectionId: connection.connectionId,
+        agentId,
+        authenticated: true
       });
 
       // Start heartbeat monitoring
@@ -304,6 +316,13 @@ export class AgentWebSocketHandler extends EventEmitter {
         });
       }
 
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        errorReceived: true
+      });
+
       this.server.log.error({
         agentId,
         errorType,
@@ -340,6 +359,14 @@ export class AgentWebSocketHandler extends EventEmitter {
         queuePosition
       });
 
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        commandId,
+        acknowledged: true
+      });
+
       this.server.log.debug({ commandId, status }, 'Command acknowledged');
 
     } catch (error) {
@@ -368,6 +395,14 @@ export class AgentWebSocketHandler extends EventEmitter {
 
       // Route to dashboard
       this.dependencies.messageRouter.routeToDashboard(MessageType.COMMAND_STATUS, payload);
+
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        commandId: payload.commandId,
+        completed: true
+      });
 
       this.server.log.info({
         commandId: payload.commandId,
@@ -402,6 +437,14 @@ export class AgentWebSocketHandler extends EventEmitter {
         timestamp: Date.now()
       });
 
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        sequence: payload.sequence,
+        received: true
+      });
+
     } catch (error) {
       this.server.log.error({ error, commandId: payload.commandId }, 'Failed to handle terminal output');
     }
@@ -427,6 +470,14 @@ export class AgentWebSocketHandler extends EventEmitter {
         trace: payload
       });
 
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        traceId: payload.traceId,
+        received: true
+      });
+
     } catch (error) {
       this.server.log.error({ error, commandId: payload.commandId }, 'Failed to handle trace event');
     }
@@ -444,6 +495,14 @@ export class AgentWebSocketHandler extends EventEmitter {
     try {
       // Store investigation report
       await this.services.commandService.createInvestigationReport(payload);
+
+      // Send acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        reportId: payload.reportId,
+        received: true
+      });
 
       this.server.log.info({
         reportId: payload.reportId,

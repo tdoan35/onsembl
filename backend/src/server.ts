@@ -201,6 +201,10 @@ export async function createServer(): Promise<FastifyInstance> {
     },
   });
 
+  // Setup WebSocket handlers
+  const { setupWebSocketPlugin } = await import('./websocket/setup.js');
+  await setupWebSocketPlugin(server, services);
+
   // Health check endpoint
   server.get(
     '/health',
@@ -241,81 +245,11 @@ export async function createServer(): Promise<FastifyInstance> {
     message: 'Backend is running!',
   }));
 
-  // WebSocket endpoints
-  await server.register(async function (server) {
-    // Agent WebSocket endpoint
-    server.get('/ws/agent', { websocket: true }, (connection, request) => {
-      server.log.info(
-        { remoteAddress: request.socket.remoteAddress },
-        'Agent WebSocket connection established',
-      );
-
-      connection.socket.on('message', message => {
-        try {
-          const data = JSON.parse(message.toString());
-          server.log.debug({ data }, 'Agent message received');
-
-          // Will be implemented in T091
-          connection.socket.send(
-            JSON.stringify({
-              type: 'ack',
-              timestamp: new Date().toISOString(),
-            }),
-          );
-        } catch (error) {
-          server.log.error({ error }, 'Failed to parse agent message');
-        }
-      });
-
-      connection.socket.on('close', () => {
-        server.log.info('Agent WebSocket connection closed');
-      });
-
-      connection.socket.on('error', error => {
-        server.log.error({ error }, 'Agent WebSocket error');
-      });
-    });
-
-    // Dashboard WebSocket endpoint
-    server.get('/ws/dashboard', { websocket: true }, (connection, request) => {
-      server.log.info(
-        { remoteAddress: request.socket.remoteAddress },
-        'Dashboard WebSocket connection established',
-      );
-
-      connection.socket.on('message', message => {
-        try {
-          const data = JSON.parse(message.toString());
-          server.log.debug({ data }, 'Dashboard message received');
-
-          // Will be implemented in T092
-          connection.socket.send(
-            JSON.stringify({
-              type: 'ack',
-              timestamp: new Date().toISOString(),
-            }),
-          );
-        } catch (error) {
-          server.log.error({ error }, 'Failed to parse dashboard message');
-          connection.socket.send(
-            JSON.stringify({
-              type: 'error',
-              message: 'Invalid JSON',
-              timestamp: new Date().toISOString(),
-            }),
-          );
-        }
-      });
-
-      connection.socket.on('close', () => {
-        server.log.info('Dashboard WebSocket connection closed');
-      });
-
-      connection.socket.on('error', error => {
-        server.log.error({ error }, 'Dashboard WebSocket error');
-      });
-    });
-  });
+  // WebSocket endpoints - Moved to websocket module
+  // The actual implementations are in:
+  // - src/websocket/agent-handler.ts
+  // - src/websocket/dashboard-handler.ts
+  // These routes are registered by the websocket plugin
 
   // Global error handler
   server.setErrorHandler(async (error, request, reply) => {

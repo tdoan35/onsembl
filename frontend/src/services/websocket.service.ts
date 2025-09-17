@@ -187,7 +187,7 @@ export class WebSocketService extends EventTarget {
       try {
         ws.send(JSON.stringify(message));
       } catch (error) {
-        console.error(`Failed to send WebSocket message to ${endpoint}:`, error);
+        // Failed to send message, will be queued
         this.queueMessage(endpoint, message);
       }
     } else {
@@ -316,7 +316,7 @@ export class WebSocketService extends EventTarget {
   }
 
   private handleConnectionOpen(endpoint: string): void {
-    console.log(`WebSocket connected to ${endpoint}`);
+    // Connection established
     this.setConnectionState(endpoint, 'connected');
     this.resetReconnectAttempts(endpoint);
     this.startHeartbeat(endpoint);
@@ -324,7 +324,7 @@ export class WebSocketService extends EventTarget {
   }
 
   private handleConnectionClose(endpoint: string, event: CloseEvent): void {
-    console.log(`WebSocket disconnected from ${endpoint}:`, event.code, event.reason);
+    // Connection closed
     this.clearTimers(endpoint);
     this.setConnectionState(endpoint, 'disconnected');
 
@@ -335,7 +335,7 @@ export class WebSocketService extends EventTarget {
   }
 
   private handleConnectionError(endpoint: string, error: Error): void {
-    console.error(`WebSocket error on ${endpoint}:`, error);
+    // Connection error occurred
     this.setConnectionState(endpoint, 'error', error);
     this.clearTimers(endpoint);
   }
@@ -346,7 +346,7 @@ export class WebSocketService extends EventTarget {
       this.processMessage(message);
       this.resetHeartbeatTimeout(endpoint);
     } catch (error) {
-      console.error(`Failed to parse WebSocket message from ${endpoint}:`, error);
+      // Failed to parse message
     }
   }
 
@@ -377,7 +377,7 @@ export class WebSocketService extends EventTarget {
         try {
           callback(payload, message);
         } catch (error) {
-          console.error(`Error in WebSocket event listener for ${type}:`, error);
+          // Error in event listener
         }
       });
     }
@@ -404,7 +404,7 @@ export class WebSocketService extends EventTarget {
 
   private handlePong(message: TypedWebSocketMessage<MessageType.PONG>): void {
     // Update connection latency metrics
-    console.log(`Pong received with latency: ${message.payload.latency}ms`);
+    // Latency measurement received
   }
 
   private handleTokenRefresh(message: WebSocketMessage): void {
@@ -458,7 +458,7 @@ export class WebSocketService extends EventTarget {
       try {
         ws.send(JSON.stringify(queuedMessage.message));
       } catch (error) {
-        console.error(`Failed to send queued message to ${endpoint}:`, error);
+        // Failed to send queued message
         // Re-queue if retries available
         if (queuedMessage.retries < 3) {
           queuedMessage.retries++;
@@ -472,7 +472,7 @@ export class WebSocketService extends EventTarget {
   private attemptReconnection(endpoint: 'agent' | 'dashboard'): void {
     const attempts = this.reconnectAttempts.get(endpoint) || 0;
     if (attempts >= this.config.reconnect.maxAttempts) {
-      console.error(`Max reconnection attempts reached for ${endpoint}`);
+      // Max reconnection attempts reached
       return;
     }
 
@@ -481,14 +481,14 @@ export class WebSocketService extends EventTarget {
       this.config.reconnect.maxDelay
     );
 
-    console.log(`Attempting to reconnect to ${endpoint} in ${delay}ms (attempt ${attempts + 1})`);
+    // Scheduling reconnection attempt
     this.reconnectAttempts.set(endpoint, attempts + 1);
 
     const timer = setTimeout(async () => {
       try {
         await this.connect(endpoint);
       } catch (error) {
-        console.error(`Reconnection failed for ${endpoint}:`, error);
+        // Reconnection failed, will retry
         this.attemptReconnection(endpoint);
       }
     }, delay);
@@ -509,7 +509,7 @@ export class WebSocketService extends EventTarget {
     this.clearHeartbeatTimeout(endpoint);
 
     const timeout = setTimeout(() => {
-      console.warn(`Heartbeat timeout for ${endpoint}`);
+      // Heartbeat timeout detected
       this.handleConnectionError(endpoint, new Error('Heartbeat timeout'));
     }, this.config.heartbeat.timeout);
 
@@ -557,7 +557,7 @@ export class WebSocketService extends EventTarget {
         try {
           callback(state, error);
         } catch (callbackError) {
-          console.error(`Error in connection state callback for ${endpoint}:`, callbackError);
+          // Error in state callback
         }
       });
     }

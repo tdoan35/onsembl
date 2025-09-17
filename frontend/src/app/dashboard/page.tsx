@@ -9,7 +9,9 @@ import {
   AlertTriangle,
   TrendingUp,
   Zap,
-  Clock
+  Clock,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +28,7 @@ import EmergencyStop from '@/components/system/emergency-stop';
 import { useAgentStore } from '@/stores/agent-store';
 import { useCommandStore } from '@/stores/command-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
@@ -55,21 +58,66 @@ export default function DashboardPage() {
     addNotification,
   } = useUIStore();
 
+  // Initialize WebSocket connection
+  const {
+    isConnected,
+    connectionState,
+    error: wsError,
+    requestCommand,
+    interruptCommand,
+    connect,
+    disconnect
+  } = useWebSocket({
+    autoConnect: true,
+    onConnect: () => {
+      addNotification({
+        title: 'Connected',
+        description: 'WebSocket connection established',
+        type: 'success',
+      });
+    },
+    onDisconnect: () => {
+      addNotification({
+        title: 'Disconnected',
+        description: 'WebSocket connection lost',
+        type: 'error',
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        title: 'Connection Error',
+        description: error.message,
+        type: 'error',
+      });
+    }
+  });
+
   const onlineAgents = getOnlineAgents();
   const runningCommands = getRunningCommands();
   const selectedAgent = agents.find(a => a.id === selectedAgentId);
 
-  // Mock data initialization for demo purposes
+  // Handle WebSocket connection on mount
   useEffect(() => {
-    const initializeMockData = () => {
-      // This would normally come from API/WebSocket connections
-      console.log('Dashboard initialized');
+    // Connection is auto-established via the hook
+    return () => {
+      // Cleanup handled by the hook
     };
-
-    initializeMockData();
   }, []);
 
   const handleCommandSubmit = async (command: string, agentId: string, priority: any) => {
+    if (!isConnected) {
+      addNotification({
+        title: 'Not Connected',
+        description: 'Please wait for WebSocket connection to be established',
+        type: 'error',
+      });
+      return;
+    }
+
+    // Send command via WebSocket
+    requestCommand(agentId, command, []);
+
+    // Add to local store for immediate UI feedback
     const newCommand = {
       id: `cmd-${Date.now()}`,
       agentId,
@@ -80,16 +128,6 @@ export default function DashboardPage() {
     };
 
     addCommand(newCommand);
-
-    // Simulate command execution
-    setTimeout(() => {
-      // This would be handled by WebSocket in real implementation
-      addNotification({
-        title: 'Command Executed',
-        description: `Command "${command}" completed`,
-        type: 'success',
-      });
-    }, 2000);
   };
 
   const handleAgentSelect = (agentId: string) => {
@@ -128,7 +166,26 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          {/* WebSocket Connection Status */}
+          <Badge
+            variant={isConnected ? 'default' : 'destructive'}
+            className="flex items-center space-x-1"
+          >
+            {isConnected ? (
+              <>
+                <Wifi className="h-3 w-3" />
+                <span>Connected</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3 w-3" />
+                <span>{connectionState === 'connecting' ? 'Connecting...' : 'Disconnected'}</span>
+              </>
+            )}
+          </Badge>
+
           <EmergencyStop />
+
           <Badge
             variant={
               systemHealth.status === 'healthy'

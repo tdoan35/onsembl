@@ -160,10 +160,7 @@ export class DashboardWebSocketHandler extends EventEmitter {
           this.sendError(connection.socket, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type: ${message.type}`);
       }
 
-      // Send acknowledgment if not a ping/pong
-      if (![MessageType.PING, MessageType.PONG].includes(message.type)) {
-        this.sendAck(connection.socket, message.id);
-      }
+      // Note: ACK messages are not sent here anymore. Each handler should send appropriate response messages
 
     } catch (error) {
       this.server.log.error({
@@ -184,10 +181,20 @@ export class DashboardWebSocketHandler extends EventEmitter {
     const { userId, subscriptions } = message.payload;
 
     try {
-      // Authenticate user (simplified for now - in production, validate JWT from header)
-      // TODO: Implement proper JWT validation
-      // const token = extractTokenFromHeaders(connection.metadata);
-      // const user = await this.services.authService.validateToken(token);
+      // Authenticate user using WebSocketAuth
+      const token = connection.metadata.headers['authorization']?.replace('Bearer ', '') ||
+                   connection.metadata.query?.token as string;
+
+      if (!token) {
+        this.sendError(connection.socket, 'UNAUTHORIZED', 'No authentication token provided');
+        return;
+      }
+
+      const authContext = await this.dependencies.auth.validateToken(token);
+      if (!authContext || authContext.userId !== userId) {
+        this.sendError(connection.socket, 'UNAUTHORIZED', 'Invalid authentication token');
+        return;
+      }
 
       // Set user ID and authenticate
       connection.userId = userId;
@@ -220,6 +227,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
 
       // Send initial data
       await this.sendInitialData(connection);
+
+      // Send success acknowledgment with connection details
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        connectionId: connection.connectionId,
+        subscriptions: {
+          agents: Array.from(connection.subscriptions.agents),
+          commands: Array.from(connection.subscriptions.commands),
+          traces: connection.subscriptions.traces,
+          terminals: connection.subscriptions.terminals
+        }
+      });
 
       // Notify other systems
       this.emit('dashboardConnected', { userId, connectionId: connection.connectionId });
@@ -279,6 +299,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
       // Send current data for new subscriptions
       await this.sendSubscriptionData(connection, type, id, all);
 
+      // Send success acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        subscription: { type, id, all },
+        subscriptions: {
+          agents: Array.from(connection.subscriptions.agents),
+          commands: Array.from(connection.subscriptions.commands),
+          traces: connection.subscriptions.traces,
+          terminals: connection.subscriptions.terminals
+        }
+      });
+
       this.server.log.debug({
         connectionId: connection.connectionId,
         type,
@@ -328,6 +361,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
           break;
       }
 
+      // Send success acknowledgment
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        unsubscription: { type, id, all },
+        subscriptions: {
+          agents: Array.from(connection.subscriptions.agents),
+          commands: Array.from(connection.subscriptions.commands),
+          traces: connection.subscriptions.traces,
+          terminals: connection.subscriptions.terminals
+        }
+      });
+
       this.server.log.debug({
         connectionId: connection.connectionId,
         type,
@@ -360,6 +406,11 @@ export class DashboardWebSocketHandler extends EventEmitter {
   private async handlePong(connection: DashboardConnection, message: WebSocketMessage): Promise<void> {
     // Update connection health
     connection.lastPing = Date.now();
+
+    // Record pong with heartbeat manager
+    if (message.payload?.timestamp) {
+      this.dependencies.heartbeatManager.recordPong(connection.connectionId, message.payload.timestamp);
+    }
   }
 
   /**
@@ -608,15 +659,6 @@ export class DashboardWebSocketHandler extends EventEmitter {
     });
   }
 
-  /**
-   * Send acknowledgment
-   */
-  private sendAck(socket: SocketStream, messageId: string): void {
-    this.sendMessage(socket, MessageType.ACK, {
-      messageId,
-      success: true
-    });
-  }
 
   /**
    * Validate message structure
