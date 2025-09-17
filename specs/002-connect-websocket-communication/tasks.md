@@ -90,10 +90,10 @@
 - [x] T030 [P] Error handler in backend/src/websocket/handlers/error.ts
 
 ### Frontend WebSocket Service
-- [ ] T031 WebSocket service class in frontend/src/services/websocket.service.ts
-- [ ] T032 [P] Reconnection logic with exponential backoff in frontend/src/services/reconnection.ts
-- [ ] T033 [P] Message handler registry in frontend/src/services/message-handlers.ts
-- [ ] T034 [P] Terminal buffer implementation in frontend/src/services/terminal-buffer.ts
+- [x] T031 WebSocket service class in frontend/src/services/websocket.service.ts
+- [x] T032 [P] Reconnection logic with exponential backoff in frontend/src/services/reconnection.ts
+- [x] T033 [P] Message handler registry in frontend/src/services/message-handlers.ts
+- [x] T034 [P] Terminal buffer implementation in frontend/src/services/terminal-buffer.ts
 
 ### Frontend Store Integration
 - [ ] T035 WebSocket store updates in frontend/src/stores/websocket.store.ts
