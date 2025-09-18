@@ -1,8 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { Config, getAgentEnvironment } from '../config';
-import { StreamCapture, OutputChunk } from '../stream-capture';
-import { AgentStatus, AgentMetadata } from './claude';
+import { Config, getAgentEnvironment } from '../config.js';
+import { StreamCapture, OutputChunk } from '../stream-capture.js';
+import { AgentStatus, AgentMetadata } from './claude.js';
 
 export interface CodexAgentOptions {
   config: Config;
@@ -23,7 +23,10 @@ export class CodexAgent extends EventEmitter {
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private restartTimer: NodeJS.Timeout | null = null;
 
-  private onOutput: (stream: 'stdout' | 'stderr', chunk: OutputChunk) => Promise<void>;
+  private onOutput: (
+    stream: 'stdout' | 'stderr',
+    chunk: OutputChunk,
+  ) => Promise<void>;
   private onError: (error: Error) => void;
   private onStatusChange: (status: AgentStatus) => void;
 
@@ -55,7 +58,9 @@ export class CodexAgent extends EventEmitter {
     try {
       // Validate Codex command exists
       if (!this.validateCommand()) {
-        throw new Error(`Codex command '${this.config.agentCommand}' not found in PATH`);
+        throw new Error(
+          `Codex command '${this.config.agentCommand}' not found in PATH`,
+        );
       }
 
       // Prepare command arguments
@@ -84,7 +89,10 @@ export class CodexAgent extends EventEmitter {
 
       // Attach to process streams
       if (this.process.stdout && this.process.stderr) {
-        this.streamCapture.attachToStreams(this.process.stdout, this.process.stderr);
+        this.streamCapture.attachToStreams(
+          this.process.stdout,
+          this.process.stderr,
+        );
         this.streamCapture.startAutoFlush();
       }
 
@@ -99,7 +107,6 @@ export class CodexAgent extends EventEmitter {
 
       this.setStatus('ready');
       console.log('Codex agent started successfully');
-
     } catch (error) {
       this.setStatus('error');
       this.cleanup();
@@ -111,7 +118,11 @@ export class CodexAgent extends EventEmitter {
    * Stop the Codex agent process
    */
   async stop(): Promise<void> {
-    if (!this.process || this.status === 'stopping' || this.status === 'stopped') {
+    if (
+      !this.process ||
+      this.status === 'stopping' ||
+      this.status === 'stopped'
+    ) {
       return;
     }
 
@@ -129,7 +140,6 @@ export class CodexAgent extends EventEmitter {
 
       // Wait for graceful shutdown
       await this.waitForExit(5000);
-
     } catch (error) {
       console.warn('Graceful shutdown failed, force killing process');
       this.forceKill();
@@ -168,7 +178,7 @@ export class CodexAgent extends EventEmitter {
         content: input,
         model: this.config.codex.model,
         temperature: this.config.codex.temperature,
-        maxTokens: this.config.codex.maxTokens
+        maxTokens: this.config.codex.maxTokens,
       });
       this.process.stdin.write(protocolMessage + '\n');
     } catch (error) {
@@ -210,7 +220,6 @@ export class CodexAgent extends EventEmitter {
 
       // Additional Codex-specific health checks could go here
       return true;
-
     } catch (error) {
       console.error('Health check failed:', error);
       return false;
@@ -291,7 +300,7 @@ export class CodexAgent extends EventEmitter {
       }
     });
 
-    this.process.on('error', (error) => {
+    this.process.on('error', error => {
       console.error('Codex process error:', error);
       this.setStatus('error');
       this.onError(error);
@@ -313,24 +322,30 @@ export class CodexAgent extends EventEmitter {
     // Look for Codex-specific patterns
     if (stream === 'stdout') {
       // Check for ready signal - Codex proto mode uses JSON protocol
-      if (data.includes('"protocol":') ||
-          data.includes('"ready":true') ||
-          data.includes('Connected') ||
-          this.status === 'starting') {
+      if (
+        data.includes('"protocol":') ||
+        data.includes('"ready":true') ||
+        data.includes('Connected') ||
+        this.status === 'starting'
+      ) {
         if (this.status === 'starting' || this.status === 'busy') {
           this.setStatus('ready');
         }
       }
 
       // Check for error patterns
-      if (data.includes('Error:') ||
-          data.includes('Exception:') ||
-          data.includes('OpenAI API error')) {
+      if (
+        data.includes('Error:') ||
+        data.includes('Exception:') ||
+        data.includes('OpenAI API error')
+      ) {
         console.warn('Codex output contains error:', data);
       }
 
       // Extract model information if available
-      const modelMatch = data.match(/Model:\s*(gpt-[\w-]+|davinci|cushman|babbage|ada)/i);
+      const modelMatch = data.match(
+        /Model:\s*(gpt-[\w-]+|davinci|cushman|babbage|ada)/i,
+      );
       if (modelMatch) {
         this.metadata.version = modelMatch[1];
       }
@@ -346,10 +361,13 @@ export class CodexAgent extends EventEmitter {
       }
 
       // Check for code generation patterns
-      if (data.includes('```') || data.includes('function') || data.includes('class')) {
+      if (
+        data.includes('```') ||
+        data.includes('function') ||
+        data.includes('class')
+      ) {
         console.log('Codex generating code');
       }
-
     } else {
       // stderr - treat as potential errors
       console.warn('Codex stderr:', data);
@@ -390,13 +408,17 @@ export class CodexAgent extends EventEmitter {
       this.on('status_change', checkReady);
 
       // Also check for ready signals in output
-      const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
-        if (stream === 'stdout' && (
-          chunk.data.includes('"protocol":') ||
-          chunk.data.includes('"ready":true') ||
-          chunk.data.includes('Connected') ||
-          this.status === 'starting'
-        )) {
+      const outputListener = (
+        stream: 'stdout' | 'stderr',
+        chunk: OutputChunk,
+      ) => {
+        if (
+          stream === 'stdout' &&
+          (chunk.data.includes('"protocol":') ||
+            chunk.data.includes('"ready":true') ||
+            chunk.data.includes('Connected') ||
+            this.status === 'starting')
+        ) {
           clearTimeout(timeout);
           this.removeListener('output', outputListener);
           resolve();
@@ -498,16 +520,18 @@ export class CodexAgent extends EventEmitter {
     try {
       // On Unix systems, we can use ps to get memory and CPU usage
       const { execSync } = require('child_process');
-      const psOutput = execSync(`ps -p ${this.process.pid} -o %mem,%cpu --no-headers`, {
-        encoding: 'utf8',
-        timeout: 1000,
-      });
+      const psOutput = execSync(
+        `ps -p ${this.process.pid} -o %mem,%cpu --no-headers`,
+        {
+          encoding: 'utf8',
+          timeout: 1000,
+        },
+      );
 
       const [memPercent, cpuPercent] = psOutput.trim().split(/\s+/).map(Number);
 
       this.metadata.memoryUsage = memPercent;
       this.metadata.cpuUsage = cpuPercent;
-
     } catch (error) {
       // Ignore errors in resource monitoring
       console.debug('Failed to update resource usage:', error);

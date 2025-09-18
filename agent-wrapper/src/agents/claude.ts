@@ -2,8 +2,8 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { Config, getAgentEnvironment } from '../config';
-import { StreamCapture, OutputChunk } from '../stream-capture';
+import { Config, getAgentEnvironment } from '../config.js';
+import { StreamCapture, OutputChunk } from '../stream-capture.js';
 
 export interface ClaudeAgentOptions {
   config: Config;
@@ -82,12 +82,14 @@ export class ClaudeAgent extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      this.metadata.pid = this.process.pid;
+      if (this.process.pid !== undefined) {
+        this.metadata.pid = this.process.pid;
+      }
 
       // Set up stream capture
       this.streamCapture = new StreamCapture({
         config: this.config,
-        onOutput: async (stream, chunk) => {
+        onOutput: async (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
           // Process Claude-specific output
           this.processOutput(stream, chunk);
           await this.onOutput(stream, chunk);
@@ -261,7 +263,7 @@ export class ClaudeAgent extends EventEmitter {
       // Check nvm paths
       const nvmPaths = [
         '/Users/tythanhdoan/.nvm/versions/node/v22.18.0/bin/claude',
-        join(process.env.HOME || '', '.nvm/versions/node/v22.18.0/bin/claude'),
+        join(process.env['HOME'] || '', '.nvm/versions/node/v22.18.0/bin/claude'),
       ];
 
       for (const nvmPath of nvmPaths) {
@@ -390,7 +392,10 @@ export class ClaudeAgent extends EventEmitter {
       // Extract model information if available
       const modelMatch = data.match(/Model:\s*([\w-]+)/);
       if (modelMatch) {
-        this.metadata.version = modelMatch[1];
+        const version = modelMatch[1];
+        if (version) {
+          this.metadata.version = version;
+        }
       }
     } else {
       // stderr - treat as potential errors but don't fail immediately
@@ -521,7 +526,7 @@ export class ClaudeAgent extends EventEmitter {
     }
 
     this.process = null;
-    this.metadata.pid = undefined;
+    delete this.metadata.pid;
   }
 
   private setStatus(status: AgentStatus): void {
@@ -587,10 +592,14 @@ export class ClaudeAgent extends EventEmitter {
 
       // Split output by lines and get the data line (skip header)
       const lines = psOutput.trim().split('\n');
-      if (lines.length > 1) {
+      if (lines.length > 1 && lines[1]) {
         const [memPercent, cpuPercent] = lines[1].trim().split(/\s+/).map(Number);
-        this.metadata.memoryUsage = memPercent;
-        this.metadata.cpuUsage = cpuPercent;
+        if (memPercent !== undefined && !isNaN(memPercent)) {
+          this.metadata.memoryUsage = memPercent;
+        }
+        if (cpuPercent !== undefined && !isNaN(cpuPercent)) {
+          this.metadata.cpuUsage = cpuPercent;
+        }
       }
 
     } catch (error) {

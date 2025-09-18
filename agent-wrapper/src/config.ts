@@ -86,6 +86,7 @@ const DEFAULT_AGENT_COMMANDS = {
   claude: 'claude',
   gemini: 'gemini',
   codex: 'codex',
+  mock: 'mock',
 } as const;
 
 /**
@@ -222,7 +223,12 @@ export function validateAgentCommand(command: string): boolean {
  * Get environment variables for agent process
  */
 export function getAgentEnvironment(config: Config): Record<string, string> {
-  const baseEnv = { ...process.env };
+  const baseEnv: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      baseEnv[key] = value;
+    }
+  }
 
   switch (config.agentType) {
     case 'claude':
