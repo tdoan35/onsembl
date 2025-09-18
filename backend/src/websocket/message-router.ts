@@ -56,7 +56,16 @@ export class MessageRouter extends EventEmitter {
   };
 
   private processingTimer?: NodeJS.Timeout;
+  private cleanupTimer?: NodeJS.Timeout;
   private latencyHistory: number[] = [];
+
+  // T011: Command-to-Dashboard tracking for response routing
+  private commandToDashboard = new Map<string, string>(); // commandId -> dashboardConnectionId
+  private dashboardCommands = new Map<string, Set<string>>(); // dashboardConnectionId -> Set<commandId>
+
+  // T021: Command TTL tracking
+  private commandTimestamps = new Map<string, number>(); // commandId -> timestamp
+  private commandTTL = 3600000; // 1 hour default TTL
 
   constructor(
     private server: FastifyInstance,
@@ -195,6 +204,19 @@ export class MessageRouter extends EventEmitter {
    * Stream terminal output to dashboards
    */
   streamTerminalOutput(payload: TerminalStreamPayload): void {
+    // Check if payload contains commandId
+    const commandId = (payload as any).commandId;
+
+    if (commandId) {
+      // Route to specific dashboard that initiated the command
+      const dashboardId = this.commandToDashboard.get(commandId);
+      if (dashboardId) {
+        this.routeToSpecificDashboard(dashboardId, MessageType.TERMINAL_STREAM, payload, 9);
+        return;
+      }
+    }
+
+    // Fall back to broadcast if no command tracking
     this.routeToDashboard(
       MessageType.TERMINAL_STREAM,
       payload,
@@ -533,9 +555,9 @@ export class MessageRouter extends EventEmitter {
    * Check if dashboard is subscribed to command
    */
   private isDashboardSubscribedToCommand(connectionId: string, commandId: string): boolean {
-    // This would need to be implemented based on how subscriptions are stored
-    // For now, assume all dashboards are interested in all commands
-    return true;
+    // Check if this dashboard initiated the command
+    const dashboardId = this.commandToDashboard.get(commandId);
+    return dashboardId === connectionId;
   }
 
   /**
@@ -583,6 +605,11 @@ export class MessageRouter extends EventEmitter {
       this.processMessageQueue();
     }, 100); // Process every 100ms for low latency
 
+    // T021: Start command TTL cleanup timer
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredCommands();
+    }, 60000); // Clean up every minute
+
     this.server.log.debug('Message router processing started');
   }
 
@@ -595,6 +622,11 @@ export class MessageRouter extends EventEmitter {
       this.processingTimer = undefined;
     }
 
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
+    }
+
     this.clearQueue();
     this.server.log.info('Message router stopped');
   }
@@ -604,5 +636,102 @@ export class MessageRouter extends EventEmitter {
    */
   private generateMessageId(): string {
     return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Register a command as initiated by a dashboard
+   */
+  registerCommandForDashboard(commandId: string, dashboardConnectionId: string): void {
+    this.commandToDashboard.set(commandId, dashboardConnectionId);
+
+    // Track commands per dashboard
+    let commands = this.dashboardCommands.get(dashboardConnectionId);
+    if (!commands) {
+      commands = new Set();
+      this.dashboardCommands.set(dashboardConnectionId, commands);
+    }
+    commands.add(commandId);
+
+    // T021: Track command timestamp for TTL
+    this.commandTimestamps.set(commandId, Date.now());
+
+    this.server.log.debug({
+      commandId,
+      dashboardConnectionId,
+      totalCommands: this.commandToDashboard.size
+    }, 'Command registered for dashboard');
+  }
+
+  /**
+   * Clean up commands for a disconnected dashboard
+   */
+  cleanupDashboardCommands(dashboardConnectionId: string): void {
+    const commands = this.dashboardCommands.get(dashboardConnectionId);
+    if (commands) {
+      for (const commandId of commands) {
+        this.commandToDashboard.delete(commandId);
+      }
+      this.dashboardCommands.delete(dashboardConnectionId);
+
+      this.server.log.debug({
+        dashboardConnectionId,
+        cleanedCommands: commands.size
+      }, 'Cleaned up commands for disconnected dashboard');
+    }
+  }
+
+  /**
+   * Clean up a completed or cancelled command
+   */
+  cleanupCommand(commandId: string): void {
+    const dashboardId = this.commandToDashboard.get(commandId);
+    if (dashboardId) {
+      this.commandToDashboard.delete(commandId);
+      this.commandTimestamps.delete(commandId); // T021: Clean up timestamp
+
+      const commands = this.dashboardCommands.get(dashboardId);
+      if (commands) {
+        commands.delete(commandId);
+        if (commands.size === 0) {
+          this.dashboardCommands.delete(dashboardId);
+        }
+      }
+
+      this.server.log.debug({
+        commandId,
+        dashboardId
+      }, 'Cleaned up completed command');
+    }
+  }
+
+  /**
+   * Get dashboard connection ID for a command
+   */
+  getDashboardForCommand(commandId: string): string | undefined {
+    return this.commandToDashboard.get(commandId);
+  }
+
+  /**
+   * T021: Clean up expired commands based on TTL
+   */
+  private cleanupExpiredCommands(): void {
+    const now = Date.now();
+    const expiredCommands: string[] = [];
+
+    for (const [commandId, timestamp] of this.commandTimestamps) {
+      if (now - timestamp > this.commandTTL) {
+        expiredCommands.push(commandId);
+      }
+    }
+
+    if (expiredCommands.length > 0) {
+      this.server.log.info({
+        count: expiredCommands.length
+      }, 'Cleaning up expired commands');
+
+      for (const commandId of expiredCommands) {
+        this.cleanupCommand(commandId);
+      }
+    }
   }
 }

@@ -351,8 +351,8 @@ export class AgentWebSocketHandler extends EventEmitter {
         acknowledgedAt: new Date()
       });
 
-      // Route to dashboard
-      this.dependencies.messageRouter.routeToDashboard(MessageType.COMMAND_STATUS, {
+      // T017: Route to dashboard with proper command tracking
+      this.dependencies.messageRouter.broadcastCommandStatus(commandId, {
         commandId,
         agentId,
         status,
@@ -393,8 +393,8 @@ export class AgentWebSocketHandler extends EventEmitter {
         outputStats: payload.outputStats
       });
 
-      // Route to dashboard
-      this.dependencies.messageRouter.routeToDashboard(MessageType.COMMAND_STATUS, payload);
+      // T017: Route to dashboard with proper command tracking
+      this.dependencies.messageRouter.broadcastCommandStatus(payload.commandId, payload);
 
       // Send acknowledgment
       this.sendMessage(connection.socket, MessageType.ACK, {
@@ -427,8 +427,8 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Process terminal output through stream manager
       await this.dependencies.terminalStreamManager.processOutput(payload);
 
-      // Stream to dashboard in real-time
-      this.dependencies.messageRouter.routeToDashboard(MessageType.TERMINAL_STREAM, {
+      // T017: Stream to dashboard with proper command tracking
+      this.dependencies.messageRouter.streamTerminalOutput({
         commandId: payload.commandId,
         agentId: payload.agentId,
         content: payload.content,
