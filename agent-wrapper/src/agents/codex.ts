@@ -162,7 +162,15 @@ export class CodexAgent extends EventEmitter {
     this.setStatus('busy');
 
     try {
-      this.process.stdin.write(input + '\n');
+      // For Codex proto mode, wrap input in protocol format
+      const protocolMessage = JSON.stringify({
+        type: 'message',
+        content: input,
+        model: this.config.codex.model,
+        temperature: this.config.codex.temperature,
+        maxTokens: this.config.codex.maxTokens
+      });
+      this.process.stdin.write(protocolMessage + '\n');
     } catch (error) {
       this.setStatus('error');
       throw error;
@@ -220,8 +228,23 @@ export class CodexAgent extends EventEmitter {
   private validateCommand(): boolean {
     try {
       const { execSync } = require('child_process');
-      execSync(`which ${this.config.agentCommand}`, { stdio: 'ignore' });
-      return true;
+      // Try which first, then check if it's an npm global command
+      try {
+        execSync(`which ${this.config.agentCommand}`, { stdio: 'ignore' });
+        return true;
+      } catch {
+        // Try to find it in npm global bin
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8' }).trim();
+        const fs = require('fs');
+        const path = require('path');
+        const commandPath = path.join(npmBin, this.config.agentCommand!);
+        if (fs.existsSync(commandPath)) {
+          // Update config to use full path
+          this.config.agentCommand = commandPath;
+          return true;
+        }
+      }
+      return false;
     } catch {
       return false;
     }
@@ -230,30 +253,11 @@ export class CodexAgent extends EventEmitter {
   private buildCommandArgs(): string[] {
     const args: string[] = [];
 
-    // Add model configuration
-    if (this.config.codex.model) {
-      args.push('--model', this.config.codex.model);
-    }
+    // Use proto command for protocol stream interaction
+    args.push('proto');
 
-    // Add max tokens
-    if (this.config.codex.maxTokens) {
-      args.push('--max-tokens', this.config.codex.maxTokens.toString());
-    }
-
-    // Add temperature
-    if (this.config.codex.temperature) {
-      args.push('--temperature', this.config.codex.temperature.toString());
-    }
-
-    // Add interactive mode
-    args.push('--interactive');
-
-    // Add Codex-specific arguments
-    args.push('--format', 'json');
-    args.push('--stream');
-    args.push('--best-of', '1'); // Codex parameter for generation quality
-    args.push('--frequency-penalty', '0.0'); // Reduce repetition
-    args.push('--presence-penalty', '0.0'); // Encourage diverse topics
+    // The model and other parameters need to be passed via stdin in protocol format
+    // We'll handle those in the input stream
 
     return args;
   }
@@ -308,12 +312,12 @@ export class CodexAgent extends EventEmitter {
 
     // Look for Codex-specific patterns
     if (stream === 'stdout') {
-      // Check for ready signal
-      if (data.includes('Codex is ready') ||
-          data.includes('Ready for input') ||
-          data.includes('codex>') ||
-          data.includes('>>> ')) {
-        if (this.status === 'busy') {
+      // Check for ready signal - Codex proto mode uses JSON protocol
+      if (data.includes('"protocol":') ||
+          data.includes('"ready":true') ||
+          data.includes('Connected') ||
+          this.status === 'starting') {
+        if (this.status === 'starting' || this.status === 'busy') {
           this.setStatus('ready');
         }
       }
@@ -388,10 +392,10 @@ export class CodexAgent extends EventEmitter {
       // Also check for ready signals in output
       const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
         if (stream === 'stdout' && (
-          chunk.data.includes('Codex is ready') ||
-          chunk.data.includes('Ready for input') ||
-          chunk.data.includes('codex>') ||
-          chunk.data.includes('>>> ')
+          chunk.data.includes('"protocol":') ||
+          chunk.data.includes('"ready":true') ||
+          chunk.data.includes('Connected') ||
+          this.status === 'starting'
         )) {
           clearTimeout(timeout);
           this.removeListener('output', outputListener);

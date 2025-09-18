@@ -1,5 +1,7 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { Config, getAgentEnvironment } from '../config';
 import { StreamCapture, OutputChunk } from '../stream-capture';
 
@@ -106,7 +108,9 @@ export class ClaudeAgent extends EventEmitter {
       this.startHealthCheck();
 
       // Wait for Claude to be ready
-      await this.waitForReady();
+      // Note: In stream-json input mode, Claude may not output anything until it receives input
+      // So we'll consider it ready after a short delay if the process is running
+      await this.waitForReadyOrTimeout();
 
       this.setStatus('ready');
       console.log('Claude agent started successfully');
@@ -173,7 +177,12 @@ export class ClaudeAgent extends EventEmitter {
     this.setStatus('busy');
 
     try {
-      this.process.stdin.write(input + '\n');
+      // For Claude Code with stream-json format, wrap input in JSON
+      const jsonMessage = JSON.stringify({
+        type: 'user-message',
+        content: input
+      });
+      this.process.stdin.write(jsonMessage + '\n');
     } catch (error) {
       this.setStatus('error');
       throw error;
@@ -230,9 +239,51 @@ export class ClaudeAgent extends EventEmitter {
 
   private validateCommand(): boolean {
     try {
-      const { execSync } = require('child_process');
-      execSync(`which ${this.config.agentCommand}`, { stdio: 'ignore' });
-      return true;
+      // First check if the command is already an absolute path
+      if (this.config.agentCommand?.startsWith('/')) {
+        if (existsSync(this.config.agentCommand)) {
+          return true;
+        }
+      }
+
+      // Try which to find the command in PATH
+      try {
+        const commandPath = execSync(`which ${this.config.agentCommand}`, { encoding: 'utf8' }).trim();
+        if (commandPath && existsSync(commandPath)) {
+          // Update config to use full path
+          this.config.agentCommand = commandPath;
+          return true;
+        }
+      } catch {
+        // which failed, try other methods
+      }
+
+      // Check nvm paths
+      const nvmPaths = [
+        '/Users/tythanhdoan/.nvm/versions/node/v22.18.0/bin/claude',
+        join(process.env.HOME || '', '.nvm/versions/node/v22.18.0/bin/claude'),
+      ];
+
+      for (const nvmPath of nvmPaths) {
+        if (existsSync(nvmPath)) {
+          this.config.agentCommand = nvmPath;
+          return true;
+        }
+      }
+
+      // Try to find it in npm global bin
+      try {
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8' }).trim();
+        const commandPath = join(npmBin, 'claude');
+        if (existsSync(commandPath)) {
+          this.config.agentCommand = commandPath;
+          return true;
+        }
+      } catch {
+        // npm bin failed
+      }
+
+      return false;
     } catch {
       return false;
     }
@@ -241,27 +292,28 @@ export class ClaudeAgent extends EventEmitter {
   private buildCommandArgs(): string[] {
     const args: string[] = [];
 
-    // Add model configuration
+    // Add model configuration - Claude Code supports --model
     if (this.config.claude.model) {
       args.push('--model', this.config.claude.model);
     }
 
-    // Add max tokens
-    if (this.config.claude.maxTokens) {
-      args.push('--max-tokens', this.config.claude.maxTokens.toString());
-    }
+    // Use stream-json format for programmatic interaction
+    args.push('--print');
 
-    // Add temperature
-    if (this.config.claude.temperature) {
-      args.push('--temperature', this.config.claude.temperature.toString());
-    }
+    // IMPORTANT: --verbose is required when using --output-format=stream-json with --print
+    args.push('--verbose');
 
-    // Add interactive mode
-    args.push('--interactive');
+    args.push('--output-format', 'stream-json');
+    args.push('--input-format', 'stream-json');
 
-    // Add any additional Claude-specific arguments
-    args.push('--format', 'json');
-    args.push('--stream');
+    // Include partial messages for real-time streaming
+    args.push('--include-partial-messages');
+
+    // Replay user messages for acknowledgment
+    args.push('--replay-user-messages');
+
+    // Bypass permissions for automated use
+    args.push('--dangerously-skip-permissions');
 
     return args;
   }
@@ -311,11 +363,21 @@ export class ClaudeAgent extends EventEmitter {
   private processOutput(stream: 'stdout' | 'stderr', chunk: OutputChunk): void {
     const data = chunk.data;
 
+    // Debug: Log all output during startup
+    if (this.status === 'starting') {
+      console.log(`[Claude ${stream} during startup]:`, data.substring(0, 200));
+    }
+
     // Look for Claude-specific patterns
     if (stream === 'stdout') {
-      // Check for ready signal
-      if (data.includes('Claude is ready') || data.includes('Ready for input')) {
-        if (this.status === 'busy') {
+      // Check for ready signal - Claude Code uses stream-json format
+      // In stream-json mode with --input-format stream-json, Claude may not output anything initially
+      if (data.includes('"type":"session-started"') ||
+          data.includes('"type":"model-ready"') ||
+          data.includes('Ready') ||
+          data.includes('{')) {
+        if (this.status === 'starting' || this.status === 'busy') {
+          console.log('Claude detected as ready from stdout');
           this.setStatus('ready');
         }
       }
@@ -331,9 +393,63 @@ export class ClaudeAgent extends EventEmitter {
         this.metadata.version = modelMatch[1];
       }
     } else {
-      // stderr - treat as potential errors
-      console.warn('Claude stderr:', data);
+      // stderr - treat as potential errors but don't fail immediately
+      if (data.trim()) {
+        console.warn('Claude stderr:', data);
+      }
     }
+  }
+
+  private async waitForReadyOrTimeout(timeoutMs = 5000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+
+      // Set a shorter timeout for stream-json mode
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          // If process is still running after timeout, consider it ready
+          // This is because Claude in stream-json input mode may not output anything initially
+          if (this.process && !this.process.killed && this.process.exitCode === null) {
+            console.log('Claude process is running, assuming ready (stream-json mode)');
+            resolved = true;
+            resolve();
+          } else {
+            resolved = true;
+            reject(new Error('Timeout waiting for Claude to be ready'));
+          }
+        }
+      }, timeoutMs);
+
+      const checkReady = () => {
+        if (resolved) return;
+
+        if (this.status === 'ready') {
+          clearTimeout(timeout);
+          resolved = true;
+          resolve();
+        } else if (this.status === 'error') {
+          clearTimeout(timeout);
+          resolved = true;
+          reject(new Error('Claude failed to start'));
+        }
+      };
+
+      // Check immediately and then on status changes
+      checkReady();
+      this.on('status_change', checkReady);
+
+      // Also listen for any stdout as a sign of readiness
+      const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
+        if (!resolved && stream === 'stdout') {
+          console.log('Claude stdout received, marking as ready');
+          clearTimeout(timeout);
+          resolved = true;
+          this.removeListener('output', outputListener);
+          resolve();
+        }
+      };
+      this.on('output', outputListener);
+    });
   }
 
   private async waitForReady(timeoutMs = 30000): Promise<void> {
@@ -359,9 +475,10 @@ export class ClaudeAgent extends EventEmitter {
       // Also check for ready signals in output
       const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
         if (stream === 'stdout' && (
-          chunk.data.includes('Claude is ready') ||
-          chunk.data.includes('Ready for input') ||
-          chunk.data.includes('>')
+          chunk.data.includes('"type":"session-started"') ||
+          chunk.data.includes('"type":"model-ready"') ||
+          chunk.data.includes('Ready') ||
+          this.status === 'starting'
         )) {
           clearTimeout(timeout);
           this.removeListener('output', outputListener);
@@ -462,21 +579,23 @@ export class ClaudeAgent extends EventEmitter {
     if (!this.process?.pid) return;
 
     try {
-      // On Unix systems, we can use ps to get memory and CPU usage
-      const { execSync } = require('child_process');
-      const psOutput = execSync(`ps -p ${this.process.pid} -o %mem,%cpu --no-headers`, {
+      // Use ps command compatible with macOS
+      const psOutput = execSync(`ps -p ${this.process.pid} -o %mem,%cpu`, {
         encoding: 'utf8',
         timeout: 1000,
       });
 
-      const [memPercent, cpuPercent] = psOutput.trim().split(/\s+/).map(Number);
-
-      this.metadata.memoryUsage = memPercent;
-      this.metadata.cpuUsage = cpuPercent;
+      // Split output by lines and get the data line (skip header)
+      const lines = psOutput.trim().split('\n');
+      if (lines.length > 1) {
+        const [memPercent, cpuPercent] = lines[1].trim().split(/\s+/).map(Number);
+        this.metadata.memoryUsage = memPercent;
+        this.metadata.cpuUsage = cpuPercent;
+      }
 
     } catch (error) {
-      // Ignore errors in resource monitoring
-      console.debug('Failed to update resource usage:', error);
+      // Ignore errors in resource monitoring - it's not critical
+      // console.debug('Failed to update resource usage:', error);
     }
   }
 }
