@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database (local development alternative to Supabase)
+  postgres:
+    image: postgres:15-alpine
+    container_name: onsembl-postgres
+    environment:
+      POSTGRES_USER: onsembl
+      POSTGRES_PASSWORD: onsembl_dev_password
+      POSTGRES_DB: onsembl_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onsembl -d onsembl_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for BullMQ queue
+  redis:
+    image: redis:7-alpine
+    container_name: onsembl-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Fastify server
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runner
+    container_name: onsembl-backend
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: development
+      PORT: 8080
+      DATABASE_URL: postgresql://onsembl:onsembl_dev_password@postgres:5432/onsembl_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-jwt-secret-here-change-in-production
+      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-your-anon-key}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-your-service-key}
+      CORS_ORIGIN: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/backend/src
+      - ./packages:/app/packages
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Next.js application
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: runner
+    container_name: onsembl-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080/ws
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-your-anon-key}
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/public:/app/frontend/public
+      - ./packages:/app/packages
+    command: ["npm", "run", "dev"]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: onsembl-network
+    driver: bridge
