@@ -220,8 +220,23 @@ export class GeminiAgent extends EventEmitter {
   private validateCommand(): boolean {
     try {
       const { execSync } = require('child_process');
-      execSync(`which ${this.config.agentCommand}`, { stdio: 'ignore' });
-      return true;
+      // Try which first, then check if it's an npm global command
+      try {
+        execSync(`which ${this.config.agentCommand}`, { stdio: 'ignore' });
+        return true;
+      } catch {
+        // Try to find it in npm global bin
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8' }).trim();
+        const fs = require('fs');
+        const path = require('path');
+        const commandPath = path.join(npmBin, this.config.agentCommand!);
+        if (fs.existsSync(commandPath)) {
+          // Update config to use full path
+          this.config.agentCommand = commandPath;
+          return true;
+        }
+      }
+      return false;
     } catch {
       return false;
     }
@@ -230,28 +245,19 @@ export class GeminiAgent extends EventEmitter {
   private buildCommandArgs(): string[] {
     const args: string[] = [];
 
-    // Add model configuration
+    // Add model configuration - Gemini CLI uses -m/--model
     if (this.config.gemini.model) {
       args.push('--model', this.config.gemini.model);
     }
 
-    // Add max tokens
-    if (this.config.gemini.maxTokens) {
-      args.push('--max-tokens', this.config.gemini.maxTokens.toString());
-    }
+    // Use auto-approval mode for programmatic interaction
+    args.push('--approval-mode', 'yolo');
 
-    // Add temperature
-    if (this.config.gemini.temperature) {
-      args.push('--temperature', this.config.gemini.temperature.toString());
-    }
+    // Enable debug mode for better output tracking
+    args.push('--debug');
 
-    // Add interactive mode
-    args.push('--interactive');
-
-    // Add Gemini-specific arguments
-    args.push('--format', 'json');
-    args.push('--stream');
-    args.push('--safety-settings', 'low'); // Allow more permissive content for coding
+    // Interactive prompt mode with initial prompt
+    args.push('--prompt-interactive', 'Ready to assist with coding tasks');
 
     return args;
   }
@@ -304,11 +310,13 @@ export class GeminiAgent extends EventEmitter {
 
     // Look for Gemini-specific patterns
     if (stream === 'stdout') {
-      // Check for ready signal
-      if (data.includes('Gemini is ready') ||
-          data.includes('Ready for input') ||
-          data.includes('gemini>')) {
-        if (this.status === 'busy') {
+      // Check for ready signal - Gemini CLI prompts
+      if (data.includes('Ready') ||
+          data.includes('gemini>') ||
+          data.includes('Gemini CLI') ||
+          data.includes('>') ||
+          this.status === 'starting') {
+        if (this.status === 'starting' || this.status === 'busy') {
           this.setStatus('ready');
         }
       }
@@ -374,9 +382,11 @@ export class GeminiAgent extends EventEmitter {
       // Also check for ready signals in output
       const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
         if (stream === 'stdout' && (
-          chunk.data.includes('Gemini is ready') ||
-          chunk.data.includes('Ready for input') ||
-          chunk.data.includes('gemini>')
+          chunk.data.includes('Ready') ||
+          chunk.data.includes('gemini>') ||
+          chunk.data.includes('Gemini CLI') ||
+          chunk.data.includes('>') ||
+          this.status === 'starting'
         )) {
           clearTimeout(timeout);
           this.removeListener('output', outputListener);

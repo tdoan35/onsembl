@@ -389,6 +389,7 @@ function createCLI(): Command {
     .option('-a, --agent <type>', 'Agent type (claude|gemini|codex|mock)', 'mock')
     .option('-s, --server <url>', 'Server URL', 'ws://localhost:8080')
     .option('-k, --api-key <key>', 'API key for authentication')
+    .option('--auth-type <type>', 'Authentication type (api-key|subscription)', 'api-key')
     .option('-w, --working-dir <dir>', 'Working directory', process.cwd())
     .option('-c, --config <file>', 'Configuration file path')
     .action(async (options) => {
@@ -397,6 +398,7 @@ function createCLI(): Command {
           agentType: options.agent,
           serverUrl: options.server,
           apiKey: options.apiKey,
+          authType: options.authType,
           workingDirectory: options.workingDir,
         });
 

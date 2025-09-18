@@ -1,7 +1,7 @@
 {
-  "status": "stopping",
-  "timestamp": "2025-09-17T07:12:35.607Z",
-  "agentId": "mock-1758078002692-ixjw047fz",
-  "agentType": "mock",
-  "pid": 83823
+  "status": "stopped",
+  "timestamp": "2025-09-18T03:17:35.176Z",
+  "agentId": "claude-1758165442841-5mvdo1uh8",
+  "agentType": "claude",
+  "pid": 96294
 }

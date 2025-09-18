@@ -732,15 +732,16 @@ export class AgentService extends EventEmitter {
         this.fastify.log.debug({ state }, 'Service presence sync');
       });
 
-    // Track this service instance
+    // Subscribe first, then track this service instance
+    servicePresence.subscribe();
+
+    // Track this service instance after subscribing
     servicePresence.track({
       service: 'agent-service',
       instance_id: process.env['INSTANCE_ID'] || 'default',
       started_at: new Date().toISOString(),
       version: process.env['npm_package_version'] || '1.0.0',
     });
-
-    servicePresence.subscribe();
     this.realtimeChannels.set('service_presence', servicePresence);
   }
 
