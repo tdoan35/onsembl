@@ -12,7 +12,8 @@ import {
   BarChart3,
   Download,
   RefreshCw,
-  Eye
+  Eye,
+  CheckCircle
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

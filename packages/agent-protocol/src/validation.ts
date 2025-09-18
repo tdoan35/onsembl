@@ -16,7 +16,7 @@ import {
   ErrorType,
   AgentControlAction,
   ReportStatus,
-} from './types.js';
+} from './types';
 
 // ============================================================================
 // Base Schemas

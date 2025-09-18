@@ -778,10 +778,13 @@ export class ApiError extends Error {
   }
 }
 
+// Import configuration
+import { config } from '@/services/config';
+
 // Default configuration
 export const defaultApiConfig: ApiConfig = {
-  baseUrl: process.env['NEXT_PUBLIC_BACKEND_URL'] || 'http://localhost:3001',
-  timeout: 30000, // 30 seconds
+  baseUrl: config.api.baseUrl,
+  timeout: config.api.timeout,
   retryAttempts: 3,
   retryDelay: 1000,
   retryBackoffMultiplier: 2

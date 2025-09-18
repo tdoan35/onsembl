@@ -20,7 +20,7 @@ import {
   CommandCompletePayload,
   InvestigationReportPayload,
   AgentErrorPayload
-} from '../types/index.js';
+} from '../types/index';
 
 /**
  * Message builder functions for agent-to-server messages

@@ -23,7 +23,7 @@ import {
   terminalStreamMessageSchema,
   traceUpdateMessageSchema,
   errorMessageSchema
-} from './schemas.js';
+} from './schemas';
 
 import type {
   AnyWebSocketMessage,
@@ -31,7 +31,7 @@ import type {
   ServerToAgentMessage,
   ServerToDashboardMessage,
   MessageType
-} from '../types/index.js';
+} from '../types/index';
 
 export interface ValidationResult<T = any> {
   success: boolean;

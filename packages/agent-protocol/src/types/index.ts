@@ -3,16 +3,16 @@
  */
 
 // Agent types
-export * from './agent.js';
+export * from './agent';
 
 // Command types
-export * from './command.js';
+export * from './command';
 
 // Trace types
-export * from './trace.js';
+export * from './trace';
 
 // WebSocket message types
-export * from './websocket.js';
+export * from './websocket';
 
 // Protocol constants
 export const PROTOCOL_VERSION = '0.1.0';

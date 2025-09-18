@@ -1,221 +1,198 @@
 /**
- * Service Configuration for Onsembl.ai Dashboard
- * Centralized configuration for all services
+ * Configuration Service for Onsembl.ai Dashboard
+ * Centralizes environment-based configuration for different deployment environments
  */
 
-import { WebSocketConfig } from './websocket.service';
-import { ApiConfig } from './api.service';
-import { AuthConfig } from './auth.service';
-
-export interface ServiceConfig {
-  api: ApiConfig;
-  websocket: WebSocketConfig;
-  auth: AuthConfig;
-  environment: {
-    backendUrl: string;
-    supabaseUrl: string;
-    supabaseAnonKey: string;
-    environment: 'development' | 'staging' | 'production';
+export interface AppConfig {
+  api: {
+    baseUrl: string;
+    timeout: number;
+  };
+  websocket: {
+    baseUrl: string;
+    endpoints: {
+      agent: string;
+      dashboard: string;
+    };
+  };
+  environment: 'development' | 'staging' | 'production';
+  features: {
+    debugMode: boolean;
   };
 }
 
 /**
- * Get service configuration from environment variables
+ * Get the current environment
  */
-export function getServiceConfig(): ServiceConfig {
-  const backendUrl = process.env['NEXT_PUBLIC_BACKEND_URL'] || 'http://localhost:3001';
-  const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || '';
-  const supabaseAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] || '';
-  const environment = (process.env['NODE_ENV'] as 'development' | 'staging' | 'production') || 'development';
+function getEnvironment(): AppConfig['environment'] {
+  const env = process.env['NODE_ENV'];
+  const publicEnv = process.env['NEXT_PUBLIC_ENV'];
 
-  return {
-    environment: {
-      backendUrl,
-      supabaseUrl,
-      supabaseAnonKey,
-      environment
-    },
-    api: {
-      baseUrl: backendUrl,
-      timeout: environment === 'development' ? 60000 : 30000, // Longer timeout in dev
-      retryAttempts: environment === 'production' ? 3 : 2,
-      retryDelay: 1000,
-      retryBackoffMultiplier: 2
-    },
-    websocket: {
-      baseUrl: backendUrl,
-      endpoints: {
-        agent: '/ws/agent',
-        dashboard: '/ws/dashboard'
-      },
-      reconnect: {
-        maxAttempts: environment === 'production' ? 10 : 5,
-        backoffMultiplier: 2,
-        baseDelay: 1000,
-        maxDelay: environment === 'production' ? 60000 : 30000
-      },
-      heartbeat: {
-        interval: 30000, // 30 seconds
-        timeout: 10000   // 10 seconds
-      }
-    },
-    auth: {
-      autoRefresh: true,
-      refreshBuffer: environment === 'production' ? 5 : 2, // Minutes before expiry
-      persistSession: true,
-      storageKey: `onsembl_auth_session_${environment}`
+  if (publicEnv === 'production' || env === 'production') {
+    return 'production';
+  }
+  if (publicEnv === 'staging') {
+    return 'staging';
+  }
+  return 'development';
+}
+
+/**
+ * Get API base URL based on environment
+ */
+function getApiBaseUrl(): string {
+  // First check for explicit API URL
+  const apiUrl = process.env['NEXT_PUBLIC_API_URL'];
+  if (apiUrl) {
+    return apiUrl;
+  }
+
+  // Fallback to backend URL for backward compatibility
+  const backendUrl = process.env['NEXT_PUBLIC_BACKEND_URL'];
+  if (backendUrl) {
+    return backendUrl;
+  }
+
+  // Default to localhost for development
+  return 'http://localhost:3001';
+}
+
+/**
+ * Get WebSocket base URL based on environment
+ */
+function getWebSocketBaseUrl(): string {
+  // First check for explicit WebSocket URL
+  const wsUrl = process.env['NEXT_PUBLIC_WS_URL'];
+  if (wsUrl) {
+    return wsUrl;
+  }
+
+  // Derive from API URL if not explicitly set
+  const apiUrl = getApiBaseUrl();
+
+  // Convert http/https to ws/wss
+  if (apiUrl.startsWith('https://')) {
+    return apiUrl.replace('https://', 'wss://');
+  } else if (apiUrl.startsWith('http://')) {
+    return apiUrl.replace('http://', 'ws://');
+  }
+
+  // If it's already a WebSocket URL, use as is
+  if (apiUrl.startsWith('ws://') || apiUrl.startsWith('wss://')) {
+    return apiUrl;
+  }
+
+  // Default fallback
+  return 'ws://localhost:3001';
+}
+
+/**
+ * Get API timeout based on environment
+ */
+function getApiTimeout(): number {
+  const timeout = process.env['NEXT_PUBLIC_API_TIMEOUT'];
+  if (timeout) {
+    const parsed = parseInt(timeout, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
     }
-  };
+  }
+
+  // Default timeouts per environment
+  const environment = getEnvironment();
+  switch (environment) {
+    case 'production':
+      return 30000; // 30 seconds
+    case 'staging':
+      return 45000; // 45 seconds
+    default:
+      return 60000; // 60 seconds for development
+  }
 }
 
 /**
- * Validate service configuration
+ * Check if debug mode is enabled
  */
-export function validateServiceConfig(config: ServiceConfig): void {
+function isDebugMode(): boolean {
+  const debug = process.env['NEXT_PUBLIC_DEBUG'];
+  return debug === 'true' || debug === '1';
+}
+
+/**
+ * Application configuration singleton
+ */
+export const config: AppConfig = {
+  api: {
+    baseUrl: getApiBaseUrl(),
+    timeout: getApiTimeout(),
+  },
+  websocket: {
+    baseUrl: getWebSocketBaseUrl(),
+    endpoints: {
+      agent: '/ws/agent',
+      dashboard: '/ws/dashboard',
+    },
+  },
+  environment: getEnvironment(),
+  features: {
+    debugMode: isDebugMode(),
+  },
+};
+
+/**
+ * Validate configuration on startup
+ */
+export function validateConfig(): void {
   const errors: string[] = [];
 
-  // Validate environment
-  if (!config.environment.backendUrl) {
-    errors.push('Backend URL is required');
+  // Check for required configuration in production
+  if (config.environment === 'production') {
+    if (!process.env['NEXT_PUBLIC_API_URL']) {
+      errors.push('NEXT_PUBLIC_API_URL is required in production');
+    }
+
+    if (config.api.baseUrl.includes('localhost')) {
+      errors.push('API URL cannot use localhost in production');
+    }
+
+    if (config.websocket.baseUrl.includes('localhost')) {
+      errors.push('WebSocket URL cannot use localhost in production');
+    }
   }
 
-  if (!config.environment.supabaseUrl) {
-    errors.push('Supabase URL is required');
-  }
+  // Check for secure connections in production
+  if (config.environment === 'production') {
+    if (!config.api.baseUrl.startsWith('https://')) {
+      console.warn('Warning: API URL should use HTTPS in production');
+    }
 
-  if (!config.environment.supabaseAnonKey) {
-    errors.push('Supabase anonymous key is required');
-  }
-
-  // Validate API config
-  if (config.api.timeout <= 0) {
-    errors.push('API timeout must be positive');
-  }
-
-  if (config.api.retryAttempts < 0) {
-    errors.push('API retry attempts must be non-negative');
-  }
-
-  // Validate WebSocket config
-  if (config.websocket.reconnect.maxAttempts < 0) {
-    errors.push('WebSocket max reconnect attempts must be non-negative');
-  }
-
-  if (config.websocket.heartbeat.interval <= 0) {
-    errors.push('WebSocket heartbeat interval must be positive');
-  }
-
-  if (config.websocket.heartbeat.timeout <= 0) {
-    errors.push('WebSocket heartbeat timeout must be positive');
-  }
-
-  // Validate Auth config
-  if (config.auth.refreshBuffer < 0) {
-    errors.push('Auth refresh buffer must be non-negative');
-  }
-
-  if (!config.auth.storageKey) {
-    errors.push('Auth storage key is required');
+    if (!config.websocket.baseUrl.startsWith('wss://')) {
+      console.warn('Warning: WebSocket URL should use WSS in production');
+    }
   }
 
   if (errors.length > 0) {
-    throw new Error(`Service configuration validation failed:\n${errors.join('\n')}`);
+    console.error('Configuration validation failed:', errors);
+    if (config.environment === 'production') {
+      throw new Error(`Configuration validation failed: ${errors.join(', ')}`);
+    }
+  }
+
+  // Log configuration in debug mode
+  if (config.features.debugMode) {
+    console.log('Application Configuration:', {
+      environment: config.environment,
+      apiUrl: config.api.baseUrl,
+      wsUrl: config.websocket.baseUrl,
+      apiTimeout: config.api.timeout,
+    });
   }
 }
 
-/**
- * Development configuration overrides
- */
-export function getDevelopmentOverrides(): Partial<ServiceConfig> {
-  return {
-    api: {
-      timeout: 60000, // Longer timeout for debugging
-      retryAttempts: 1 // Fewer retries to fail fast
-    },
-    websocket: {
-      reconnect: {
-        maxAttempts: 3,
-        baseDelay: 500, // Faster reconnect for dev
-        maxDelay: 5000
-      }
-    },
-    auth: {
-      refreshBuffer: 1 // Refresh token sooner in dev
-    }
-  };
-}
+// Freeze configuration to prevent runtime modifications
+Object.freeze(config);
+Object.freeze(config.api);
+Object.freeze(config.websocket);
+Object.freeze(config.features);
 
-/**
- * Production configuration overrides
- */
-export function getProductionOverrides(): Partial<ServiceConfig> {
-  return {
-    api: {
-      retryAttempts: 5, // More retries in production
-      retryDelay: 2000  // Longer delay between retries
-    },
-    websocket: {
-      reconnect: {
-        maxAttempts: 15, // More aggressive reconnection
-        maxDelay: 120000 // Up to 2 minutes delay
-      }
-    }
-  };
-}
-
-/**
- * Apply configuration overrides
- */
-export function applyConfigOverrides(
-  baseConfig: ServiceConfig,
-  overrides: Partial<ServiceConfig>
-): ServiceConfig {
-  return {
-    ...baseConfig,
-    api: { ...baseConfig.api, ...overrides.api },
-    websocket: {
-      ...baseConfig.websocket,
-      ...overrides.websocket,
-      reconnect: {
-        ...baseConfig.websocket.reconnect,
-        ...overrides.websocket?.reconnect
-      },
-      heartbeat: {
-        ...baseConfig.websocket.heartbeat,
-        ...overrides.websocket?.heartbeat
-      },
-      endpoints: {
-        ...baseConfig.websocket.endpoints,
-        ...overrides.websocket?.endpoints
-      }
-    },
-    auth: { ...baseConfig.auth, ...overrides.auth },
-    environment: { ...baseConfig.environment, ...overrides.environment }
-  };
-}
-
-/**
- * Get complete service configuration with environment-specific overrides
- */
-export function getCompleteServiceConfig(): ServiceConfig {
-  const baseConfig = getServiceConfig();
-
-  let overrides: Partial<ServiceConfig> = {};
-
-  switch (baseConfig.environment.environment) {
-    case 'development':
-      overrides = getDevelopmentOverrides();
-      break;
-    case 'production':
-      overrides = getProductionOverrides();
-      break;
-    case 'staging':
-      // Use base config for staging
-      break;
-  }
-
-  const finalConfig = applyConfigOverrides(baseConfig, overrides);
-  validateServiceConfig(finalConfig);
-
-  return finalConfig;
-}
+export default config;
