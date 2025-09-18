@@ -14,6 +14,11 @@ import {
   PingPayload,
   PongPayload
 } from '@onsembl/agent-protocol';
+import {
+  ReconnectionManager,
+  ConnectionCircuitBreaker,
+  ConnectionHealthMonitor
+} from './reconnection.service';
 
 export type WebSocketConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -49,12 +54,13 @@ export class WebSocketService extends EventTarget {
   private connections: Map<string, WebSocket> = new Map();
   private connectionStates: Map<string, WebSocketConnectionState> = new Map();
   private messageQueue: Map<string, QueuedMessage[]> = new Map();
-  private reconnectAttempts: Map<string, number> = new Map();
-  private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
-  private heartbeatTimers: Map<string, NodeJS.Timeout> = new Map();
-  private heartbeatTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private heartbeatTimers: Map<string, number> = new Map();
+  private heartbeatTimeouts: Map<string, number> = new Map();
   private eventListeners: Map<MessageType, Set<WebSocketEventCallback>> = new Map();
   private connectionStateListeners: Map<string, Set<ConnectionStateCallback>> = new Map();
+  private reconnectionManagers: Map<string, ReconnectionManager> = new Map();
+  private circuitBreakers: Map<string, ConnectionCircuitBreaker> = new Map();
+  private healthMonitors: Map<string, ConnectionHealthMonitor> = new Map();
   private accessToken: string | null = null;
   private userId: string | null = null;
   private messageId: number = 0;
@@ -63,6 +69,29 @@ export class WebSocketService extends EventTarget {
     super();
     this.config = config;
     this.initializeEventListeners();
+    this.initializeCircuitBreakers();
+  }
+
+  private initializeCircuitBreakers(): void {
+    // Initialize circuit breakers for each endpoint
+    ['agent', 'dashboard'].forEach(endpoint => {
+      const circuitBreaker = new ConnectionCircuitBreaker(
+        5,     // failureThreshold: 5 failures before opening
+        60000, // timeoutMs: 1 minute
+        30000  // recoveryTimeoutMs: 30 seconds
+      );
+
+      // Listen to circuit breaker state changes
+      circuitBreaker.addEventListener('state_changed', (event) => {
+        const customEvent = event as CustomEvent;
+        console.log(`[WebSocket][${endpoint}] Circuit breaker state: ${customEvent.detail.state}`);
+        this.dispatchEvent(new CustomEvent('circuit_breaker_state', {
+          detail: { endpoint, ...customEvent.detail }
+        }));
+      });
+
+      this.circuitBreakers.set(endpoint, circuitBreaker);
+    });
   }
 
   private initializeEventListeners(): void {
@@ -91,6 +120,14 @@ export class WebSocketService extends EventTarget {
    * Connect to a WebSocket endpoint
    */
   async connect(endpoint: 'agent' | 'dashboard'): Promise<void> {
+    // Check circuit breaker before attempting connection
+    const circuitBreaker = this.circuitBreakers.get(endpoint);
+    if (circuitBreaker && !circuitBreaker.canAttempt()) {
+      const error = new Error(`Circuit breaker is open for ${endpoint} - too many connection failures`);
+      console.error(`[WebSocket][${endpoint}] Circuit breaker is open`);
+      throw error;
+    }
+
     const endpointPath = this.config.endpoints[endpoint];
     const url = this.buildWebSocketUrl(endpointPath);
 
@@ -100,6 +137,7 @@ export class WebSocketService extends EventTarget {
     return new Promise((resolve, reject) => {
       try {
         this.setConnectionState(endpoint, 'connecting');
+        console.log(`[WebSocket][${endpoint}] Connecting to ${url}`);
 
         const ws = new WebSocket(url);
         this.connections.set(endpoint, ws);
@@ -138,6 +176,10 @@ export class WebSocketService extends EventTarget {
         };
       } catch (error) {
         this.handleConnectionError(endpoint, error as Error);
+        // Record failure in circuit breaker
+        if (circuitBreaker) {
+          circuitBreaker.recordFailure();
+        }
         reject(error);
       }
     });
@@ -150,11 +192,13 @@ export class WebSocketService extends EventTarget {
     const ws = this.connections.get(endpoint);
     if (ws) {
       this.clearTimers(endpoint);
+      this.stopReconnection(endpoint);
+      this.stopHealthMonitor(endpoint);
       this.connections.delete(endpoint);
       this.setConnectionState(endpoint, 'disconnected');
 
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
+        ws.close(1000, 'Normal closure');
       }
     }
   }
@@ -319,26 +363,51 @@ export class WebSocketService extends EventTarget {
   private handleConnectionOpen(endpoint: string): void {
     // Connection established
     this.setConnectionState(endpoint, 'connected');
-    this.resetReconnectAttempts(endpoint);
+    console.log(`[WebSocket][${endpoint}] Connection established`);
+
+    // Record successful connection in circuit breaker
+    const circuitBreaker = this.circuitBreakers.get(endpoint);
+    if (circuitBreaker) {
+      circuitBreaker.recordSuccess();
+    }
+
+    // Reset reconnection manager if it exists
+    const reconnectionManager = this.reconnectionManagers.get(endpoint);
+    if (reconnectionManager) {
+      reconnectionManager.reset();
+    }
+
+    // Start health monitoring
+    this.startHealthMonitor(endpoint);
     this.startHeartbeat(endpoint);
     this.processMessageQueue(endpoint);
   }
 
   private handleConnectionClose(endpoint: string, event: CloseEvent): void {
     // Connection closed
+    console.log(`[WebSocket][${endpoint}] Connection closed with code ${event.code}: ${event.reason}`);
     this.clearTimers(endpoint);
+    this.stopHealthMonitor(endpoint);
     this.setConnectionState(endpoint, 'disconnected');
 
-    // Attempt reconnection if not intentionally closed
-    if (event.code !== 1000) { // 1000 = normal closure
-      this.attemptReconnection(endpoint as 'agent' | 'dashboard');
+    // Attempt reconnection if not intentionally closed (1000 = normal closure)
+    if (event.code !== 1000) {
+      this.handleUnexpectedDisconnection(endpoint as 'agent' | 'dashboard');
     }
   }
 
   private handleConnectionError(endpoint: string, error: Error): void {
     // Connection error occurred
+    console.error(`[WebSocket][${endpoint}] Connection error:`, error.message);
     this.setConnectionState(endpoint, 'error', error);
     this.clearTimers(endpoint);
+    this.stopHealthMonitor(endpoint);
+
+    // Record failure in circuit breaker
+    const circuitBreaker = this.circuitBreakers.get(endpoint);
+    if (circuitBreaker) {
+      circuitBreaker.recordFailure();
+    }
   }
 
   private handleMessage(endpoint: string, event: MessageEvent): void {
@@ -346,8 +415,14 @@ export class WebSocketService extends EventTarget {
       const message: WebSocketMessage = JSON.parse(event.data);
       this.processMessage(message);
       this.resetHeartbeatTimeout(endpoint);
+
+      // Record activity in health monitor
+      const healthMonitor = this.healthMonitors.get(endpoint);
+      if (healthMonitor) {
+        healthMonitor.recordActivity();
+      }
     } catch (error) {
-      // Failed to parse message
+      console.error(`[WebSocket][${endpoint}] Failed to parse message:`, error);
     }
   }
 
@@ -405,7 +480,17 @@ export class WebSocketService extends EventTarget {
 
   private handlePong(message: TypedWebSocketMessage<MessageType.PONG>): void {
     // Update connection latency metrics
-    // Latency measurement received
+    const endpoint = this.findEndpointForMessage();
+    if (endpoint) {
+      // Record pong in health monitor
+      const healthMonitor = this.healthMonitors.get(endpoint);
+      if (healthMonitor) {
+        healthMonitor.recordPong();
+      }
+
+      // Clear heartbeat timeout
+      this.clearHeartbeatTimeout(endpoint);
+    }
   }
 
   private handleTokenRefresh(message: WebSocketMessage): void {
@@ -498,35 +583,89 @@ export class WebSocketService extends EventTarget {
     }
   }
 
-  private attemptReconnection(endpoint: 'agent' | 'dashboard'): void {
-    const attempts = this.reconnectAttempts.get(endpoint) || 0;
-    if (attempts >= this.config.reconnect.maxAttempts) {
-      // Max reconnection attempts reached
-      return;
+  private handleUnexpectedDisconnection(endpoint: 'agent' | 'dashboard'): void {
+    console.log(`[WebSocket][${endpoint}] Handling unexpected disconnection`);
+
+    // Record failure in circuit breaker
+    const circuitBreaker = this.circuitBreakers.get(endpoint);
+    if (circuitBreaker) {
+      circuitBreaker.recordFailure();
     }
 
-    const delay = Math.min(
-      this.config.reconnect.baseDelay * Math.pow(this.config.reconnect.backoffMultiplier, attempts),
-      this.config.reconnect.maxDelay
-    );
+    // Get or create reconnection manager
+    let reconnectionManager = this.reconnectionManagers.get(endpoint);
+    if (!reconnectionManager) {
+      const config = {
+        maxAttempts: this.config.reconnect.maxAttempts,
+        baseDelay: this.config.reconnect.baseDelay,
+        maxDelay: this.config.reconnect.maxDelay,
+        backoffMultiplier: this.config.reconnect.backoffMultiplier,
+        jitterFactor: 0.1
+      };
 
-    // Scheduling reconnection attempt
-    this.reconnectAttempts.set(endpoint, attempts + 1);
+      reconnectionManager = new ReconnectionManager(
+        config,
+        async () => {
+          await this.connect(endpoint);
+        },
+        (error) => {
+          console.error(`[WebSocket][${endpoint}] Reconnection attempt failed:`, error.message);
+          this.dispatchEvent(new CustomEvent('reconnect_attempt_failed', {
+            detail: { endpoint, error }
+          }));
+        },
+        () => {
+          console.error(`[WebSocket][${endpoint}] Maximum reconnection attempts reached`);
+          this.dispatchEvent(new CustomEvent('reconnect_failed', {
+            detail: { endpoint }
+          }));
+          // Clean up reconnection manager
+          const manager = this.reconnectionManagers.get(endpoint);
+          if (manager) {
+            manager.destroy();
+            this.reconnectionManagers.delete(endpoint);
+          }
+        }
+      );
 
-    const timer = setTimeout(async () => {
-      try {
-        await this.connect(endpoint);
-      } catch (error) {
-        // Reconnection failed, will retry
-        this.attemptReconnection(endpoint);
-      }
-    }, delay);
+      // Forward reconnection events
+      reconnectionManager.addEventListener('reconnection_started', () => {
+        this.dispatchEvent(new CustomEvent('reconnecting', {
+          detail: { endpoint }
+        }));
+      });
 
-    this.reconnectTimers.set(endpoint, timer);
+      reconnectionManager.addEventListener('reconnection_successful', () => {
+        console.log(`[WebSocket][${endpoint}] Successfully reconnected`);
+        this.dispatchEvent(new CustomEvent('reconnected', {
+          detail: { endpoint }
+        }));
+      });
+
+      this.reconnectionManagers.set(endpoint, reconnectionManager);
+    }
+
+    // Start reconnection process
+    reconnectionManager.startReconnection();
+  }
+
+  private stopReconnection(endpoint: string): void {
+    const reconnectionManager = this.reconnectionManagers.get(endpoint);
+    if (reconnectionManager) {
+      reconnectionManager.stopReconnection();
+      reconnectionManager.destroy();
+      this.reconnectionManagers.delete(endpoint);
+    }
   }
 
   private startHeartbeat(endpoint: string): void {
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
+      // Record ping in health monitor
+      const healthMonitor = this.healthMonitors.get(endpoint);
+      if (healthMonitor) {
+        healthMonitor.recordPing();
+      }
+
       this.ping(endpoint as 'agent' | 'dashboard');
       this.setHeartbeatTimeout(endpoint);
     }, this.config.heartbeat.interval);
@@ -534,12 +673,50 @@ export class WebSocketService extends EventTarget {
     this.heartbeatTimers.set(endpoint, timer);
   }
 
+  private startHealthMonitor(endpoint: string): void {
+    // Clean up existing monitor
+    this.stopHealthMonitor(endpoint);
+
+    const healthMonitor = new ConnectionHealthMonitor(
+      () => {
+        console.error(`[WebSocket][${endpoint}] Connection unhealthy, triggering reconnection`);
+        // Connection is unhealthy, close it to trigger reconnection
+        const ws = this.connections.get(endpoint);
+        if (ws) {
+          ws.close(4000, 'Health check failed');
+        }
+      },
+      5000,  // Check every 5 seconds
+      30000  // Unhealthy after 30 seconds of inactivity
+    );
+
+    healthMonitor.start();
+    this.healthMonitors.set(endpoint, healthMonitor);
+  }
+
+  private stopHealthMonitor(endpoint: string): void {
+    const healthMonitor = this.healthMonitors.get(endpoint);
+    if (healthMonitor) {
+      healthMonitor.destroy();
+      this.healthMonitors.delete(endpoint);
+    }
+  }
+
   private setHeartbeatTimeout(endpoint: string): void {
     this.clearHeartbeatTimeout(endpoint);
 
-    const timeout = setTimeout(() => {
-      // Heartbeat timeout detected
-      this.handleConnectionError(endpoint, new Error('Heartbeat timeout'));
+    const timeout = window.setTimeout(() => {
+      console.error(`[WebSocket][${endpoint}] Heartbeat timeout`);
+      // Record failure and close connection to trigger reconnection
+      const circuitBreaker = this.circuitBreakers.get(endpoint);
+      if (circuitBreaker) {
+        circuitBreaker.recordFailure();
+      }
+
+      const ws = this.connections.get(endpoint);
+      if (ws) {
+        ws.close(4001, 'Heartbeat timeout');
+      }
     }, this.config.heartbeat.timeout);
 
     this.heartbeatTimeouts.set(endpoint, timeout);
@@ -553,23 +730,16 @@ export class WebSocketService extends EventTarget {
   private clearHeartbeatTimeout(endpoint: string): void {
     const timeout = this.heartbeatTimeouts.get(endpoint);
     if (timeout) {
-      clearTimeout(timeout);
+      window.clearTimeout(timeout);
       this.heartbeatTimeouts.delete(endpoint);
     }
   }
 
   private clearTimers(endpoint: string): void {
-    // Clear reconnect timer
-    const reconnectTimer = this.reconnectTimers.get(endpoint);
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      this.reconnectTimers.delete(endpoint);
-    }
-
     // Clear heartbeat timer
     const heartbeatTimer = this.heartbeatTimers.get(endpoint);
     if (heartbeatTimer) {
-      clearInterval(heartbeatTimer);
+      window.clearInterval(heartbeatTimer);
       this.heartbeatTimers.delete(endpoint);
     }
 
@@ -597,9 +767,6 @@ export class WebSocketService extends EventTarget {
     }));
   }
 
-  private resetReconnectAttempts(endpoint: string): void {
-    this.reconnectAttempts.set(endpoint, 0);
-  }
 
   private findEndpointForMessage(): 'agent' | 'dashboard' | null {
     // Simple heuristic - use dashboard endpoint for responses
@@ -612,15 +779,55 @@ export class WebSocketService extends EventTarget {
   }
 
   /**
+   * Force immediate reconnection for an endpoint
+   */
+  forceReconnect(endpoint: 'agent' | 'dashboard'): void {
+    const reconnectionManager = this.reconnectionManagers.get(endpoint);
+    if (reconnectionManager) {
+      reconnectionManager.forceReconnect();
+    } else {
+      this.handleUnexpectedDisconnection(endpoint);
+    }
+  }
+
+  /**
+   * Get connection health for an endpoint
+   */
+  getConnectionHealth(endpoint: 'agent' | 'dashboard'): ReturnType<ConnectionHealthMonitor['getHealth']> | null {
+    const healthMonitor = this.healthMonitors.get(endpoint);
+    return healthMonitor?.getHealth() || null;
+  }
+
+  /**
+   * Get circuit breaker state for an endpoint
+   */
+  getCircuitBreakerState(endpoint: 'agent' | 'dashboard'): ReturnType<ConnectionCircuitBreaker['getState']> | null {
+    const circuitBreaker = this.circuitBreakers.get(endpoint);
+    return circuitBreaker?.getState() || null;
+  }
+
+  /**
    * Cleanup resources
    */
   destroy(): void {
     this.disconnectAll();
+
+    // Cleanup reconnection managers
+    this.reconnectionManagers.forEach(manager => manager.destroy());
+    this.reconnectionManagers.clear();
+
+    // Cleanup circuit breakers
+    this.circuitBreakers.forEach(breaker => breaker.destroy());
+    this.circuitBreakers.clear();
+
+    // Cleanup health monitors
+    this.healthMonitors.forEach(monitor => monitor.destroy());
+    this.healthMonitors.clear();
+
+    // Clear other resources
     this.eventListeners.clear();
     this.connectionStateListeners.clear();
     this.messageQueue.clear();
-    this.reconnectAttempts.clear();
-    this.reconnectTimers.clear();
     this.heartbeatTimers.clear();
     this.heartbeatTimeouts.clear();
   }

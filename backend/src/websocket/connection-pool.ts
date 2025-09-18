@@ -17,8 +17,12 @@ export interface ConnectionMetadata {
   userId?: string;
   connectedAt: number;
   lastActivity: number;
+  lastPing?: number;
+  lastPong?: number;
   messageCount: number;
   bytesTransferred: number;
+  healthStatus: 'healthy' | 'degraded' | 'unhealthy';
+  failedPings: number;
 }
 
 export interface ConnectionPoolConfig {
@@ -35,11 +39,16 @@ export interface ConnectionStats {
   dashboards: number;
   active: number;
   idle: number;
+  healthy: number;
+  degraded: number;
+  unhealthy: number;
 }
 
 export class ConnectionPool extends EventEmitter {
   private connections = new Map<string, ConnectionMetadata>();
   private cleanupTimer?: NodeJS.Timeout;
+  private healthCheckTimer?: NodeJS.Timeout;
+  private pingTimeouts = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private server: FastifyInstance,
@@ -47,18 +56,21 @@ export class ConnectionPool extends EventEmitter {
   ) {
     super();
     this.startCleanupTimer();
+    this.startHealthCheckTimer();
   }
 
   /**
    * Add new connection to pool
    */
-  addConnection(connectionId: string, metadata: Omit<ConnectionMetadata, 'connectedAt' | 'lastActivity' | 'messageCount' | 'bytesTransferred'>): void {
+  addConnection(connectionId: string, metadata: Omit<ConnectionMetadata, 'connectedAt' | 'lastActivity' | 'lastPing' | 'lastPong' | 'messageCount' | 'bytesTransferred' | 'healthStatus' | 'failedPings'>): void {
     const connection: ConnectionMetadata = {
       ...metadata,
       connectedAt: Date.now(),
       lastActivity: Date.now(),
       messageCount: 0,
-      bytesTransferred: 0
+      bytesTransferred: 0,
+      healthStatus: 'healthy',
+      failedPings: 0
     };
 
     this.connections.set(connectionId, connection);
@@ -205,6 +217,9 @@ export class ConnectionPool extends EventEmitter {
     let agents = 0;
     let dashboards = 0;
     let active = 0;
+    let healthy = 0;
+    let degraded = 0;
+    let unhealthy = 0;
     const now = Date.now();
 
     for (const connection of this.connections.values()) {
@@ -214,6 +229,19 @@ export class ConnectionPool extends EventEmitter {
 
       // Consider active if had activity in last 5 minutes
       if (now - connection.lastActivity < 300000) active++;
+
+      // Count health statuses
+      switch (connection.healthStatus) {
+        case 'healthy':
+          healthy++;
+          break;
+        case 'degraded':
+          degraded++;
+          break;
+        case 'unhealthy':
+          unhealthy++;
+          break;
+      }
     }
 
     return {
@@ -222,7 +250,10 @@ export class ConnectionPool extends EventEmitter {
       agents,
       dashboards,
       active,
-      idle: this.connections.size - active
+      idle: this.connections.size - active,
+      healthy,
+      degraded,
+      unhealthy
     };
   }
 
@@ -231,6 +262,12 @@ export class ConnectionPool extends EventEmitter {
    */
   closeAll(): void {
     this.server.log.info({ count: this.connections.size }, 'Closing all connections');
+
+    // Clear all ping timeouts
+    for (const timeout of this.pingTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    this.pingTimeouts.clear();
 
     for (const [connectionId, connection] of this.connections.entries()) {
       try {
@@ -242,6 +279,7 @@ export class ConnectionPool extends EventEmitter {
 
     this.connections.clear();
     this.stopCleanupTimer();
+    this.stopHealthCheckTimer();
     this.emit('allConnectionsClosed');
   }
 
@@ -358,11 +396,131 @@ export class ConnectionPool extends EventEmitter {
       return false;
     }
 
-    // Check if socket is still open
+    // Check socket state and health status
     try {
-      return connection.socket.socket.readyState === 1; // WebSocket.OPEN
+      return connection.socket.socket.readyState === 1 && // WebSocket.OPEN
+             connection.healthStatus !== 'unhealthy';
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Send ping to a connection and monitor response
+   */
+  sendPing(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (!connection || !connection.isAuthenticated) {
+      return;
+    }
+
+    try {
+      // Send WebSocket ping frame
+      connection.socket.socket.ping();
+      connection.lastPing = Date.now();
+
+      // Set timeout for pong response
+      const timeout = setTimeout(() => {
+        this.handlePingTimeout(connectionId);
+      }, 10000); // 10 second timeout
+
+      // Store timeout to clear it later
+      this.pingTimeouts.set(connectionId, timeout);
+
+      this.server.log.debug({ connectionId }, 'Ping sent');
+    } catch (error) {
+      this.server.log.error({ error, connectionId }, 'Failed to send ping');
+      this.updateConnectionHealth(connectionId, 'unhealthy');
+    }
+  }
+
+  /**
+   * Handle pong response from connection
+   */
+  handlePong(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (!connection) {
+      return;
+    }
+
+    connection.lastPong = Date.now();
+    connection.lastActivity = Date.now();
+    connection.failedPings = 0;
+
+    // Clear ping timeout
+    const timeout = this.pingTimeouts.get(connectionId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.pingTimeouts.delete(connectionId);
+    }
+
+    // Update health status based on latency
+    const latency = connection.lastPong - (connection.lastPing || 0);
+    if (latency < 1000) {
+      this.updateConnectionHealth(connectionId, 'healthy');
+    } else if (latency < 5000) {
+      this.updateConnectionHealth(connectionId, 'degraded');
+    } else {
+      this.updateConnectionHealth(connectionId, 'unhealthy');
+    }
+
+    this.server.log.debug({ connectionId, latency }, 'Pong received');
+  }
+
+  /**
+   * Handle ping timeout (no pong received)
+   */
+  private handlePingTimeout(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (!connection) {
+      return;
+    }
+
+    connection.failedPings++;
+    this.server.log.warn({ connectionId, failedPings: connection.failedPings }, 'Ping timeout');
+
+    // Update health status based on failed pings
+    if (connection.failedPings >= 3) {
+      this.updateConnectionHealth(connectionId, 'unhealthy');
+      // Consider closing the connection after too many failures
+      if (connection.failedPings >= 5) {
+        this.server.log.error({ connectionId }, 'Too many failed pings, closing connection');
+        try {
+          connection.socket.socket.close();
+        } catch (error) {
+          // Ignore errors when closing
+        }
+      }
+    } else if (connection.failedPings >= 2) {
+      this.updateConnectionHealth(connectionId, 'degraded');
+    }
+  }
+
+  /**
+   * Update connection health status
+   */
+  private updateConnectionHealth(connectionId: string, status: 'healthy' | 'degraded' | 'unhealthy'): void {
+    const connection = this.connections.get(connectionId);
+    if (!connection) {
+      return;
+    }
+
+    const previousStatus = connection.healthStatus;
+    if (previousStatus !== status) {
+      connection.healthStatus = status;
+      this.server.log.info({
+        connectionId,
+        previousStatus,
+        newStatus: status,
+        type: connection.type
+      }, 'Connection health status changed');
+
+      this.emit('health_changed', {
+        connectionId,
+        type: connection.type,
+        previousStatus,
+        newStatus: status
+      });
     }
   }
 
@@ -410,12 +568,19 @@ export class ConnectionPool extends EventEmitter {
   private setupConnectionMonitoring(connectionId: string, connection: ConnectionMetadata): void {
     // Monitor for connection close
     connection.socket.socket.on('close', () => {
+      // Clear ping timeout if exists
+      const timeout = this.pingTimeouts.get(connectionId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.pingTimeouts.delete(connectionId);
+      }
       this.removeConnection(connectionId);
     });
 
     // Monitor for connection errors
     connection.socket.socket.on('error', (error) => {
       this.server.log.error({ error, connectionId }, 'Connection error detected');
+      this.updateConnectionHealth(connectionId, 'unhealthy');
       this.emit('connectionError', { connectionId, error });
     });
 
@@ -424,6 +589,11 @@ export class ConnectionPool extends EventEmitter {
       connection.lastActivity = Date.now();
       connection.messageCount++;
       connection.bytesTransferred += data.length;
+    });
+
+    // Monitor pong responses
+    connection.socket.socket.on('pong', () => {
+      this.handlePong(connectionId);
     });
   }
 
@@ -434,6 +604,37 @@ export class ConnectionPool extends EventEmitter {
     this.cleanupTimer = setInterval(() => {
       this.performCleanup();
     }, this.config.cleanupInterval);
+  }
+
+  /**
+   * Start health check timer
+   */
+  private startHealthCheckTimer(): void {
+    // Send pings every 30 seconds to check connection health
+    this.healthCheckTimer = setInterval(() => {
+      this.performHealthChecks();
+    }, 30000); // 30 seconds
+  }
+
+  /**
+   * Stop health check timer
+   */
+  private stopHealthCheckTimer(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = undefined;
+    }
+  }
+
+  /**
+   * Perform health checks on all connections
+   */
+  private performHealthChecks(): void {
+    for (const [connectionId, connection] of this.connections.entries()) {
+      if (connection.isAuthenticated) {
+        this.sendPing(connectionId);
+      }
+    }
   }
 
   /**
@@ -467,8 +668,11 @@ export class ConnectionPool extends EventEmitter {
         continue;
       }
 
-      // Check if socket is still valid
+      // Check if socket is still valid or unhealthy for too long
       if (!this.isConnectionHealthy(connectionId)) {
+        staleConnections.push(connectionId);
+      } else if (connection.healthStatus === 'unhealthy' && connection.failedPings >= 5) {
+        // Remove persistently unhealthy connections
         staleConnections.push(connectionId);
       }
     }
