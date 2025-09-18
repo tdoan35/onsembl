@@ -31,6 +31,7 @@ specs/             # Feature specifications
 - **JWT Token Rotation**: In-band refresh without connection interruption
 - **Single-tenant MVP**: All authenticated users control all agents
 - **Command Queueing**: Priority-based with interruption support
+- **Message Routing**: Centralized MessageRouter for Dashboard↔Agent communication
 
 ## Current Feature Implementation
 Working on MVP with core features:
@@ -41,10 +42,12 @@ Working on MVP with core features:
 - Command presets
 - LLM trace tree visualization
 - 30-day audit log retention
+- WebSocket message routing between dashboards and agents
 
 ## API Contracts
 - REST API: OpenAPI 3.0 spec in `/specs/001-build-onsembl-ai/contracts/rest-api.yaml`
 - WebSocket: Protocol defined in `/specs/001-build-onsembl-ai/contracts/websocket-protocol.md`
+- Message Routing: Contract in `/specs/004-fix-ons-5/contracts/websocket-routing.yaml`
 
 ## Database Schema
 9 core entities: Agent, Command, TerminalOutput, CommandPreset, TraceEntry, InvestigationReport, AuditLog, ExecutionConstraint, CommandQueue
@@ -54,6 +57,7 @@ Working on MVP with core features:
 - Integration tests for WebSocket flows
 - E2E tests with Playwright
 - Real Supabase/Redis instances for testing
+- Real WebSocket connections for message routing tests
 
 ## TypeScript Conventions
 - Use `.js` extensions for all local imports (ES modules)
@@ -66,12 +70,17 @@ Working on MVP with core features:
 - 1MB max WebSocket payload
 
 ## Recent Changes
-- Database connection handling improvements (003-fix-silent-database)
+- **004-fix-ons-5**: Implementing WebSocket message routing
+  - Wire MessageRouter into dashboard and agent handlers
+  - Add command tracking for response routing
+  - Queue messages for offline agents
+  - Support emergency stop broadcasts
+- **003-fix-silent-database**: Database connection improvements
   - Dual-mode database support (Supabase/local PostgreSQL)
   - Automatic fallback with clear error messages
   - Health monitoring and connection status events
-- WebSocket communication improvements (002-connect-websocket-communication)
-- Initial project setup complete
+- **002-connect-websocket-communication**: WebSocket communication setup
+- **001-build-onsembl-ai**: Initial project setup complete
 
 ## Next Phase
-Ready for task generation (/tasks command) to create implementation tasks following TDD principles.
+Implementing WebSocket command routing to enable Dashboard→Agent command execution with proper response routing back to originating dashboards.

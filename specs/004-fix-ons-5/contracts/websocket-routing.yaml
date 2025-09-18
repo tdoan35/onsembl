@@ -1,0 +1,352 @@
+openapi: 3.0.0
+info:
+  title: WebSocket Message Routing Contract
+  version: 1.0.0
+  description: Contract for routing messages between Dashboard and Agent WebSocket connections
+
+paths:
+  /ws/dashboard:
+    get:
+      summary: Dashboard WebSocket endpoint
+      description: WebSocket endpoint for dashboard connections to send commands and receive responses
+      tags:
+        - WebSocket
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket
+
+  /ws/agent:
+    get:
+      summary: Agent WebSocket endpoint
+      description: WebSocket endpoint for agent connections to receive commands and send responses
+      tags:
+        - WebSocket
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket
+
+components:
+  schemas:
+    # Dashboard → Backend Messages
+    CommandRequestMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_REQUEST]
+        id:
+          type: string
+          description: Unique message ID
+        timestamp:
+          type: number
+          description: Unix timestamp in milliseconds
+        payload:
+          type: object
+          required:
+            - commandId
+            - agentId
+            - command
+          properties:
+            commandId:
+              type: string
+              description: Unique command identifier
+            agentId:
+              type: string
+              description: Target agent identifier
+            command:
+              type: string
+              description: Command to execute
+            args:
+              type: array
+              items:
+                type: string
+              description: Command arguments
+            env:
+              type: object
+              description: Environment variables
+            timeout:
+              type: number
+              description: Command timeout in milliseconds
+            priority:
+              type: number
+              minimum: 1
+              maximum: 10
+              description: Command priority (10 = highest)
+
+    CommandCancelMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_CANCEL]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - commandId
+            - agentId
+          properties:
+            commandId:
+              type: string
+              description: Command to cancel
+            agentId:
+              type: string
+              description: Agent processing the command
+            reason:
+              type: string
+              description: Cancellation reason
+            force:
+              type: boolean
+              description: Force immediate termination
+
+    AgentControlMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [AGENT_CONTROL]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - agentId
+            - action
+          properties:
+            agentId:
+              type: string
+              description: Target agent
+            action:
+              type: string
+              enum: [START, STOP, RESTART, PAUSE, RESUME]
+            reason:
+              type: string
+            gracefulShutdown:
+              type: boolean
+              default: true
+            timeout:
+              type: number
+              description: Action timeout in milliseconds
+
+    EmergencyStopMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [EMERGENCY_STOP]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - reason
+            - initiatedBy
+          properties:
+            reason:
+              type: string
+              description: Emergency stop reason
+            initiatedBy:
+              type: string
+              description: User who initiated stop
+            affectedAgents:
+              type: array
+              items:
+                type: string
+              description: Specific agents to stop (empty = all)
+
+    # Backend → Agent Messages (routed from Dashboard)
+    CommandRequestRoutedMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+        - routing
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_REQUEST]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          description: Same as CommandRequestMessage payload
+        routing:
+          type: object
+          required:
+            - originDashboardId
+            - originUserId
+          properties:
+            originDashboardId:
+              type: string
+              description: Dashboard connection that initiated command
+            originUserId:
+              type: string
+              description: User who initiated command
+
+    # Agent → Backend Messages (routed to Dashboard)
+    CommandStatusMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_STATUS]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - commandId
+            - agentId
+            - status
+          properties:
+            commandId:
+              type: string
+            agentId:
+              type: string
+            status:
+              type: string
+              enum: [QUEUED, ACKNOWLEDGED, EXECUTING, COMPLETED, FAILED, CANCELLED]
+            progress:
+              type: number
+              minimum: 0
+              maximum: 100
+            message:
+              type: string
+            error:
+              type: string
+
+    TerminalStreamMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [TERMINAL_STREAM]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - commandId
+            - agentId
+            - content
+            - streamType
+          properties:
+            commandId:
+              type: string
+            agentId:
+              type: string
+            content:
+              type: string
+              description: Terminal output content
+            streamType:
+              type: string
+              enum: [stdout, stderr]
+            ansiCodes:
+              type: boolean
+              description: Whether content contains ANSI codes
+            sequence:
+              type: number
+              description: Output sequence number
+
+    # Backend → Dashboard Messages (routed responses)
+    RoutedResponseMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_STATUS, TERMINAL_STREAM, TRACE_STREAM, AGENT_STATUS]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          description: Original message payload from agent
+
+    # Error Messages
+    RoutingErrorMessage:
+      type: object
+      required:
+        - type
+        - id
+        - timestamp
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [ERROR]
+        id:
+          type: string
+        timestamp:
+          type: number
+        payload:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum: [AGENT_OFFLINE, AGENT_NOT_FOUND, COMMAND_TIMEOUT, ROUTING_FAILED, QUEUE_FULL]
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                commandId:
+                  type: string
+                agentId:
+                  type: string
+                retryAfter:
+                  type: number
+                  description: Seconds to wait before retry
