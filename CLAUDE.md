@@ -6,7 +6,9 @@ Building Onsembl.ai - a web-based Agent Control Center for orchestrating multipl
 ## Current Tech Stack
 - **Backend**: Node.js 20+, TypeScript 5.x, Fastify 4.x with @fastify/websocket
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Zustand
-- **Database**: Supabase (PostgreSQL, Auth, Realtime)
+- **Database**: Dual-mode - Supabase (production) or local PostgreSQL (development)
+  - Database adapter with automatic fallback
+  - pg client for local PostgreSQL connections
 - **Queue**: BullMQ with Redis (Upstash)
 - **Logging**: Pino with structured logging
 - **Terminal**: xterm.js for terminal rendering
@@ -64,10 +66,12 @@ Working on MVP with core features:
 - 1MB max WebSocket payload
 
 ## Recent Changes
+- Database connection handling improvements (003-fix-silent-database)
+  - Dual-mode database support (Supabase/local PostgreSQL)
+  - Automatic fallback with clear error messages
+  - Health monitoring and connection status events
+- WebSocket communication improvements (002-connect-websocket-communication)
 - Initial project setup complete
-- Technical research documented
-- Data model and API contracts defined
-- Quickstart guide created
 
 ## Next Phase
 Ready for task generation (/tasks command) to create implementation tasks following TDD principles.

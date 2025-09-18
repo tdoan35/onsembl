@@ -1,0 +1,174 @@
+openapi: 3.0.0
+info:
+  title: Database Health API
+  version: 1.0.0
+  description: API endpoints for monitoring database connection health
+
+paths:
+  /api/health/database:
+    get:
+      summary: Get database connection status
+      operationId: getDatabaseHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Database connection status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseHealthResponse'
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseErrorResponse'
+
+  /api/health/database/check:
+    post:
+      summary: Trigger manual database health check
+      operationId: checkDatabaseHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Health check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResult'
+        '503':
+          description: Health check failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseErrorResponse'
+
+  /api/config/database:
+    get:
+      summary: Get current database configuration (mode only, no secrets)
+      operationId: getDatabaseConfig
+      tags:
+        - Config
+      responses:
+        '200':
+          description: Database configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseConfigResponse'
+
+components:
+  schemas:
+    DatabaseHealthResponse:
+      type: object
+      required:
+        - status
+        - mode
+        - connected
+        - lastHealthCheck
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall health status
+        mode:
+          type: string
+          enum: [supabase, local, mock]
+          description: Current database mode
+        connected:
+          type: boolean
+          description: Whether database is currently connected
+        lastHealthCheck:
+          type: string
+          format: date-time
+          description: Last successful health check timestamp
+        latency:
+          type: number
+          description: Last health check latency in milliseconds
+        errorCount:
+          type: integer
+          description: Consecutive error count
+        uptime:
+          type: integer
+          description: Connection uptime in seconds
+
+    HealthCheckResult:
+      type: object
+      required:
+        - success
+        - timestamp
+        - latency
+      properties:
+        success:
+          type: boolean
+          description: Whether health check succeeded
+        timestamp:
+          type: string
+          format: date-time
+          description: Check execution time
+        latency:
+          type: number
+          description: Response time in milliseconds
+        error:
+          type: string
+          description: Error message if check failed
+        details:
+          type: object
+          description: Additional diagnostic information
+          properties:
+            version:
+              type: string
+              description: Database version
+            activeConnections:
+              type: integer
+              description: Number of active connections
+            maxConnections:
+              type: integer
+              description: Maximum allowed connections
+
+    DatabaseConfigResponse:
+      type: object
+      required:
+        - mode
+        - poolSize
+        - healthCheckInterval
+      properties:
+        mode:
+          type: string
+          enum: [supabase, local, mock]
+          description: Active database mode
+        poolSize:
+          type: integer
+          description: Connection pool size
+        healthCheckInterval:
+          type: integer
+          description: Health check interval in milliseconds
+        maxRetries:
+          type: integer
+          description: Maximum connection retries
+        retryDelay:
+          type: integer
+          description: Delay between retries in milliseconds
+
+    DatabaseErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Error occurrence time
+        details:
+          type: object
+          description: Additional error context

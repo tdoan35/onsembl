@@ -341,28 +341,8 @@ export async function registerSystemRoutes(
     }
   });
 
-  // Health check endpoint (no authentication required)
-  server.get('/api/system/health', {
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            timestamp: { type: 'string' }
-          }
-        }
-      },
-      tags: ['system'],
-      summary: 'Health check',
-      description: 'Simple health check endpoint for monitoring'
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    return reply.code(200).send({
-      status: 'ok',
-      timestamp: new Date().toISOString()
-    });
-  });
+  // Health check endpoint is now registered by HealthCheckService
+  // See src/database/health-check.service.ts
 }
 
 /**
