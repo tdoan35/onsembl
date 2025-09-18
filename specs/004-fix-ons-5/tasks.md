@@ -39,35 +39,35 @@
 - All paths relative to repository root
 
 ## Phase 3.1: Setup
-- [ ] T001 Create test utilities for WebSocket connections in backend/tests/utils/websocket-client.ts
-- [ ] T002 [P] Create mock dashboard client helper in backend/tests/utils/mock-dashboard.ts
-- [ ] T003 [P] Create mock agent client helper in backend/tests/utils/mock-agent.ts
+- [x] T001 Create test utilities for WebSocket connections in backend/tests/utils/websocket-client.ts
+- [x] T002 [P] Create mock dashboard client helper in backend/tests/utils/mock-dashboard.ts
+- [x] T003 [P] Create mock agent client helper in backend/tests/utils/mock-agent.ts
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T004 [P] Integration test: COMMAND_REQUEST routing dashboard→agent in backend/tests/integration/routing/test-command-request.spec.ts
-- [ ] T005 [P] Integration test: COMMAND_STATUS routing agent→dashboard in backend/tests/integration/routing/test-command-status.spec.ts
-- [ ] T006 [P] Integration test: TERMINAL_STREAM to correct dashboard in backend/tests/integration/routing/test-terminal-stream.spec.ts
-- [ ] T007 [P] Integration test: EMERGENCY_STOP broadcast to all agents in backend/tests/integration/routing/test-emergency-stop.spec.ts
-- [ ] T008 [P] Integration test: Offline agent message queuing in backend/tests/integration/routing/test-offline-queuing.spec.ts
-- [ ] T009 [P] Integration test: Connection cleanup on disconnect in backend/tests/integration/routing/test-connection-cleanup.spec.ts
-- [ ] T010 [P] Integration test: Multiple dashboard isolation in backend/tests/integration/routing/test-dashboard-isolation.spec.ts
+- [x] T004 [P] Integration test: COMMAND_REQUEST routing dashboard→agent in backend/tests/integration/routing/test-command-request.spec.ts
+- [x] T005 [P] Integration test: COMMAND_STATUS routing agent→dashboard in backend/tests/integration/routing/test-command-status.spec.ts
+- [x] T006 [P] Integration test: TERMINAL_STREAM to correct dashboard in backend/tests/integration/routing/test-terminal-stream.spec.ts
+- [x] T007 [P] Integration test: EMERGENCY_STOP broadcast to all agents in backend/tests/integration/routing/test-emergency-stop.spec.ts
+- [x] T008 [P] Integration test: Offline agent message queuing in backend/tests/integration/routing/test-offline-queuing.spec.ts
+- [x] T009 [P] Integration test: Connection cleanup on disconnect in backend/tests/integration/routing/test-connection-cleanup.spec.ts
+- [x] T010 [P] Integration test: Multiple dashboard isolation in backend/tests/integration/routing/test-dashboard-isolation.spec.ts
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
-- [ ] T011 Add command-to-dashboard tracking Map in backend/src/websocket/message-router.ts
-- [ ] T012 Add COMMAND_REQUEST handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
-- [ ] T013 Add COMMAND_CANCEL handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
-- [ ] T014 Add AGENT_CONTROL handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
-- [ ] T015 Add EMERGENCY_STOP handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
-- [ ] T016 Update dashboard connection metadata to track initiated commands in backend/src/websocket/dashboard-handler.ts
-- [ ] T017 Update agent handler to include routing metadata in responses in backend/src/websocket/agent-handler.ts
-- [ ] T018 Wire shared MessageRouter instance between handlers in backend/src/websocket/setup.ts
+- [x] T011 Add command-to-dashboard tracking Map in backend/src/websocket/message-router.ts
+- [x] T012 Add COMMAND_REQUEST handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
+- [x] T013 Add COMMAND_CANCEL handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
+- [x] T014 Add AGENT_CONTROL handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
+- [x] T015 Add EMERGENCY_STOP handler in backend/src/websocket/dashboard-handler.ts (handleMessage switch case)
+- [x] T016 Update dashboard connection metadata to track initiated commands in backend/src/websocket/dashboard-handler.ts
+- [x] T017 Update agent handler to include routing metadata in responses in backend/src/websocket/agent-handler.ts
+- [x] T018 Wire shared MessageRouter instance between handlers in backend/src/websocket/setup.ts
 
 ## Phase 3.4: Integration
-- [ ] T019 Implement command cleanup on dashboard disconnect in backend/src/websocket/dashboard-handler.ts (handleDisconnection)
-- [ ] T020 Implement command cleanup on agent disconnect in backend/src/websocket/agent-handler.ts (handleDisconnection)
-- [ ] T021 Add command TTL expiration logic in backend/src/websocket/message-router.ts
-- [ ] T022 Verify MessageRouter queue processing for offline agents in backend/src/websocket/message-router.ts
+- [x] T019 Implement command cleanup on dashboard disconnect in backend/src/websocket/dashboard-handler.ts (handleDisconnection)
+- [x] T020 Implement command cleanup on agent disconnect in backend/src/websocket/agent-handler.ts (handleDisconnection)
+- [x] T021 Add command TTL expiration logic in backend/src/websocket/message-router.ts
+- [x] T022 Verify MessageRouter queue processing for offline agents in backend/src/websocket/message-router.ts
 
 ## Phase 3.5: Polish
 - [ ] T023 [P] Run quickstart test scenario 1: Basic command routing
