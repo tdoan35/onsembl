@@ -49,13 +49,13 @@ export {
   type ErrorPayload,
   type MessagePayloadMap,
   type TypedWebSocketMessage
-} from './types.js';
+} from './types';
 
 // Export validation functionality
-export * from './validation.js';
+export * from './validation';
 
 // Export message builders
-export * from './messages/index.js';
+export * from './messages/index';
 
 // ValidationResult interface for CLI usage
 export interface ValidationResult<T = any> {
@@ -128,7 +128,7 @@ export class MessageValidator {
 }
 
 // Export WebSocket message types and utilities
-export * from './websocket-messages.js';
+export * from './websocket-messages';
 export {
   ConnectionInfo,
   ConnectionMetadata,
@@ -138,8 +138,8 @@ export {
   ReconnectionStrategy,
   WebSocketManagerOptions,
   WebSocketStats
-} from './connection-types.js';
-export * from './websocket-validation.js';
+} from './connection-types';
+export * from './websocket-validation';
 
 // Export version information
 export const PACKAGE_VERSION = '0.1.0';
@@ -152,7 +152,7 @@ export {
   ServerToAgentMessageBuilder,
   ServerToDashboardMessageBuilder,
   ErrorMessageBuilder
-} from './messages/index.js';
+} from './messages/index';
 
 // Export commonly used constants
 export const MESSAGE_TYPES = {

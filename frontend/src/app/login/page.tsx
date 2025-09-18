@@ -183,7 +183,7 @@ export default function LoginPage() {
                 <div>
                   <p className="font-medium">Real-time Terminal Streaming</p>
                   <p className="text-sm text-muted-foreground">
-                    <200ms latency WebSocket connections
+                    &lt;200ms latency WebSocket connections
                   </p>
                 </div>
               </div>

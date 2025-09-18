@@ -15,7 +15,7 @@ import type {
   CommandQueueUpdateMessage,
   ConnectionAckMessage,
   ErrorMessage
-} from './websocket-messages.js'
+} from './websocket-messages'
 
 export interface ValidationError {
   field: string

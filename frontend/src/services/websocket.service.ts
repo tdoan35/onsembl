@@ -302,9 +302,10 @@ export class WebSocketService extends EventTarget {
   }
 
   private buildWebSocketUrl(path: string): string {
-    const wsProtocol = this.config.baseUrl.startsWith('https') ? 'wss' : 'ws';
-    const baseUrl = this.config.baseUrl.replace(/^https?:\/\//, '');
-    let url = `${wsProtocol}://${baseUrl}${path}`;
+    // Use the WebSocket base URL directly from config (already has ws:// or wss://)
+    const baseUrl = this.config.baseUrl.replace(/\/$/, ''); // Remove trailing slash if present
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let url = `${baseUrl}${cleanPath}`;
 
     // Add authentication token as query parameter
     if (this.accessToken) {
@@ -597,13 +598,13 @@ export class WebSocketService extends EventTarget {
   }
 }
 
+// Import configuration
+import { config } from '@/services/config';
+
 // Default configuration
 export const defaultWebSocketConfig: WebSocketConfig = {
-  baseUrl: process.env['NEXT_PUBLIC_BACKEND_URL'] || 'http://localhost:3001',
-  endpoints: {
-    agent: '/ws/agent',
-    dashboard: '/ws/dashboard'
-  },
+  baseUrl: config.websocket.baseUrl,
+  endpoints: config.websocket.endpoints,
   reconnect: {
     maxAttempts: 5,
     backoffMultiplier: 2,

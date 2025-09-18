@@ -24,7 +24,7 @@ import {
   TerminalStreamPayload,
   TraceUpdatePayload,
   ErrorPayload
-} from '../types/index.js';
+} from '../types/index';
 
 /**
  * Message builder functions for server-to-agent messages

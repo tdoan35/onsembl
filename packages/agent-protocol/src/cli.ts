@@ -27,7 +27,7 @@ import {
   type AgentStatusPayload,
   type TerminalOutputPayload,
   type TraceEventPayload
-} from './types.js';
+} from './types';
 
 // Import constants from the right location
 const MESSAGE_TYPES = {
