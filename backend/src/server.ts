@@ -26,6 +26,12 @@ import { CommandService } from './services/command.service';
 import { AuthService } from './services/auth.service';
 import { AuditService } from './services/audit.service';
 
+// Database
+import { SupabaseValidator } from './database/supabase-validator';
+import { EnvironmentDetector } from './database/environment-detector';
+import { HealthCheckService } from './database/health-check.service';
+import { DatabaseErrorMessages } from './database/error-messages';
+
 // API Routes
 import { registerAuthRoutes } from './api/auth';
 import { registerAgentRoutes } from './api/agents';
@@ -35,22 +41,13 @@ import { registerReportRoutes } from './api/reports';
 import { registerSystemRoutes } from './api/system';
 import { registerConstraintRoutes } from './api/constraints';
 
-/**
- * Health check response interface
- */
-interface HealthCheckResponse {
-  status: 'ok' | 'error';
-  timestamp: string;
-  uptime: number;
-  environment: string;
-  version: string;
-}
 
 export interface Services {
   agentService: AgentService;
   commandService: CommandService;
   authService: AuthService;
   auditService: AuditService;
+  healthService?: HealthCheckService;
 }
 
 // Services will be initialized in createServer
@@ -81,27 +78,46 @@ export async function createServer(): Promise<FastifyInstance> {
     trustProxy: true,
   });
 
-  // Initialize Supabase client (optional for development)
+  // Initialize database health check and validation
+  const healthService = new HealthCheckService(server);
+  await healthService.initialize();
+
+  // Get validated Supabase client from health service
+  const validator = new SupabaseValidator(server.log);
+  const validation = await validator.validate();
   let supabaseClient = null;
-  try {
-    if (
-      config.SUPABASE_URL &&
-      config.SUPABASE_URL !== 'http://localhost:54321'
-    ) {
-      const { createClient } = await import('@supabase/supabase-js');
-      supabaseClient = createClient(
-        config.SUPABASE_URL,
-        config.SUPABASE_ANON_KEY,
-      );
-      server.log.info('Supabase client initialized');
-    } else {
-      server.log.warn('Running in mock mode without Supabase');
-    }
-  } catch (error) {
-    server.log.warn(
-      { error },
-      'Failed to initialize Supabase client, running in mock mode',
+
+  if (validation.valid && validation.configured) {
+    supabaseClient = validator.getClient();
+    const envInfo = EnvironmentDetector.detect();
+    server.log.info(
+      {
+        environment: envInfo.type,
+        url: envInfo.connectionUrl,
+        summary: EnvironmentDetector.getConnectionSummary()
+      },
+      'Database connection established'
     );
+  } else {
+    // Log warnings with helpful setup instructions
+    if (!validation.configured) {
+      server.log.warn(
+        DatabaseErrorMessages.getSetupInstructions(
+          !!process.env['SUPABASE_URL'],
+          !!process.env['SUPABASE_ANON_KEY']
+        )
+      );
+    } else if (validation.errors.length > 0) {
+      validation.errors.forEach(error => {
+        server.log.error({ error }, 'Database configuration error');
+      });
+    }
+
+    validation.warnings.forEach(warning => {
+      server.log.warn({ warning }, 'Database configuration warning');
+    });
+
+    server.log.warn('Running without database - data will not be persisted');
   }
 
   // Initialize services with dependencies
@@ -112,17 +128,21 @@ export async function createServer(): Promise<FastifyInstance> {
       commandService: new CommandService(supabaseClient as any, server, null),
       authService: new AuthService(server, supabaseClient as any),
       auditService: new AuditService(server, {}, supabaseClient as any),
+      healthService: healthService,
     };
   } else {
     // Create mock services for development without database
+    const errorMsg = DatabaseErrorMessages.getError('DB_NOT_CONFIGURED');
     server.log.warn(
-      'Creating mock services - database operations will not work',
+      DatabaseErrorMessages.formatForLog(errorMsg),
+      'Creating mock services - database operations will not persist'
     );
     services = {
       agentService: {} as AgentService,
       commandService: {} as CommandService,
       authService: {} as AuthService,
       auditService: {} as AuditService,
+      healthService: healthService,
     };
   }
 
@@ -205,21 +225,8 @@ export async function createServer(): Promise<FastifyInstance> {
   const { setupWebSocketPlugin } = await import('./websocket/setup.js');
   await setupWebSocketPlugin(server, services);
 
-  // Health check endpoint
-  server.get(
-    '/health',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const response: HealthCheckResponse = {
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        environment: config.nodeEnv,
-        version: process.env['npm_package_version'] || 'unknown',
-      };
-
-      return reply.code(200).send(response);
-    },
-  );
+  // Register health check endpoints from health service
+  healthService.registerEndpoints();
 
   // Root endpoint
   server.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
