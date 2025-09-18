@@ -156,6 +156,26 @@ export class DashboardWebSocketHandler extends EventEmitter {
           await this.handlePong(connection, message);
           break;
 
+        // T012: Add COMMAND_REQUEST handler
+        case MessageType.COMMAND_REQUEST:
+          await this.handleCommandRequest(connection, message);
+          break;
+
+        // T013: Add COMMAND_CANCEL handler
+        case MessageType.COMMAND_CANCEL:
+          await this.handleCommandCancel(connection, message);
+          break;
+
+        // T014: Add AGENT_CONTROL handler
+        case MessageType.AGENT_CONTROL:
+          await this.handleAgentControl(connection, message);
+          break;
+
+        // T015: Add EMERGENCY_STOP handler
+        case MessageType.EMERGENCY_STOP:
+          await this.handleEmergencyStop(connection, message);
+          break;
+
         default:
           this.sendError(connection.socket, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type: ${message.type}`);
       }
@@ -425,6 +445,9 @@ export class DashboardWebSocketHandler extends EventEmitter {
         userId: connection.userId
       }, 'Dashboard WebSocket connection closed');
 
+      // T019: Clean up tracked commands for this dashboard
+      this.dependencies.messageRouter.cleanupDashboardCommands(connectionId);
+
       // Stop heartbeat monitoring
       this.dependencies.heartbeatManager.stopMonitoring(connectionId);
 
@@ -626,6 +649,178 @@ export class DashboardWebSocketHandler extends EventEmitter {
     } catch (error) {
       this.server.log.error({ error, type, id }, 'Failed to send subscription data');
     }
+  }
+
+  /**
+   * T012: Handle COMMAND_REQUEST from dashboard
+   */
+  private async handleCommandRequest(
+    connection: DashboardConnection,
+    message: WebSocketMessage
+  ): Promise<void> {
+    if (!connection.isAuthenticated) {
+      this.sendError(connection.socket, 'UNAUTHORIZED', 'Must be authenticated to send commands');
+      return;
+    }
+
+    const { agentId, commandId, command, args } = message.payload;
+
+    // Track command for this dashboard
+    this.dependencies.messageRouter.registerCommandForDashboard(commandId, connection.connectionId);
+
+    // Add to dashboard's command subscriptions
+    connection.subscriptions.commands.add(commandId);
+
+    // Route command to agent
+    const routed = this.dependencies.messageRouter.sendCommandToAgent(agentId, {
+      commandId,
+      command,
+      args,
+      dashboardId: connection.connectionId,
+      userId: connection.userId
+    });
+
+    if (routed) {
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId,
+        commandId,
+        command
+      }, 'Command request routed to agent');
+
+      // Send ACK to dashboard
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        commandId
+      });
+    } else {
+      this.sendError(connection.socket, 'ROUTING_FAILED', 'Failed to route command to agent');
+      this.dependencies.messageRouter.cleanupCommand(commandId);
+    }
+  }
+
+  /**
+   * T013: Handle COMMAND_CANCEL from dashboard
+   */
+  private async handleCommandCancel(
+    connection: DashboardConnection,
+    message: WebSocketMessage
+  ): Promise<void> {
+    if (!connection.isAuthenticated) {
+      this.sendError(connection.socket, 'UNAUTHORIZED', 'Must be authenticated to cancel commands');
+      return;
+    }
+
+    const { agentId, commandId, reason } = message.payload;
+
+    // Verify dashboard initiated this command
+    const dashboardId = this.dependencies.messageRouter.getDashboardForCommand(commandId);
+    if (dashboardId !== connection.connectionId) {
+      this.sendError(connection.socket, 'FORBIDDEN', 'Cannot cancel command from another dashboard');
+      return;
+    }
+
+    // Route cancellation to agent
+    const routed = this.dependencies.messageRouter.cancelCommandOnAgent(agentId, commandId, reason);
+
+    if (routed) {
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId,
+        commandId
+      }, 'Command cancel routed to agent');
+
+      // Send ACK
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        commandId
+      });
+    } else {
+      this.sendError(connection.socket, 'ROUTING_FAILED', 'Failed to route cancellation to agent');
+    }
+  }
+
+  /**
+   * T014: Handle AGENT_CONTROL from dashboard
+   */
+  private async handleAgentControl(
+    connection: DashboardConnection,
+    message: WebSocketMessage
+  ): Promise<void> {
+    if (!connection.isAuthenticated) {
+      this.sendError(connection.socket, 'UNAUTHORIZED', 'Must be authenticated to control agents');
+      return;
+    }
+
+    const { agentId, action } = message.payload;
+
+    // Route control command to agent
+    const routed = this.dependencies.messageRouter.sendAgentControl(
+      agentId,
+      action,
+      `Control from dashboard ${connection.userId}`
+    );
+
+    if (routed) {
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId,
+        action
+      }, 'Agent control command routed');
+
+      // Send ACK
+      this.sendMessage(connection.socket, MessageType.ACK, {
+        messageId: message.id,
+        success: true,
+        agentId,
+        action
+      });
+    } else {
+      this.sendError(connection.socket, 'ROUTING_FAILED', 'Failed to route control command to agent');
+    }
+  }
+
+  /**
+   * T015: Handle EMERGENCY_STOP from dashboard
+   */
+  private async handleEmergencyStop(
+    connection: DashboardConnection,
+    message: WebSocketMessage
+  ): Promise<void> {
+    if (!connection.isAuthenticated) {
+      this.sendError(connection.socket, 'UNAUTHORIZED', 'Must be authenticated to trigger emergency stop');
+      return;
+    }
+
+    const { reason } = message.payload;
+
+    this.server.log.warn({
+      connectionId: connection.connectionId,
+      userId: connection.userId,
+      reason
+    }, 'Emergency stop triggered by dashboard');
+
+    // Broadcast emergency stop to all agents
+    this.dependencies.messageRouter.broadcastEmergencyStop({
+      reason,
+      triggeredBy: connection.userId,
+      timestamp: Date.now()
+    });
+
+    // Send ACK
+    this.sendMessage(connection.socket, MessageType.ACK, {
+      messageId: message.id,
+      success: true
+    });
+
+    // Emit event for audit logging
+    this.emit('emergencyStopTriggered', {
+      userId: connection.userId,
+      connectionId: connection.connectionId,
+      reason
+    });
   }
 
   /**
