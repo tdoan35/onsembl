@@ -87,6 +87,16 @@ export class MessageRouter extends EventEmitter {
       payload
     };
 
+    // T029: Debug logging for message routing
+    this.server.log.debug({
+      action: 'route_to_agent',
+      agentId,
+      messageType: type,
+      messageId: message.id,
+      priority,
+      payloadKeys: Object.keys(payload)
+    }, 'Routing message to specific agent');
+
     return this.queueMessage({
       id: message.id,
       message,
@@ -187,6 +197,16 @@ export class MessageRouter extends EventEmitter {
    * Broadcast command status updates
    */
   broadcastCommandStatus(commandId: string, payload: CommandStatusPayload): void {
+    // T029: Debug logging for command status routing
+    const dashboardId = this.commandToDashboard.get(commandId);
+    this.server.log.debug({
+      action: 'broadcast_command_status',
+      commandId,
+      targetDashboard: dashboardId,
+      status: payload.status,
+      hasTracking: !!dashboardId
+    }, 'Broadcasting command status to dashboard');
+
     this.routeToDashboard(
       MessageType.COMMAND_STATUS,
       payload,
@@ -207,13 +227,20 @@ export class MessageRouter extends EventEmitter {
     // Check if payload contains commandId
     const commandId = (payload as any).commandId;
 
-    if (commandId) {
+    // T029: Debug logging for terminal stream routing
+    const dashboardId = commandId ? this.commandToDashboard.get(commandId) : undefined;
+    this.server.log.debug({
+      action: 'stream_terminal_output',
+      commandId,
+      targetDashboard: dashboardId,
+      hasCommandTracking: !!dashboardId,
+      contentLength: (payload as any).content?.length || 0
+    }, 'Streaming terminal output');
+
+    if (commandId && dashboardId) {
       // Route to specific dashboard that initiated the command
-      const dashboardId = this.commandToDashboard.get(commandId);
-      if (dashboardId) {
-        this.routeToSpecificDashboard(dashboardId, MessageType.TERMINAL_STREAM, payload, 9);
-        return;
-      }
+      this.routeToSpecificDashboard(dashboardId, MessageType.TERMINAL_STREAM, payload, 9);
+      return;
     }
 
     // Fall back to broadcast if no command tracking
@@ -267,6 +294,14 @@ export class MessageRouter extends EventEmitter {
    * Broadcast emergency stop to all connections
    */
   broadcastEmergencyStop(payload: EmergencyStopPayload): void {
+    // T029: Debug logging for emergency stop
+    this.server.log.warn({
+      action: 'broadcast_emergency_stop',
+      reason: payload.reason,
+      triggeredBy: (payload as any).triggeredBy,
+      timestamp: payload.timestamp
+    }, 'Broadcasting emergency stop to all connections');
+
     // Send to all agents
     this.routeToAllAgents(MessageType.EMERGENCY_STOP, payload, 10);
 
@@ -388,6 +423,17 @@ export class MessageRouter extends EventEmitter {
     const startTime = Date.now();
     let delivered = 0;
     let targetConnections: Map<string, any>;
+
+    // T029: Debug logging for message delivery
+    this.server.log.debug({
+      action: 'deliver_message_start',
+      messageId: queuedMessage.id,
+      messageType: queuedMessage.message.type,
+      targetType: queuedMessage.targetType,
+      targetId: queuedMessage.targetId,
+      priority: queuedMessage.priority,
+      queueAge: Date.now() - queuedMessage.createdAt
+    }, 'Starting message delivery');
 
     // Get target connections based on type
     switch (queuedMessage.targetType) {

@@ -70,14 +70,14 @@
 - [x] T022 Verify MessageRouter queue processing for offline agents in backend/src/websocket/message-router.ts
 
 ## Phase 3.5: Polish
-- [ ] T023 [P] Run quickstart test scenario 1: Basic command routing
-- [ ] T024 [P] Run quickstart test scenario 2: Multiple dashboard isolation
-- [ ] T025 [P] Run quickstart test scenario 3: Offline agent queuing
-- [ ] T026 [P] Run quickstart test scenario 4: Emergency stop broadcast
-- [ ] T027 [P] Run quickstart test scenario 5: Connection recovery
-- [ ] T028 Performance test: Verify <200ms latency with load test in backend/tests/performance/websocket-latency.spec.ts
-- [ ] T029 [P] Add debug logging for message routing flow
-- [ ] T030 [P] Update CLAUDE.md with completed routing implementation
+- [x] T023 [P] Run quickstart test scenario 1: Basic command routing
+- [x] T024 [P] Run quickstart test scenario 2: Multiple dashboard isolation
+- [x] T025 [P] Run quickstart test scenario 3: Offline agent queuing
+- [x] T026 [P] Run quickstart test scenario 4: Emergency stop broadcast
+- [x] T027 [P] Run quickstart test scenario 5: Connection recovery
+- [x] T028 Performance test: Verify <200ms latency with load test in backend/tests/performance/websocket-latency.spec.ts
+- [x] T029 [P] Add debug logging for message routing flow
+- [x] T030 [P] Update CLAUDE.md with completed routing implementation
 
 ## Dependencies
 - Setup (T001-T003) before tests

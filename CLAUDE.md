@@ -70,11 +70,16 @@ Working on MVP with core features:
 - 1MB max WebSocket payload
 
 ## Recent Changes
-- **004-fix-ons-5**: Implementing WebSocket message routing
-  - Wire MessageRouter into dashboard and agent handlers
-  - Add command tracking for response routing
-  - Queue messages for offline agents
-  - Support emergency stop broadcasts
+- **004-fix-ons-5**: ✅ COMPLETED - WebSocket message routing implementation
+  - Added command-to-dashboard tracking Map for response isolation
+  - Implemented message handlers: COMMAND_REQUEST, COMMAND_CANCEL, AGENT_CONTROL, EMERGENCY_STOP
+  - Wired MessageRouter into dashboard and agent handlers
+  - Added automatic command cleanup on disconnect
+  - Implemented TTL expiration (1 hour) for stale commands
+  - Queue messages for offline agents with retry logic
+  - Support emergency stop broadcasts to all agents
+  - Added comprehensive debug logging for routing flow
+  - Created performance tests verifying <200ms latency requirement
 - **003-fix-silent-database**: Database connection improvements
   - Dual-mode database support (Supabase/local PostgreSQL)
   - Automatic fallback with clear error messages
@@ -82,5 +87,11 @@ Working on MVP with core features:
 - **002-connect-websocket-communication**: WebSocket communication setup
 - **001-build-onsembl-ai**: Initial project setup complete
 
-## Next Phase
-Implementing WebSocket command routing to enable Dashboard→Agent command execution with proper response routing back to originating dashboards.
+## Message Routing Architecture
+The WebSocket message routing system now properly routes messages between dashboards and agents:
+- **Command Tracking**: Commands are tracked from originating dashboard via `commandToDashboard` Map
+- **Response Isolation**: Agent responses (status, terminal output) route back only to the initiating dashboard
+- **Cleanup**: Commands automatically cleaned up on dashboard disconnect or after 1-hour TTL
+- **Emergency Stop**: Broadcasts to all connected agents with high priority (10)
+- **Message Queue**: Priority-based queue with exponential backoff retry for failed deliveries
+- **Performance**: Verified <200ms latency with load tests (100 msg/sec per agent, 10+ concurrent agents)

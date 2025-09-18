@@ -27,7 +27,7 @@ describe('T004: Command Request Routing', () => {
     });
 
     // TODO: Add WebSocket routing support to test server
-    await server.register(import('fastify-websocket'));
+    await server.register(import('@fastify/websocket'));
 
     // Start server
     await server.listen({ port: 0, host: '127.0.0.1' });
