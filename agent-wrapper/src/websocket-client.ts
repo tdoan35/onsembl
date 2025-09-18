@@ -72,7 +72,16 @@ export interface ErrorMessage {
   timestamp: string;
 }
 
-export type IncomingMessage = CommandMessage | ErrorMessage;
+export interface TokenRefreshMessage {
+  type: typeof MessageType.TOKEN_REFRESH;
+  payload: {
+    accessToken: string;
+    expiresIn: number;
+    refreshToken?: string;
+  };
+}
+
+export type IncomingMessage = CommandMessage | ErrorMessage | TokenRefreshMessage;
 export type OutgoingMessage = AgentStatusMessage | OutputMessage | CommandCompleteMessage | HeartbeatMessage | AuthMessage;
 
 export interface WebSocketClientOptions {
@@ -360,6 +369,10 @@ export class WebSocketClient extends EventEmitter {
         }
         break;
 
+      case MessageType.TOKEN_REFRESH:
+        this.handleTokenRefresh(message as TokenRefreshMessage);
+        break;
+
       case 'error':
         console.error('Server error:', message);
         this.onError(new Error(`Server error: ${message.message}`));
@@ -367,6 +380,23 @@ export class WebSocketClient extends EventEmitter {
 
       default:
         console.warn('Unknown message type:', (message as any).type);
+    }
+  }
+
+  private handleTokenRefresh(message: TokenRefreshMessage): void {
+    const { accessToken, expiresIn } = message.payload;
+
+    if (accessToken && this.config.token) {
+      // Update the stored token
+      this.config.token = accessToken;
+
+      // Store in environment if available
+      if (process.env['ONSEMBL_TOKEN']) {
+        process.env['ONSEMBL_TOKEN'] = accessToken;
+      }
+
+      console.log(`[Token Refresh] Token refreshed successfully, expires in ${expiresIn} seconds`);
+      this.emit('token_refreshed', { accessToken, expiresIn });
     }
   }
 

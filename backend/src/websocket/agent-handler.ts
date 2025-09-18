@@ -201,7 +201,7 @@ export class AgentWebSocketHandler extends EventEmitter {
         return;
       }
 
-      const authContext = await this.dependencies.auth.validateToken(token);
+      const authContext = await this.services.authService.validateToken(token);
       if (!authContext) {
         this.sendError(connection.socket, 'UNAUTHORIZED', 'Invalid authentication token');
         return;
@@ -223,6 +223,19 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Update connection
       connection.agentId = agentId;
       connection.isAuthenticated = true;
+
+      // Register token with TokenManager for automatic refresh
+      const tokenInfo = authContext;
+      if (tokenInfo && tokenInfo.expiresAt) {
+        this.dependencies.tokenManager.registerToken(
+          connection.connectionId,
+          token,
+          tokenInfo.expiresAt * 1000, // Convert to milliseconds
+          tokenInfo.refreshToken,
+          undefined, // No userId for agent connections (they use service accounts)
+          agentId
+        );
+      }
 
       // Update connection pool
       this.dependencies.connectionPool.updateConnection(connection.connectionId, {
@@ -536,6 +549,9 @@ export class AgentWebSocketHandler extends EventEmitter {
         connectionId,
         agentId: connection.agentId
       }, 'Agent WebSocket connection closed');
+
+      // Unregister token from TokenManager
+      this.dependencies.tokenManager.unregisterToken(connectionId);
 
       // Stop heartbeat monitoring
       this.dependencies.heartbeatManager.stopMonitoring(connectionId);

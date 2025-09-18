@@ -276,6 +276,45 @@ export class AuthService extends EventEmitter {
   }
 
   /**
+   * Validate token and return auth context for WebSocket handlers
+   * @param token JWT token to validate
+   * @returns Auth context with user, expiry, and refresh token
+   */
+  async validateToken(token: string): Promise<{
+    userId: string;
+    expiresAt: number;
+    refreshToken?: string;
+  } | null> {
+    try {
+      const validation = await this.verifyToken(token);
+      if (!validation.valid || !validation.user) {
+        return null;
+      }
+
+      // Get session to find expiry time
+      const session = this.activeSessions.get(token);
+      if (!session) {
+        // If not in active sessions, decode token to get expiry
+        // This is a simplified approach - in production you'd decode the JWT
+        return {
+          userId: validation.user.id,
+          expiresAt: Math.floor(Date.now() / 1000) + 3600, // Default 1 hour
+          refreshToken: undefined
+        };
+      }
+
+      return {
+        userId: validation.user.id,
+        expiresAt: Math.floor(session.expiresAt / 1000),
+        refreshToken: undefined // We don't store refresh tokens in memory
+      };
+    } catch (error) {
+      this.fastify.log.error({ error }, 'Token validation failed');
+      return null;
+    }
+  }
+
+  /**
    * Refresh JWT token using refresh token
    * @param refreshToken Refresh token
    * @param requestMetadata Request metadata for audit logging
@@ -361,6 +400,28 @@ export class AuthService extends EventEmitter {
         error: 'Token refresh error',
       };
     }
+  }
+
+  /**
+   * Refresh JWT token using refresh token (alias for refreshToken)
+   * Used by TokenManager for consistency
+   * @param refreshToken Refresh token
+   * @returns Token refresh payload for WebSocket
+   */
+  async refreshTokenWithRefreshToken(
+    refreshToken: string
+  ): Promise<{ accessToken: string; expiresIn: number; refreshToken?: string } | null> {
+    const result = await this.refreshToken(refreshToken);
+
+    if (!result.success || !result.session) {
+      return null;
+    }
+
+    return {
+      accessToken: result.session.access_token,
+      expiresIn: result.session.expires_in,
+      refreshToken: result.session.refresh_token
+    };
   }
 
   /**

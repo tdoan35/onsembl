@@ -409,8 +409,36 @@ export class WebSocketService extends EventTarget {
   }
 
   private handleTokenRefresh(message: WebSocketMessage): void {
-    // Token refresh will be handled by AuthService
-    this.dispatchEvent(new CustomEvent('token_refresh', { detail: message.payload }));
+    // Update stored access token
+    const { accessToken, expiresIn } = message.payload as { accessToken: string; expiresIn: number };
+
+    if (accessToken) {
+      this.accessToken = accessToken;
+
+      // Store in localStorage for persistence
+      const existingAuth = localStorage.getItem('auth');
+      if (existingAuth) {
+        try {
+          const auth = JSON.parse(existingAuth);
+          auth.accessToken = accessToken;
+          auth.expiresAt = Date.now() + (expiresIn * 1000);
+          localStorage.setItem('auth', JSON.stringify(auth));
+        } catch (error) {
+          console.error('Failed to update stored auth token:', error);
+        }
+      }
+
+      // Notify auth service of token refresh
+      this.dispatchEvent(new CustomEvent('token_refreshed', {
+        detail: {
+          accessToken,
+          expiresIn,
+          timestamp: Date.now()
+        }
+      }));
+
+      console.log('Token refreshed successfully, expires in', expiresIn, 'seconds');
+    }
   }
 
   private sendTokenRefresh(endpoint: string, accessToken: string): void {
