@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { Config } from './config.js';
+import { MessageType, WebSocketMessage, TerminalOutputPayload } from '@onsembl/agent-protocol';
 
 // Message types for WebSocket communication
 export interface AgentStatusMessage {
@@ -32,7 +33,7 @@ export interface CommandMessage {
 }
 
 export interface OutputMessage {
-  type: 'output';
+  type: 'output' | MessageType.TERMINAL_OUTPUT;
   commandId: string;
   agentId: string;
   stream: 'stdout' | 'stderr';
@@ -42,7 +43,7 @@ export interface OutputMessage {
 }
 
 export interface CommandCompleteMessage {
-  type: 'command_complete';
+  type: 'command_complete' | MessageType.COMMAND_COMPLETE;
   commandId: string;
   agentId: string;
   exitCode: number;
@@ -90,6 +91,7 @@ export class WebSocketClient extends EventEmitter {
   private isConnected = false;
   private isReconnecting = false;
   private messageQueue: OutgoingMessage[] = [];
+  private sequenceCounters: Map<string, number> = new Map();
 
   private onCommand: (message: CommandMessage) => Promise<void>;
   private onError: (error: Error) => void;
@@ -192,12 +194,38 @@ export class WebSocketClient extends EventEmitter {
    * Send agent status update
    */
   async sendStatus(status: AgentStatusMessage['status'], metadata?: AgentStatusMessage['metadata']): Promise<void> {
-    const message: AgentStatusMessage = {
-      type: 'agent_status',
-      agentId: this.agentId,
-      status,
-      metadata,
-      timestamp: new Date().toISOString(),
+    // For initial connection, send AGENT_CONNECT
+    if (status === 'ready' && !this.isConnected) {
+      const connectMessage: WebSocketMessage = {
+        type: MessageType.AGENT_CONNECT,
+        id: `connect-${Date.now()}`,
+        timestamp: Date.now(),
+        payload: {
+          agentId: this.agentId,
+          agentType: (this.config as any).agentType || 'mock',
+          metadata: {
+            version: metadata?.version || '1.0.0',
+            capabilities: metadata?.capabilities || [],
+            pid: metadata?.pid || process.pid
+          },
+          authToken: '', // Auth handled separately
+          timestamp: Date.now()
+        }
+      };
+      await this.sendMessage(connectMessage);
+    }
+
+    // Send regular status update
+    const message: WebSocketMessage = {
+      type: MessageType.AGENT_STATUS,
+      id: `status-${Date.now()}`,
+      timestamp: Date.now(),
+      payload: {
+        agentId: this.agentId,
+        status,
+        metadata,
+        timestamp: Date.now()
+      }
     };
 
     await this.sendMessage(message);
@@ -207,14 +235,21 @@ export class WebSocketClient extends EventEmitter {
    * Send command output
    */
   async sendOutput(commandId: string, stream: 'stdout' | 'stderr', data: string, ansiCodes?: string): Promise<void> {
-    const message: OutputMessage = {
-      type: 'output',
+    const payload: TerminalOutputPayload = {
       commandId,
       agentId: this.agentId,
-      stream,
-      data,
-      ansiCodes,
-      timestamp: new Date().toISOString(),
+      content: data,
+      streamType: stream === 'stderr' ? 'STDERR' : 'STDOUT',
+      ansiCodes: !!ansiCodes,
+      sequence: this.getNextSequence(commandId),
+      timestamp: Date.now()
+    };
+
+    const message: WebSocketMessage<TerminalOutputPayload> = {
+      type: MessageType.TERMINAL_OUTPUT,
+      id: `${commandId}-${Date.now()}`,
+      timestamp: Date.now(),
+      payload
     };
 
     await this.sendMessage(message);
@@ -224,17 +259,35 @@ export class WebSocketClient extends EventEmitter {
    * Send command completion
    */
   async sendCommandComplete(commandId: string, exitCode: number, duration: number, error?: string): Promise<void> {
-    const message: CommandCompleteMessage = {
-      type: 'command_complete',
-      commandId,
-      agentId: this.agentId,
-      exitCode,
-      duration,
-      error,
-      timestamp: new Date().toISOString(),
+    const message: WebSocketMessage = {
+      type: MessageType.COMMAND_COMPLETE,
+      id: `${commandId}-complete`,
+      timestamp: Date.now(),
+      payload: {
+        commandId,
+        agentId: this.agentId,
+        status: exitCode === 0 ? 'COMPLETED' : 'FAILED',
+        exitCode,
+        duration,
+        error,
+        timestamp: Date.now()
+      }
     };
 
+    // Clean up sequence counter
+    this.sequenceCounters.delete(commandId);
+
     await this.sendMessage(message);
+  }
+
+  /**
+   * Get next sequence number for a command
+   */
+  private getNextSequence(commandId: string): number {
+    const current = this.sequenceCounters.get(commandId) || 0;
+    const next = current + 1;
+    this.sequenceCounters.set(commandId, next);
+    return next;
   }
 
   /**
