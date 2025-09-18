@@ -74,7 +74,9 @@ export class CodexAgent extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      this.metadata.pid = this.process.pid;
+      if (this.process.pid !== undefined) {
+        this.metadata.pid = this.process.pid;
+      }
 
       // Set up stream capture
       this.streamCapture = new StreamCapture({
@@ -346,7 +348,7 @@ export class CodexAgent extends EventEmitter {
       const modelMatch = data.match(
         /Model:\s*(gpt-[\w-]+|davinci|cushman|babbage|ada)/i,
       );
-      if (modelMatch) {
+      if (modelMatch && modelMatch[1]) {
         this.metadata.version = modelMatch[1];
       }
 
@@ -460,7 +462,7 @@ export class CodexAgent extends EventEmitter {
     }
 
     this.process = null;
-    this.metadata.pid = undefined;
+    delete this.metadata.pid;
   }
 
   private setStatus(status: AgentStatus): void {

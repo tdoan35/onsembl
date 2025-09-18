@@ -1,8 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { Config, getAgentEnvironment } from '../config';
-import { StreamCapture, OutputChunk } from '../stream-capture';
-import { AgentStatus, AgentMetadata } from './claude';
+import { Config, getAgentEnvironment } from '../config.js';
+import { StreamCapture, OutputChunk } from '../stream-capture.js';
+import { AgentStatus, AgentMetadata } from './claude.js';
 
 export interface GeminiAgentOptions {
   config: Config;
@@ -23,7 +23,10 @@ export class GeminiAgent extends EventEmitter {
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private restartTimer: NodeJS.Timeout | null = null;
 
-  private onOutput: (stream: 'stdout' | 'stderr', chunk: OutputChunk) => Promise<void>;
+  private onOutput: (
+    stream: 'stdout' | 'stderr',
+    chunk: OutputChunk,
+  ) => Promise<void>;
   private onError: (error: Error) => void;
   private onStatusChange: (status: AgentStatus) => void;
 
@@ -55,7 +58,9 @@ export class GeminiAgent extends EventEmitter {
     try {
       // Validate Gemini command exists
       if (!this.validateCommand()) {
-        throw new Error(`Gemini command '${this.config.agentCommand}' not found in PATH`);
+        throw new Error(
+          `Gemini command '${this.config.agentCommand}' not found in PATH`,
+        );
       }
 
       // Prepare command arguments
@@ -69,7 +74,9 @@ export class GeminiAgent extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      this.metadata.pid = this.process.pid;
+      if (this.process.pid !== undefined) {
+        this.metadata.pid = this.process.pid;
+      }
 
       // Set up stream capture
       this.streamCapture = new StreamCapture({
@@ -84,7 +91,10 @@ export class GeminiAgent extends EventEmitter {
 
       // Attach to process streams
       if (this.process.stdout && this.process.stderr) {
-        this.streamCapture.attachToStreams(this.process.stdout, this.process.stderr);
+        this.streamCapture.attachToStreams(
+          this.process.stdout,
+          this.process.stderr,
+        );
         this.streamCapture.startAutoFlush();
       }
 
@@ -99,7 +109,6 @@ export class GeminiAgent extends EventEmitter {
 
       this.setStatus('ready');
       console.log('Gemini agent started successfully');
-
     } catch (error) {
       this.setStatus('error');
       this.cleanup();
@@ -111,7 +120,11 @@ export class GeminiAgent extends EventEmitter {
    * Stop the Gemini agent process
    */
   async stop(): Promise<void> {
-    if (!this.process || this.status === 'stopping' || this.status === 'stopped') {
+    if (
+      !this.process ||
+      this.status === 'stopping' ||
+      this.status === 'stopped'
+    ) {
       return;
     }
 
@@ -129,7 +142,6 @@ export class GeminiAgent extends EventEmitter {
 
       // Wait for graceful shutdown
       await this.waitForExit(5000);
-
     } catch (error) {
       console.warn('Graceful shutdown failed, force killing process');
       this.forceKill();
@@ -202,7 +214,6 @@ export class GeminiAgent extends EventEmitter {
 
       // Additional Gemini-specific health checks could go here
       return true;
-
     } catch (error) {
       console.error('Health check failed:', error);
       return false;
@@ -289,7 +300,7 @@ export class GeminiAgent extends EventEmitter {
       }
     });
 
-    this.process.on('error', (error) => {
+    this.process.on('error', error => {
       console.error('Gemini process error:', error);
       this.setStatus('error');
       this.onError(error);
@@ -311,20 +322,24 @@ export class GeminiAgent extends EventEmitter {
     // Look for Gemini-specific patterns
     if (stream === 'stdout') {
       // Check for ready signal - Gemini CLI prompts
-      if (data.includes('Ready') ||
-          data.includes('gemini>') ||
-          data.includes('Gemini CLI') ||
-          data.includes('>') ||
-          this.status === 'starting') {
+      if (
+        data.includes('Ready') ||
+        data.includes('gemini>') ||
+        data.includes('Gemini CLI') ||
+        data.includes('>') ||
+        this.status === 'starting'
+      ) {
         if (this.status === 'starting' || this.status === 'busy') {
           this.setStatus('ready');
         }
       }
 
       // Check for error patterns
-      if (data.includes('Error:') ||
-          data.includes('Exception:') ||
-          data.includes('API_ERROR')) {
+      if (
+        data.includes('Error:') ||
+        data.includes('Exception:') ||
+        data.includes('API_ERROR')
+      ) {
         console.warn('Gemini output contains error:', data);
       }
 
@@ -343,7 +358,6 @@ export class GeminiAgent extends EventEmitter {
       if (data.includes('function_call') || data.includes('tool_use')) {
         console.log('Gemini is making function calls');
       }
-
     } else {
       // stderr - treat as potential errors
       console.warn('Gemini stderr:', data);
@@ -380,14 +394,18 @@ export class GeminiAgent extends EventEmitter {
       this.on('status_change', checkReady);
 
       // Also check for ready signals in output
-      const outputListener = (stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
-        if (stream === 'stdout' && (
-          chunk.data.includes('Ready') ||
-          chunk.data.includes('gemini>') ||
-          chunk.data.includes('Gemini CLI') ||
-          chunk.data.includes('>') ||
-          this.status === 'starting'
-        )) {
+      const outputListener = (
+        stream: 'stdout' | 'stderr',
+        chunk: OutputChunk,
+      ) => {
+        if (
+          stream === 'stdout' &&
+          (chunk.data.includes('Ready') ||
+            chunk.data.includes('gemini>') ||
+            chunk.data.includes('Gemini CLI') ||
+            chunk.data.includes('>') ||
+            this.status === 'starting')
+        ) {
           clearTimeout(timeout);
           this.removeListener('output', outputListener);
           resolve();
@@ -489,16 +507,18 @@ export class GeminiAgent extends EventEmitter {
     try {
       // On Unix systems, we can use ps to get memory and CPU usage
       const { execSync } = require('child_process');
-      const psOutput = execSync(`ps -p ${this.process.pid} -o %mem,%cpu --no-headers`, {
-        encoding: 'utf8',
-        timeout: 1000,
-      });
+      const psOutput = execSync(
+        `ps -p ${this.process.pid} -o %mem,%cpu --no-headers`,
+        {
+          encoding: 'utf8',
+          timeout: 1000,
+        },
+      );
 
       const [memPercent, cpuPercent] = psOutput.trim().split(/\s+/).map(Number);
 
       this.metadata.memoryUsage = memPercent;
       this.metadata.cpuUsage = cpuPercent;
-
     } catch (error) {
       // Ignore errors in resource monitoring
       console.debug('Failed to update resource usage:', error);
