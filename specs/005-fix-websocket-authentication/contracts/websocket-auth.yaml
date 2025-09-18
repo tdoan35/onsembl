@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: WebSocket Authentication Protocol
+  version: 1.0.0
+  description: Authentication and authorization protocol for Onsembl WebSocket connections
+
+paths: {}
+
+components:
+  schemas:
+    # Connection Messages
+    AgentConnect:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [AGENT_CONNECT]
+        data:
+          type: object
+          required: [agentId, token, version]
+          properties:
+            agentId:
+              type: string
+              format: uuid
+              description: Unique agent identifier
+            token:
+              type: string
+              description: JWT access token
+            version:
+              type: string
+              description: Agent version
+            capabilities:
+              type: array
+              items:
+                type: string
+              description: Agent capabilities
+
+    DashboardInit:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [DASHBOARD_INIT]
+        data:
+          type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              description: JWT access token
+            sessionId:
+              type: string
+              format: uuid
+              description: Optional session identifier
+
+    # Authentication Responses
+    AuthSuccess:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [AUTH_SUCCESS]
+        data:
+          type: object
+          required: [userId, connectionId, expiresAt]
+          properties:
+            userId:
+              type: string
+              description: Authenticated user ID
+            connectionId:
+              type: string
+              format: uuid
+              description: Unique connection identifier
+            expiresAt:
+              type: string
+              format: date-time
+              description: Token expiration time
+            permissions:
+              type: array
+              items:
+                type: string
+              description: Granted permissions
+
+    AuthError:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [AUTH_ERROR]
+        data:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_TOKEN, EXPIRED_TOKEN, INSUFFICIENT_PERMISSIONS, RATE_LIMIT_EXCEEDED, CONNECTION_LIMIT_EXCEEDED]
+            message:
+              type: string
+              description: Human-readable error message
+            retryAfter:
+              type: integer
+              description: Seconds until retry allowed (for rate limits)
+
+    # Token Management
+    TokenRefresh:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [TOKEN_REFRESH]
+        data:
+          type: object
+          required: [refreshToken]
+          properties:
+            refreshToken:
+              type: string
+              description: JWT refresh token
+
+    TokenRefreshSuccess:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [TOKEN_REFRESH_SUCCESS]
+        data:
+          type: object
+          required: [accessToken, expiresAt]
+          properties:
+            accessToken:
+              type: string
+              description: New JWT access token
+            refreshToken:
+              type: string
+              description: New refresh token (if rotated)
+            expiresAt:
+              type: string
+              format: date-time
+              description: New token expiration
+
+    # Authenticated Messages (require validation)
+    CommandRequest:
+      type: object
+      required: [type, id, data]
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_REQUEST]
+        id:
+          type: string
+          format: uuid
+          description: Command ID for correlation
+        data:
+          type: object
+          required: [agentId, command]
+          properties:
+            agentId:
+              type: string
+              format: uuid
+            command:
+              type: string
+            args:
+              type: array
+              items:
+                type: string
+            env:
+              type: object
+              additionalProperties:
+                type: string
+            priority:
+              type: integer
+              minimum: 0
+              maximum: 10
+      x-auth-required: true
+      x-permissions: [command.execute]
+
+    CommandCancel:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [COMMAND_CANCEL]
+        data:
+          type: object
+          required: [commandId]
+          properties:
+            commandId:
+              type: string
+              format: uuid
+            force:
+              type: boolean
+              default: false
+      x-auth-required: true
+      x-permissions: [command.cancel]
+
+    EmergencyStop:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [EMERGENCY_STOP]
+        data:
+          type: object
+          required: [agentId]
+          properties:
+            agentId:
+              type: string
+              format: uuid
+              description: Agent to stop (or 'all')
+            reason:
+              type: string
+      x-auth-required: true
+      x-permissions: [agent.emergency_stop]
+
+    # Rate Limit Response
+    RateLimitExceeded:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [RATE_LIMIT_EXCEEDED]
+        data:
+          type: object
+          required: [limit, window, retryAfter]
+          properties:
+            limit:
+              type: integer
+              description: Maximum requests allowed
+            window:
+              type: integer
+              description: Window size in seconds
+            retryAfter:
+              type: integer
+              description: Seconds until next request allowed
+            violationCount:
+              type: integer
+              description: Number of violations
+
+    # Close Codes
+    WebSocketCloseCodes:
+      type: object
+      properties:
+        '1008':
+          description: Policy Violation - Authentication failure
+        '1009':
+          description: Message Too Big - Payload exceeds 1MB limit
+        '1011':
+          description: Internal Error - Server error during auth
+        '4000':
+          description: Authentication Required - No token provided
+        '4001':
+          description: Authentication Failed - Invalid token
+        '4002':
+          description: Token Expired - Token needs refresh
+        '4003':
+          description: Insufficient Permissions - Operation not allowed
+        '4004':
+          description: Rate Limit Exceeded - Too many requests
+        '4005':
+          description: Connection Limit Exceeded - Too many connections
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token structure:
+        - Header: { "alg": "RS256", "typ": "JWT" }
+        - Payload: {
+            "sub": "user_id",
+            "iat": issued_at,
+            "exp": expires_at,
+            "type": "agent|dashboard",
+            "agentId": "uuid (if agent)",
+            "permissions": ["command.execute", "agent.control"]
+          }
+
+# Authentication Flow
+x-authentication-flow:
+  description: |
+    1. Client connects to WebSocket endpoint
+    2. Client sends AGENT_CONNECT or DASHBOARD_INIT with token
+    3. Server validates token:
+       - Verify JWT signature
+       - Check expiration
+       - Validate claims match connection type
+       - Check rate limits
+       - Verify connection limits
+    4. On success: Server sends AUTH_SUCCESS
+    5. On failure: Server sends AUTH_ERROR and closes connection
+    6. All subsequent messages require valid auth context
+    7. Before processing each message:
+       - Check token not expired
+       - Validate required permissions
+       - Check rate limits
+    8. Token refresh flow:
+       - Client sends TOKEN_REFRESH before expiry
+       - Server validates refresh token
+       - Server sends TOKEN_REFRESH_SUCCESS with new tokens
+       - Connection continues without interruption
+
+# Rate Limiting Rules
+x-rate-limits:
+  description: |
+    Per-User Limits:
+    - 100 messages per minute (sliding window)
+    - 20 messages per second (burst protection)
+    - 10 concurrent connections maximum
+
+    Violations:
+    - 1st violation: Warning message
+    - 2nd violation: 1-minute cooldown
+    - 3rd violation: 5-minute block
+    - 4th+ violation: 30-minute block
+
+    Reset: Counters reset after 1 hour of compliance
