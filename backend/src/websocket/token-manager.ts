@@ -344,14 +344,9 @@ export class TokenManager extends EventEmitter {
    */
   private async performTokenRefresh(token: TokenRecord): Promise<TokenRefreshPayload | null> {
     try {
-      if (!token.refreshToken) {
-        // If no refresh token, try to generate new one using current token
-        const result = await this.authService.refreshToken(token.currentToken);
-        return result;
-      }
-
-      // Use refresh token to get new access token
-      const result = await this.authService.refreshTokenWithRefreshToken(token.refreshToken);
+      // Always use refresh token if available, otherwise try with access token
+      const refreshToken = token.refreshToken || token.currentToken;
+      const result = await this.authService.refreshTokenWithRefreshToken(refreshToken);
       return result;
 
     } catch (error) {

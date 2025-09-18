@@ -210,7 +210,7 @@ export class DashboardWebSocketHandler extends EventEmitter {
         return;
       }
 
-      const authContext = await this.dependencies.auth.validateToken(token);
+      const authContext = await this.services.authService.validateToken(token);
       if (!authContext || authContext.userId !== userId) {
         this.sendError(connection.socket, 'UNAUTHORIZED', 'Invalid authentication token');
         return;
@@ -219,6 +219,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
       // Set user ID and authenticate
       connection.userId = userId;
       connection.isAuthenticated = true;
+
+      // Register token with TokenManager for automatic refresh
+      const tokenInfo = authContext;
+      if (tokenInfo && tokenInfo.expiresAt) {
+        this.dependencies.tokenManager.registerToken(
+          connection.connectionId,
+          token,
+          tokenInfo.expiresAt * 1000, // Convert to milliseconds
+          tokenInfo.refreshToken,
+          userId,
+          undefined // No agentId for dashboard connections
+        );
+      }
 
       // Setup initial subscriptions if provided
       if (subscriptions) {
@@ -447,6 +460,9 @@ export class DashboardWebSocketHandler extends EventEmitter {
 
       // T019: Clean up tracked commands for this dashboard
       this.dependencies.messageRouter.cleanupDashboardCommands(connectionId);
+
+      // Unregister token from TokenManager
+      this.dependencies.tokenManager.unregisterToken(connectionId);
 
       // Stop heartbeat monitoring
       this.dependencies.heartbeatManager.stopMonitoring(connectionId);
