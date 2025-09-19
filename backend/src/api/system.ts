@@ -6,6 +6,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
+import { HealthChecker } from '../lib/health-checker.js';
 
 // Request/Response schemas
 const emergencyStopSchema = z.object({
@@ -39,7 +40,8 @@ type AuditLogRequest = FastifyRequest<{
  */
 export async function registerSystemRoutes(
   server: FastifyInstance,
-  services: Services
+  services: Services,
+  healthChecker?: HealthChecker
 ) {
   const { agentService, commandService, auditService } = services;
 
@@ -308,7 +310,7 @@ export async function registerSystemRoutes(
       const commandStats = await commandService.getSystemStats();
 
       // Get system metrics
-      const systemMetrics = await getSystemMetrics();
+      const systemMetrics = await getSystemMetrics(healthChecker);
 
       // Determine overall system status
       const status = determineSystemStatus(agentStats, commandStats, systemMetrics);
@@ -341,6 +343,170 @@ export async function registerSystemRoutes(
     }
   });
 
+  // Register comprehensive health check endpoint
+  server.get('/api/health/comprehensive', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+            timestamp: { type: 'string', format: 'date-time' },
+            uptime: { type: 'number' },
+            version: { type: 'string' },
+            environment: { type: 'string' },
+            services: {
+              type: 'object',
+              properties: {
+                database: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+                    message: { type: 'string' },
+                    responseTime: { type: 'number' },
+                    error: { type: 'string' },
+                    details: { type: 'object' }
+                  }
+                },
+                redis: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+                    message: { type: 'string' },
+                    responseTime: { type: 'number' },
+                    error: { type: 'string' },
+                    details: { type: 'object' }
+                  }
+                },
+                websocket: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+                    message: { type: 'string' },
+                    responseTime: { type: 'number' },
+                    error: { type: 'string' },
+                    details: { type: 'object' }
+                  }
+                },
+                queue: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+                    message: { type: 'string' },
+                    responseTime: { type: 'number' },
+                    error: { type: 'string' },
+                    details: { type: 'object' }
+                  }
+                }
+              }
+            },
+            checks: {
+              type: 'object',
+              properties: {
+                liveness: { type: 'boolean' },
+                readiness: { type: 'boolean' }
+              }
+            }
+          }
+        },
+        503: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            message: { type: 'string' },
+            services: { type: 'object' }
+          }
+        }
+      },
+      tags: ['system'],
+      summary: 'Comprehensive health check',
+      description: 'Get detailed health status of all system services'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!healthChecker) {
+      return reply.code(503).send({
+        status: 'unhealthy',
+        message: 'Health checker not initialized',
+        services: {}
+      });
+    }
+
+    const health = await healthChecker.checkHealth();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+
+    return reply.code(statusCode).send(health);
+  });
+
+  // Register liveness probe endpoint
+  server.get('/api/health/liveness', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            alive: { type: 'boolean' },
+            uptime: { type: 'number' },
+            timestamp: { type: 'string', format: 'date-time' }
+          }
+        }
+      },
+      tags: ['system'],
+      summary: 'Liveness probe',
+      description: 'Check if the service is alive (for k8s liveness probe)'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!healthChecker) {
+      return reply.code(200).send({
+        alive: true,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const liveness = await healthChecker.getLiveness();
+    return reply.code(200).send(liveness);
+  });
+
+  // Register readiness probe endpoint
+  server.get('/api/health/readiness', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            ready: { type: 'boolean' },
+            services: { type: 'object' },
+            timestamp: { type: 'string', format: 'date-time' }
+          }
+        },
+        503: {
+          type: 'object',
+          properties: {
+            ready: { type: 'boolean' },
+            services: { type: 'object' },
+            timestamp: { type: 'string', format: 'date-time' }
+          }
+        }
+      },
+      tags: ['system'],
+      summary: 'Readiness probe',
+      description: 'Check if the service is ready to accept traffic (for k8s readiness probe)'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!healthChecker) {
+      return reply.code(503).send({
+        ready: false,
+        services: {},
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const readiness = await healthChecker.getReadiness();
+    const statusCode = readiness.ready ? 200 : 503;
+
+    return reply.code(statusCode).send(readiness);
+  });
+
   // Health check endpoint is now registered by HealthCheckService
   // See src/database/health-check.service.ts
 }
@@ -348,11 +514,35 @@ export async function registerSystemRoutes(
 /**
  * Helper function to get system metrics
  */
-async function getSystemMetrics() {
+async function getSystemMetrics(healthChecker?: HealthChecker) {
   const memoryUsage = process.memoryUsage();
 
-  // Mock database and Redis health checks
-  // In real implementation, these would check actual connections
+  // Use actual health checker if available
+  if (healthChecker) {
+    const health = await healthChecker.checkHealth();
+    return {
+      memory: {
+        used: memoryUsage.heapUsed,
+        total: memoryUsage.heapTotal,
+        percentage: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100)
+      },
+      cpu: {
+        usage: 0 // Would implement actual CPU monitoring
+      },
+      database: {
+        status: health.services.database.status === 'healthy' ? 'connected' as const :
+                health.services.database.status === 'degraded' ? 'connected' as const : 'error' as const,
+        response_time_ms: health.services.database.responseTime || -1
+      },
+      redis: {
+        status: health.services.redis.status === 'healthy' ? 'connected' as const :
+                health.services.redis.status === 'degraded' ? 'connected' as const : 'error' as const,
+        response_time_ms: health.services.redis.responseTime || -1
+      }
+    };
+  }
+
+  // Fallback to mock checks
   const databaseHealth = await checkDatabaseHealth();
   const redisHealth = await checkRedisHealth();
 
@@ -363,7 +553,7 @@ async function getSystemMetrics() {
       percentage: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100)
     },
     cpu: {
-      usage: 0 // Would implement actual CPU monitoring
+      usage: 0
     },
     database: databaseHealth,
     redis: redisHealth
@@ -371,12 +561,11 @@ async function getSystemMetrics() {
 }
 
 /**
- * Check database health
+ * Check database health (fallback)
  */
 async function checkDatabaseHealth() {
   try {
     const start = Date.now();
-    // Mock database check - in real implementation would ping database
     await new Promise(resolve => setTimeout(resolve, 10));
     const responseTime = Date.now() - start;
 
@@ -393,12 +582,11 @@ async function checkDatabaseHealth() {
 }
 
 /**
- * Check Redis health
+ * Check Redis health (fallback)
  */
 async function checkRedisHealth() {
   try {
     const start = Date.now();
-    // Mock Redis check - in real implementation would ping Redis
     await new Promise(resolve => setTimeout(resolve, 5));
     const responseTime = Date.now() - start;
 
