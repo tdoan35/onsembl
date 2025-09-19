@@ -31,6 +31,7 @@ import { SupabaseValidator } from './database/supabase-validator';
 import { EnvironmentDetector } from './database/environment-detector';
 import { HealthCheckService } from './database/health-check.service';
 import { DatabaseErrorMessages } from './database/error-messages';
+import { HealthChecker } from './lib/health-checker';
 
 // API Routes
 import { registerAuthRoutes } from './api/auth';
@@ -146,6 +147,14 @@ export async function createServer(): Promise<FastifyInstance> {
     };
   }
 
+  // Initialize comprehensive health checker
+  const healthChecker = new HealthChecker({
+    fastify: server,
+    supabaseClient: supabaseClient || undefined,
+    redis: services.commandService ? (services.commandService as any).redisConnection : undefined,
+    commandQueue: services.commandService ? (services.commandService as any).commandQueue : undefined
+  });
+
   // Attach services to server instance for access in routes
   server.decorate('services', services);
 
@@ -244,7 +253,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await registerCommandRoutes(server, services);
   await registerPresetRoutes(server, services);
   await registerReportRoutes(server, services);
-  await registerSystemRoutes(server, services);
+  await registerSystemRoutes(server, services, healthChecker);
   await registerConstraintRoutes(server, services);
 
   // Add basic test routes for now
