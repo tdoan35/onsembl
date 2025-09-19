@@ -25,6 +25,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { useUIStore } from '@/stores/ui-store';
+import { useTerminalStore } from '@/stores/terminal.store';
 import { cn } from '@/lib/utils';
 import 'xterm/css/xterm.css';
 
@@ -118,6 +119,7 @@ export default function TerminalViewer({
   const terminal = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const webLinksAddon = useRef<WebLinksAddon | null>(null);
+  const lastProcessedLine = useRef<number>(0);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
@@ -127,6 +129,7 @@ export default function TerminalViewer({
   const [currentCommand, setCurrentCommand] = useState('');
 
   const { theme, addNotification } = useUIStore();
+  const { activeSessionId, getActiveSessionOutput } = useTerminalStore();
 
   // Initialize terminal
   useEffect(() => {
@@ -140,7 +143,7 @@ export default function TerminalViewer({
       lineHeight: 1.2,
       letterSpacing: 0,
       theme: currentTheme,
-      cursorBlink: true,
+      cursorBlink: !readOnly,
       cursorStyle: 'block',
       scrollback: 10000,
       tabStopWidth: 4,
@@ -155,6 +158,9 @@ export default function TerminalViewer({
 
     terminal.current.open(terminalRef.current);
     fitAddon.current.fit();
+
+    // Reset line counter
+    lastProcessedLine.current = 0;
 
     // Handle initial content
     if (initialContent) {
@@ -216,7 +222,7 @@ export default function TerminalViewer({
     return () => {
       terminal.current?.dispose();
     };
-  }, [theme, readOnly, onCommand, initialContent, commandHistory, historyIndex, currentCommand]);
+  }, [theme, readOnly, onCommand, initialContent]);
 
   // Handle window resize
   useEffect(() => {
@@ -236,6 +242,58 @@ export default function TerminalViewer({
 
     return () => clearTimeout(timer);
   }, [isFullscreen]);
+
+  // Subscribe to terminal output from store
+  useEffect(() => {
+    if (!terminal.current || !activeSessionId) return;
+
+    const updateInterval = setInterval(() => {
+      const terminalLines = getActiveSessionOutput();
+
+      // Only process new lines
+      if (terminalLines.length > lastProcessedLine.current) {
+        const newLines = terminalLines.slice(lastProcessedLine.current);
+
+        newLines.forEach(line => {
+          // Apply ANSI codes if present
+          let outputText = line.content;
+
+          if (line.ansiCodes && line.ansiCodes.length > 0) {
+            // Wrap content with ANSI codes
+            outputText = line.ansiCodes.join('') + outputText + '\x1b[0m';
+          }
+
+          // Add color based on stream type
+          if (line.type === 'stderr') {
+            outputText = '\x1b[31m' + outputText + '\x1b[0m'; // Red for stderr
+          }
+
+          terminal.current?.write(outputText + '\r\n');
+        });
+
+        lastProcessedLine.current = terminalLines.length;
+
+        // Auto-scroll to bottom
+        terminal.current?.scrollToBottom();
+      }
+    }, 50); // Check every 50ms for new output
+
+    return () => {
+      clearInterval(updateInterval);
+    };
+  }, [activeSessionId, getActiveSessionOutput]);
+
+  // Handle scroll to bottom event
+  useEffect(() => {
+    const handleScrollToBottom = () => {
+      terminal.current?.scrollToBottom();
+    };
+
+    window.addEventListener('terminal:scrollToBottom', handleScrollToBottom);
+    return () => {
+      window.removeEventListener('terminal:scrollToBottom', handleScrollToBottom);
+    };
+  }, []);
 
   const writeToTerminal = useCallback((data: string) => {
     terminal.current?.write(data);
