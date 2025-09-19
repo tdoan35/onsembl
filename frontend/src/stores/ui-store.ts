@@ -5,6 +5,19 @@ export type Theme = 'light' | 'dark' | 'system';
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden';
 export type WebSocketState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
+export interface Agent {
+  id: string;
+  name: string;
+  status: 'online' | 'offline' | 'busy';
+  lastSeen?: Date;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  agents: Agent[];
+}
+
 export interface NotificationConfig {
   id: string;
   title: string;
@@ -38,6 +51,11 @@ interface UIStore {
 
   // WebSocket
   webSocketState: WebSocketState;
+
+  // Workspace
+  currentWorkspace: Workspace | null;
+  workspaces: Workspace[];
+  workspacesExpanded: boolean;
 
   // Notifications
   notifications: NotificationConfig[];
@@ -95,6 +113,13 @@ interface UIStore {
 
   // WebSocket
   setWebSocketState: (state: WebSocketState) => void;
+
+  // Workspace
+  setCurrentWorkspace: (workspace: Workspace | null) => void;
+  setWorkspaces: (workspaces: Workspace[]) => void;
+  toggleWorkspacesExpanded: () => void;
+  addAgent: (workspaceId: string, agent: Agent) => void;
+  updateAgentStatus: (agentId: string, status: Agent['status']) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -106,6 +131,9 @@ export const useUIStore = create<UIStore>()(
       sidebarState: 'expanded',
       isFullscreen: false,
       webSocketState: 'disconnected' as WebSocketState,
+      currentWorkspace: null,
+      workspaces: [],
+      workspacesExpanded: false,
       notifications: [],
       modal: {
         isOpen: false,
@@ -279,6 +307,41 @@ export const useUIStore = create<UIStore>()(
       setWebSocketState: (webSocketState) =>
         set(() => ({
           webSocketState,
+        })),
+
+      // Workspace actions
+      setCurrentWorkspace: (currentWorkspace) =>
+        set(() => ({
+          currentWorkspace,
+        })),
+
+      setWorkspaces: (workspaces) =>
+        set(() => ({
+          workspaces,
+        })),
+
+      toggleWorkspacesExpanded: () =>
+        set((state) => ({
+          workspacesExpanded: !state.workspacesExpanded,
+        })),
+
+      addAgent: (workspaceId, agent) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((ws) =>
+            ws.id === workspaceId
+              ? { ...ws, agents: [...ws.agents, agent] }
+              : ws
+          ),
+        })),
+
+      updateAgentStatus: (agentId, status) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((ws) => ({
+            ...ws,
+            agents: ws.agents.map((agent) =>
+              agent.id === agentId ? { ...agent, status } : agent
+            ),
+          })),
         })),
     }),
     {
