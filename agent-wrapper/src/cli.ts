@@ -405,7 +405,7 @@ function createCLI(): Command {
           apiKey: options.apiKey,
           authType: options.authType,
           workingDirectory: options.workingDir,
-          disableWebsocket: options.noWebsocket,
+          disableWebsocket: !options.websocket,
           showStatusBar: options.statusBar,
         });
 
@@ -414,7 +414,7 @@ function createCLI(): Command {
           const interactiveOptions: InteractiveOptions = {
             interactive: options.interactive,
             headless: options.headless,
-            noWebsocket: options.noWebsocket,
+            noWebsocket: !options.websocket,
             statusBar: options.statusBar,
           };
 

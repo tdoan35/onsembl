@@ -15,19 +15,24 @@ export class PTYManager extends EventEmitter {
   }
 
   spawn(command, args = [], options = {}) {
+    // Extract env from options to handle separately
+    const { env: optionEnv, ...otherOptions } = options;
+
     const ptyOptions = {
       name: 'xterm-256color',
       cols: this.dimensions.cols,
       rows: this.dimensions.rows,
       cwd: process.cwd(),
-      env: { ...process.env, ...options.env },
-      ...options
+      env: { ...process.env, ...(optionEnv || {}) },
+      ...otherOptions
     };
 
     this.logger.info('Spawning PTY process', {
       command,
       args,
-      dimensions: this.dimensions
+      dimensions: this.dimensions,
+      cwd: ptyOptions.cwd,
+      envKeys: Object.keys(ptyOptions.env || {}).slice(0, 10) // Log first 10 env keys for debugging
     });
 
     try {
@@ -42,6 +47,12 @@ export class PTYManager extends EventEmitter {
         this.logger.info('PTY process exited', { exitCode, signal });
         this.emit('exit', { exitCode, signal });
         this.isInteractive = false;
+      });
+
+      // Also capture any error output
+      this.ptyProcess.on('error', (error) => {
+        this.logger.error('PTY process error', error);
+        this.emit('error', error);
       });
 
       return this.ptyProcess;

@@ -9,7 +9,7 @@ import { OutputMultiplexer } from './output-multiplexer.js';
 import { InputMultiplexer } from './input-multiplexer.js';
 import { StateManager } from './state-manager.js';
 import { ResizeHandler } from './resize-handler.js';
-import pino from 'pino';
+import { pino } from 'pino';
 import stripAnsi from 'strip-ansi';
 
 export interface InteractiveOptions {
@@ -21,6 +21,7 @@ export interface InteractiveOptions {
 
 export class InteractiveAgentWrapper extends EventEmitter {
   private config: Config;
+  private options: InteractiveOptions;
   private logger: pino.Logger;
   private agentId: string;
   private mode: string = 'headless';
@@ -41,13 +42,14 @@ export class InteractiveAgentWrapper extends EventEmitter {
   constructor(config: Config, options: InteractiveOptions = {}) {
     super();
     this.config = config;
+    this.options = options;
     this.agentId = `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Initialize logger
     this.logger = pino({
       name: 'interactive-wrapper',
       level: process.env['LOG_LEVEL'] || 'info'
-    } as any);
+    });
 
     // Initialize core components
     this.modeDetector = new ModeDetector(this.logger);
@@ -89,7 +91,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
       }
 
       // Connect to WebSocket if not disabled
-      if (!this.config.disableWebsocket) {
+      if (!this.config.disableWebsocket && !this.options.noWebsocket) {
         await this.initializeWebSocket();
       }
 
@@ -138,6 +140,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
     // Get the agent command
     const agentCommand = this.getAgentCommand();
 
+    this.logger.info('Agent command configuration', agentCommand);
+
     // Spawn PTY process
     const ptyProcess = this.ptyManager.spawn(
       agentCommand.command,
@@ -145,8 +149,19 @@ export class InteractiveAgentWrapper extends EventEmitter {
       { env: agentCommand.env }
     );
 
+    // Handle PTY errors
+    this.ptyManager.on('error', (error: Error) => {
+      this.logger.error('PTY manager error', error);
+    });
+
     // Set up PTY output handling
     this.ptyManager.on('data', (data: string) => {
+      // Log first output for debugging
+      if (!this.stateManager.getState()?.firstOutputReceived) {
+        this.logger.info('First PTY output received', { length: data.length, preview: data.slice(0, 100) });
+        this.stateManager.updateState('firstOutputReceived', true);
+      }
+
       // Send to terminal (preserving ANSI)
       process.stdout.write(data);
 
@@ -176,7 +191,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
     // Handle PTY exit
     this.ptyManager.on('exit', ({ exitCode }) => {
-      this.logger.info('PTY process exited', { exitCode });
+      this.logger.info('PTY process exited', { exitCode, command: agentCommand.command, args: agentCommand.args });
       this.stateManager.updateState('agent.status', 'stopped');
       this.stop();
     });
@@ -314,11 +329,15 @@ export class InteractiveAgentWrapper extends EventEmitter {
   }
 
   private getAgentCommand(): { command: string; args: string[]; env: any } {
-    const agentCommands: Record<string, { command: string; args: string[]; env?: any }> = {
+    const agentCommands: Record<string, { command: string; args: string[]; env: any }> = {
       claude: {
         command: 'claude',
         args: [],
-        env: { CLAUDE_API_KEY: process.env['CLAUDE_API_KEY'] }
+        env: {
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          FORCE_COLOR: '3'
+        }
       },
       gemini: {
         command: 'gemini',

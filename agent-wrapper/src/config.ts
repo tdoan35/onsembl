@@ -70,6 +70,10 @@ const ConfigSchema = z
   })
   .refine(
     data => {
+      // Mock agent doesn't require API key
+      if (data.agentType === 'mock') {
+        return true;
+      }
       // For non-Claude agents or API key auth, apiKey is required
       if (data.agentType !== 'claude' || data.authType === 'api-key') {
         return !!data.apiKey;
