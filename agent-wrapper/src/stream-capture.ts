@@ -1,6 +1,6 @@
 import { Transform, Readable } from 'stream';
 import { EventEmitter } from 'events';
-import { Config } from './config';
+import { Config } from './config.js';
 
 // ANSI escape code patterns
 const ANSI_REGEX = /\x1b\[[0-9;]*[mGKHF]/g;

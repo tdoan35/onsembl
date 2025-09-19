@@ -13,9 +13,9 @@ interface LoggerConfig {
  */
 function createLogger(config: LoggerConfig = {}): Logger {
   const {
-    level = process.env.ONSEMBL_LOG_LEVEL || 'info',
+    level = process.env['ONSEMBL_LOG_LEVEL'] || 'info',
     name = 'onsembl-agent',
-    prettyPrint = process.env.NODE_ENV !== 'production',
+    prettyPrint = process.env['NODE_ENV'] !== 'production',
   } = config;
 
   const baseOptions = {
@@ -27,7 +27,7 @@ function createLogger(config: LoggerConfig = {}): Logger {
     timestamp: pino.stdTimeFunctions.isoTime,
     base: {
       pid: process.pid,
-      hostname: process.env.HOSTNAME || 'localhost',
+      hostname: process.env['HOSTNAME'] || 'localhost',
     },
     serializers: {
       error: pino.stdSerializers.err,

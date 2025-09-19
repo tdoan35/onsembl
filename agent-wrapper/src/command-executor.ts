@@ -1,8 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { Config } from './config';
-import { StreamCapture, OutputChunk } from './stream-capture';
-import { CommandMessage } from './websocket-client';
+import { Config } from './config.js';
+import { StreamCapture, OutputChunk } from './stream-capture.js';
+import { CommandMessage } from './websocket-client.js';
 
 export interface ExecutionResult {
   commandId: string;
@@ -79,7 +79,7 @@ export class CommandExecutor extends EventEmitter {
           ...process.env,
           ...options.environment,
         },
-        stdio: ['pipe', 'pipe', 'pipe'] as const,
+        stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
       };
 
       // Apply resource limits if available

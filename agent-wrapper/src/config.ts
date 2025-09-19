@@ -39,6 +39,10 @@ const ConfigSchema = z
     logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     logFile: z.string().optional(),
 
+    // Interactive mode settings
+    disableWebsocket: z.boolean().default(false),
+    showStatusBar: z.boolean().default(false),
+
     // Agent-specific settings
     claude: z
       .object({
@@ -66,6 +70,10 @@ const ConfigSchema = z
   })
   .refine(
     data => {
+      // Mock agent doesn't require API key
+      if (data.agentType === 'mock') {
+        return true;
+      }
       // For non-Claude agents or API key auth, apiKey is required
       if (data.agentType !== 'claude' || data.authType === 'api-key') {
         return !!data.apiKey;
