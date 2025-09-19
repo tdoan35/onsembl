@@ -146,11 +146,22 @@ export function verifyWebSocketConnection(info: any): boolean {
  * Extract connection metadata from request
  */
 export function extractConnectionMetadata(request: IncomingMessage) {
+  // Parse query from the incoming upgrade request URL
+  let query: Record<string, string | string[] | undefined> | undefined;
+  try {
+    const reqUrl = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+    query = Object.fromEntries(reqUrl.searchParams.entries());
+  } catch {
+    query = undefined;
+  }
+
   return {
     remoteAddress: request.socket.remoteAddress,
     userAgent: request.headers['user-agent'],
     origin: request.headers.origin,
     forwardedFor: request.headers['x-forwarded-for'],
+    headers: request.headers as Record<string, string>,
+    query,
     connectionTime: Date.now()
-  };
+  } as any;
 }

@@ -8,7 +8,7 @@ import {
   AgentStatusPayload,
   AgentErrorPayload,
   AgentControlPayload
-} from './agent';
+} from './agent.js';
 import {
   CommandRequestPayload,
   CommandAckPayload,
@@ -17,8 +17,8 @@ import {
   CommandCancelPayload,
   TerminalOutputPayload,
   TerminalStreamPayload
-} from './command';
-import { TraceEventPayload, TraceUpdatePayload } from './trace';
+} from './command.js';
+import { TraceEventPayload, TraceUpdatePayload } from './trace.js';
 
 // Base WebSocket message structure
 export interface WebSocketMessage<T = any> {

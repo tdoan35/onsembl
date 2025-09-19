@@ -49,13 +49,48 @@ export {
   type ErrorPayload,
   type MessagePayloadMap,
   type TypedWebSocketMessage
-} from './types';
+} from './types.js';
 
-// Export validation functionality
-export * from './validation';
+// Export validation functionality (excluding createMessage to avoid conflict)
+export {
+  validateMessage,
+  validatePayload,
+  validateCompleteMessage,
+  MessageBuilder,
+  MessageValidationMap,
+  WebSocketMessageSchema,
+  AgentConnectPayloadSchema,
+  AgentHeartbeatPayloadSchema,
+  CommandAckPayloadSchema,
+  TerminalOutputPayloadSchema,
+  TraceEventPayloadSchema,
+  CommandCompletePayloadSchema,
+  InvestigationReportPayloadSchema,
+  AgentErrorPayloadSchema,
+  CommandRequestPayloadSchema,
+  CommandCancelPayloadSchema,
+  AgentControlPayloadSchema,
+  TokenRefreshPayloadSchema,
+  ServerHeartbeatPayloadSchema,
+  AgentStatusPayloadSchema,
+  CommandStatusPayloadSchema,
+  TerminalStreamPayloadSchema,
+  TraceStreamPayloadSchema,
+  QueueUpdatePayloadSchema,
+  EmergencyStopPayloadSchema,
+  DashboardInitPayloadSchema,
+  DashboardSubscribePayloadSchema,
+  DashboardUnsubscribePayloadSchema,
+  PingPayloadSchema,
+  PongPayloadSchema,
+  AckPayloadSchema,
+  ErrorPayloadSchema,
+  z,
+  type ZodError
+} from './validation.js';
 
 // Export message builders
-export * from './messages/index';
+export * from './messages/index.js';
 
 // ValidationResult interface for CLI usage
 export interface ValidationResult<T = any> {
@@ -128,18 +163,22 @@ export class MessageValidator {
 }
 
 // Export WebSocket message types and utilities
-export * from './websocket-messages';
-export {
+export * from './websocket-messages.js';
+// Re-export createMessage from websocket-messages as the primary createMessage
+export { createMessage } from './websocket-messages.js';
+export type {
   ConnectionInfo,
   ConnectionMetadata,
   ReconnectionConfig,
-  DEFAULT_RECONNECTION_CONFIG,
   ConnectionEvents,
-  ReconnectionStrategy,
   WebSocketManagerOptions,
   WebSocketStats
-} from './connection-types';
-export * from './websocket-validation';
+} from './connection-types.js';
+export {
+  DEFAULT_RECONNECTION_CONFIG,
+  ReconnectionStrategy
+} from './connection-types.js';
+export * from './websocket-validation.js';
 
 // Export version information
 export const PACKAGE_VERSION = '0.1.0';
@@ -152,7 +191,7 @@ export {
   ServerToAgentMessageBuilder,
   ServerToDashboardMessageBuilder,
   ErrorMessageBuilder
-} from './messages/index';
+} from './messages/index.js';
 
 // Export commonly used constants
 export const MESSAGE_TYPES = {

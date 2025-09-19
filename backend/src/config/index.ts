@@ -4,6 +4,22 @@
  */
 
 import { z } from 'zod';
+// Load .env for development/local only, before reading process.env
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Ensure dotenv runs before config evaluation in non-production
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  if (process.env.NODE_ENV !== 'production' && !process.env.SKIP_DOTENV) {
+    // Load the backend/.env file; do not override already-set env vars
+    loadEnv({ path: join(__dirname, '../../.env'), override: false });
+  }
+} catch {
+  // Ignore dotenv issues; rely on process.env when unavailable
+}
 
 // Configuration schema with validation
 const configSchema = z.object({

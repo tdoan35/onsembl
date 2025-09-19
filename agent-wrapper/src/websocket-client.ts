@@ -1,5 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
+import os from 'os';
+import jwt from 'jsonwebtoken';
 import { Config } from './config.js';
 import { MessageType, WebSocketMessage, TerminalOutputPayload } from '@onsembl/agent-protocol';
 import { ReconnectionManager, ConnectionCircuitBreaker } from './reconnection.js';
@@ -149,7 +151,10 @@ export class WebSocketClient extends EventEmitter {
     console.log(`[Connection] Attempting connection to ${wsUrl}`);
 
     try {
-      this.ws = new WebSocket(wsUrl);
+      const token = this.buildAuthToken();
+      this.ws = new WebSocket(wsUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       this.setupEventHandlers();
 
       // Wait for connection to be established
@@ -169,8 +174,8 @@ export class WebSocketClient extends EventEmitter {
         });
       });
 
-      // Authenticate after connection
-      await this.authenticate();
+      // Send agent connect after connection established
+      await this.sendAgentConnect();
 
       this.isConnected = true;
       this.startHeartbeat();
@@ -244,41 +249,9 @@ export class WebSocketClient extends EventEmitter {
    * Send agent status update
    */
   async sendStatus(status: AgentStatusMessage['status'], metadata?: AgentStatusMessage['metadata']): Promise<void> {
-    // For initial connection, send AGENT_CONNECT
-    if (status === 'ready' && !this.isConnected) {
-      const connectMessage: WebSocketMessage = {
-        type: MessageType.AGENT_CONNECT,
-        id: `connect-${Date.now()}`,
-        timestamp: Date.now(),
-        payload: {
-          agentId: this.agentId,
-          agentType: (this.config as any).agentType || 'mock',
-          metadata: {
-            version: metadata?.version || '1.0.0',
-            capabilities: metadata?.capabilities || [],
-            pid: metadata?.pid || process.pid
-          },
-          authToken: '', // Auth handled separately
-          timestamp: Date.now()
-        }
-      };
-      await this.sendMessage(connectMessage);
-    }
-
-    // Send regular status update
-    const message: WebSocketMessage = {
-      type: MessageType.AGENT_STATUS,
-      id: `status-${Date.now()}`,
-      timestamp: Date.now(),
-      payload: {
-        agentId: this.agentId,
-        status,
-        metadata,
-        timestamp: Date.now()
-      }
-    };
-
-    await this.sendMessage(message);
+    // Skip sending AGENT_STATUS (server→dashboard type). Only operate when connected.
+    if (!this.isConnected) return;
+    // Optionally, could log or send a trace event here in the future.
   }
 
   /**
@@ -365,6 +338,10 @@ export class WebSocketClient extends EventEmitter {
     const url = new URL(this.config.serverUrl);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.pathname = '/ws/agent';
+    // Append backend-required query parameters
+    url.searchParams.set('agentId', this.agentId);
+    const token = this.buildAuthToken();
+    if (token) url.searchParams.set('token', token);
     return url.toString();
   }
 
@@ -423,10 +400,28 @@ export class WebSocketClient extends EventEmitter {
         this.handleTokenRefresh(message as TokenRefreshMessage);
         break;
 
+      case MessageType.ACK:
+        // Server acknowledged a prior message; no action needed yet.
+        break;
+
+      case MessageType.PING:
+      case MessageType.PONG:
+        // Server-level heartbeat messages – handled at socket level.
+        break;
+
       case 'error':
         const errorMessage = message as ErrorMessage;
         console.error('Server error:', errorMessage);
         this.onError(new Error(`Server error: ${errorMessage.message}`));
+        break;
+
+      case MessageType.ERROR:
+        console.error('Server error (protocol):', message);
+        this.onError(new Error('Server protocol error'));
+        break;
+
+      case MessageType.SERVER_HEARTBEAT:
+        // Server heartbeat received
         break;
 
       default:
@@ -452,13 +447,28 @@ export class WebSocketClient extends EventEmitter {
   }
 
   private async authenticate(): Promise<void> {
-    const authMessage: AuthMessage = {
-      type: 'auth',
-      token: this.config.apiKey || '',
-      agentId: this.agentId,
+    // No-op: Authentication is handled by sendAgentConnect + Authorization header
+  }
+
+  private async sendAgentConnect(): Promise<void> {
+    const message: WebSocketMessage = {
+      type: MessageType.AGENT_CONNECT,
+      id: `connect-${Date.now()}`,
+      timestamp: Date.now(),
+      payload: {
+        agentId: this.agentId,
+        agentType: this.mapAgentType(this.config.agentType),
+        version: '1.0.0',
+        hostMachine: os.hostname(),
+        capabilities: {
+          maxTokens: 0,
+          supportsInterrupt: true,
+          supportsTrace: true,
+        },
+      },
     };
 
-    await this.sendMessage(authMessage);
+    await this.sendMessage(message);
   }
 
   private startHeartbeat(): void {
@@ -473,11 +483,21 @@ export class WebSocketClient extends EventEmitter {
           // Set a timeout for pong response
           this.setHeartbeatTimeout();
 
-          // Also send heartbeat message
-          const heartbeatMessage: HeartbeatMessage = {
-            type: 'heartbeat',
-            agentId: this.agentId,
-            timestamp: new Date().toISOString(),
+          // Also send protocol heartbeat message
+          const heartbeatMessage: WebSocketMessage = {
+            type: MessageType.AGENT_HEARTBEAT,
+            id: `hb-${Date.now()}`,
+            timestamp: Date.now(),
+            payload: {
+              agentId: this.agentId,
+              healthMetrics: {
+                cpuUsage: 0,
+                memoryUsage: 0,
+                uptime: Math.floor(process.uptime() * 1000),
+                commandsProcessed: 0,
+                averageResponseTime: 0,
+              },
+            },
           };
 
           await this.sendMessage(heartbeatMessage);
@@ -600,6 +620,43 @@ export class WebSocketClient extends EventEmitter {
           break;
         }
       }
+    }
+  }
+
+  private buildAuthToken(): string | null {
+    const provided = this.config.apiKey || null;
+    if (provided && provided.split('.').length === 3) {
+      return provided; // Looks like a JWT already
+    }
+
+    // Generate a development JWT compatible with backend fastify-jwt
+    const secret = process.env['JWT_SECRET'] || 'supersecretkey';
+    try {
+      const token = jwt.sign(
+        {
+          sub: this.agentId,
+          role: 'agent',
+          iss: 'onsembl-agent-wrapper',
+        },
+        secret,
+        { expiresIn: '1h' }
+      );
+      return token;
+    } catch {
+      return provided; // Fallback to provided token if signing fails
+    }
+  }
+
+  private mapAgentType(type: Config['agentType']): 'CLAUDE' | 'GEMINI' | 'CODEX' | 'CUSTOM' {
+    switch (type) {
+      case 'claude':
+        return 'CLAUDE';
+      case 'gemini':
+        return 'GEMINI';
+      case 'codex':
+        return 'CODEX';
+      default:
+        return 'CUSTOM';
     }
   }
 }

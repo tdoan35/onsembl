@@ -15,7 +15,7 @@ import type {
   CommandQueueUpdateMessage,
   ConnectionAckMessage,
   ErrorMessage
-} from './websocket-messages'
+} from './websocket-messages.js'
 
 export interface ValidationError {
   field: string
@@ -65,9 +65,10 @@ export class WebSocketMessageValidator {
       errors.push({ field: 'payload', message: 'Payload must be an object', code: 'INVALID_TYPE' })
     }
 
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined
+    if (errors.length === 0) {
+      return { valid: true };
+    } else {
+      return { valid: false, errors };
     }
   }
 
@@ -97,9 +98,10 @@ export class WebSocketMessageValidator {
       }
     }
 
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined
+    if (errors.length === 0) {
+      return { valid: true };
+    } else {
+      return { valid: false, errors };
     }
   }
 
@@ -132,9 +134,10 @@ export class WebSocketMessageValidator {
       errors.push({ field: 'payload.timeout', message: 'Timeout must be a number', code: 'INVALID_TYPE' })
     }
 
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined
+    if (errors.length === 0) {
+      return { valid: true };
+    } else {
+      return { valid: false, errors };
     }
   }
 
@@ -153,9 +156,10 @@ export class WebSocketMessageValidator {
       errors.push({ field: 'payload.commandId', message: 'Command ID is required', code: 'MISSING_FIELD' })
     }
 
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined
+    if (errors.length === 0) {
+      return { valid: true };
+    } else {
+      return { valid: false, errors };
     }
   }
 
@@ -174,9 +178,10 @@ export class WebSocketMessageValidator {
       errors.push({ field: 'payload.sequence', message: 'Sequence must be a number', code: 'INVALID_TYPE' })
     }
 
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined
+    if (errors.length === 0) {
+      return { valid: true };
+    } else {
+      return { valid: false, errors };
     }
   }
 

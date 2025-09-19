@@ -207,21 +207,51 @@ export class AgentWebSocketHandler extends EventEmitter {
         return;
       }
 
-      // Register agent with service
-      await this.services.agentService.connectAgent({
-        id: agentId,
-        type: agentType,
-        status: 'CONNECTING',
-        version,
-        hostMachine,
-        capabilities: capabilities || {},
-        connectionId: connection.connectionId,
-        connectedAt: new Date(),
-        lastHeartbeat: new Date()
-      });
+      // Resolve or create agent in database so we have a UUID id
+      // 1) Try to fetch by UUID id first
+      let resolvedAgentId: string | null = null;
+      try {
+        const existing = await this.services.agentService.getAgent(agentId);
+        resolvedAgentId = existing.id;
+      } catch {
+        // Not found by UUID, try by unique name (fallback to agentId as name)
+        try {
+          const byName = await this.services.agentService.getAgentByName(agentId);
+          resolvedAgentId = byName.id;
+        } catch {
+          // Still not found: register a new agent using agentId as the name
+          const mappedType = (agentType || 'CUSTOM').toLowerCase() as any;
+          const created = await this.services.agentService.registerAgent({
+            name: agentId,
+            type: ['claude', 'gemini', 'codex', 'custom'].includes(mappedType)
+              ? mappedType
+              : 'custom',
+            version: version || 'unknown',
+            capabilities: [],
+            metadata: {
+              hostMachine,
+              capabilities: capabilities || {},
+            },
+            status: 'offline',
+          } as any);
+          resolvedAgentId = created.id;
+        }
+      }
 
-      // Update connection
-      connection.agentId = agentId;
+      // 2) Mark agent as connected via service (expects UUID id)
+      await this.services.agentService.connectAgent(
+        resolvedAgentId!,
+        connection.connectionId,
+        authContext.userId,
+        {
+          hostMachine,
+          version,
+          capabilities: capabilities || {},
+        }
+      );
+
+      // Update connection (use resolved UUID id for routing)
+      connection.agentId = resolvedAgentId!;
       connection.isAuthenticated = true;
 
       // Register token with TokenManager for automatic refresh
@@ -248,7 +278,7 @@ export class AgentWebSocketHandler extends EventEmitter {
         messageId: message.id,
         success: true,
         connectionId: connection.connectionId,
-        agentId,
+        agentId: resolvedAgentId!,
         authenticated: true
       });
 
@@ -256,10 +286,10 @@ export class AgentWebSocketHandler extends EventEmitter {
       this.dependencies.heartbeatManager.startMonitoring(connection.connectionId);
 
       // Notify other systems
-      this.emit('agentConnected', { agentId, connectionId: connection.connectionId });
+      this.emit('agentConnected', { agentId: resolvedAgentId!, connectionId: connection.connectionId });
 
       this.server.log.info({
-        agentId,
+        agentId: resolvedAgentId!,
         connectionId: connection.connectionId
       }, 'Agent authenticated and connected');
 

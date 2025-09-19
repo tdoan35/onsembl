@@ -135,8 +135,8 @@ export interface TraceEventPayload {
     error?: string;
   };
   startedAt: number;
-  completedAt: number;
-  durationMs: number;
+  completedAt?: number;
+  durationMs?: number;
   tokensUsed?: number;
   metadata?: Record<string, any>;
 }

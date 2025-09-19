@@ -4,6 +4,7 @@ import { Database } from '../types/database';
 import { AgentModel, Agent, AgentInsert, AgentUpdate } from '../models/agent';
 import { CommandModel } from '../models/command';
 import { AuditLogModel, AuditEventType, AuditEntityType } from '../models/audit-log';
+import { validate as validateUuid } from 'uuid';
 import { EventEmitter } from 'events';
 
 export interface AgentServiceEvents {
@@ -53,6 +54,11 @@ export class AgentService extends EventEmitter {
     }
   }
 
+  private sanitizeUserId(userId?: string): string | null {
+    if (!userId) return null;
+    return validateUuid(userId) ? userId : null;
+  }
+
   /**
    * Register a new agent in the system
    * @param data Agent data to register
@@ -77,7 +83,7 @@ export class AgentService extends EventEmitter {
         'AGENT_CONNECTED' as AuditEventType,
         'AGENT' as AuditEntityType,
         agent.id,
-        userId,
+        this.sanitizeUserId(userId),
         {
           name: agent.name,
           type: agent.type,
@@ -132,6 +138,18 @@ export class AgentService extends EventEmitter {
       return await this.agentModel.findById(id);
     } catch (error) {
       this.fastify.log.error({ error, agentId: id }, 'Failed to get agent');
+      throw error;
+    }
+  }
+
+  /**
+   * Get an agent by its unique name
+   */
+  async getAgentByName(name: string) {
+    try {
+      return await this.agentModel.findByName(name);
+    } catch (error) {
+      this.fastify.log.error({ error, name }, 'Failed to get agent by name');
       throw error;
     }
   }
@@ -302,7 +320,7 @@ export class AgentService extends EventEmitter {
         'AGENT_CONNECTED' as AuditEventType,
         'AGENT' as AuditEntityType,
         agentId,
-        userId,
+        this.sanitizeUserId(userId),
         {
           connection_id: connectionId,
           metadata: metadata,
@@ -372,7 +390,7 @@ export class AgentService extends EventEmitter {
         'AGENT_DISCONNECTED' as AuditEventType,
         'AGENT' as AuditEntityType,
         agentId,
-        userId,
+        this.sanitizeUserId(userId),
         {
           connection_id: connectionId,
           reason: reason || 'Normal disconnection',
@@ -451,7 +469,7 @@ export class AgentService extends EventEmitter {
             'AGENT_DISCONNECTED' as AuditEventType,
             'AGENT' as AuditEntityType,
             agentId,
-            userId,
+            this.sanitizeUserId(userId),
             {
               action: 'restart',
               name: agent.name,
@@ -891,7 +909,7 @@ export class AgentService extends EventEmitter {
           'SYSTEM_STARTED' as AuditEventType, // Using available enum value
           'AGENT' as AuditEntityType,
           agentId,
-          userId,
+          this.sanitizeUserId(userId),
           {
             event: 'heartbeat',
             metrics: metrics || {},
@@ -908,6 +926,19 @@ export class AgentService extends EventEmitter {
       this.fastify.log.error({ error, agentId }, 'Failed to handle heartbeat');
       throw error;
     }
+  }
+
+  async updateHeartbeat(
+    agentId: string,
+    metrics?: {
+      cpu_usage?: number;
+      memory_usage?: number;
+      active_commands?: number;
+      uptime?: number;
+    },
+    userId?: string
+  ) {
+    return this.handleHeartbeatWithMetrics(agentId, metrics, userId);
   }
 
   /**

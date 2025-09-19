@@ -16,7 +16,7 @@ import {
   ErrorType,
   AgentControlAction,
   ReportStatus,
-} from './types';
+} from './types.js';
 
 // ============================================================================
 // Base Schemas
@@ -101,8 +101,8 @@ export const TraceEventPayloadSchema = z.object({
     error: z.string().optional(),
   }),
   startedAt: z.number().positive(),
-  completedAt: z.number().positive(),
-  durationMs: z.number().min(0),
+  completedAt: z.number().positive().optional(),
+  durationMs: z.number().min(0).optional(),
   tokensUsed: z.number().min(0).optional(),
   metadata: z.record(z.any()).optional(),
 });

@@ -2,5 +2,5 @@
  * Unified exports for validation utilities and schemas
  */
 
-export * from './schemas';
-export * from './validator';
+export * from './schemas.js';
+export * from './validator.js';

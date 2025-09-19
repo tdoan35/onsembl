@@ -19,6 +19,7 @@ export const AgentSchema = z.object({
 // Type mappings for compatibility with T069 requirements
 export type AgentType = 'claude' | 'gemini' | 'codex' | 'custom';
 export type AgentStatus = 'online' | 'offline' | 'executing' | 'error' | 'maintenance';
+type DbAgentStatus = 'connected' | 'disconnected' | 'busy' | 'error';
 
 // Legacy mapping for backward compatibility with T069 spec
 export const LegacyStatusMap: Record<AgentStatus, string> = {
@@ -90,6 +91,30 @@ export class AgentModel {
   private subscriptions: Map<string, RealtimeChannel> = new Map();
 
   constructor(private supabase: ReturnType<typeof createClient<Database>>) {}
+
+  private toDbStatus(status?: AgentStatus | DbAgentStatus | null): DbAgentStatus {
+    if (!status) return 'disconnected';
+    switch (status) {
+      case 'connected':
+      case 'disconnected':
+      case 'busy':
+      case 'error':
+        return status;
+    }
+    switch (status) {
+      case 'online':
+        return 'connected';
+      case 'executing':
+        return 'busy';
+      case 'error':
+        return 'error';
+      case 'maintenance':
+        return 'disconnected';
+      case 'offline':
+      default:
+        return 'disconnected';
+    }
+  }
 
   /**
    * Find all agents with optional filtering
@@ -167,6 +192,31 @@ export class AgentModel {
   }
 
   /**
+   * Find agent by unique name
+   */
+  async findByName(name: string): Promise<AgentRow> {
+    try {
+      const { data, error } = await this.supabase
+        .from('agents')
+        .select('*')
+        .eq('name', name)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new AgentNotFoundError(name);
+        }
+        throw new AgentError(`Failed to find agent by name: ${error.message}`, 'DATABASE_ERROR');
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Unexpected error finding agent by name: ${error}`, 'UNKNOWN_ERROR');
+    }
+  }
+
+  /**
    * Create a new agent
    */
   async create(agent: AgentInsert): Promise<AgentRow> {
@@ -174,13 +224,18 @@ export class AgentModel {
       // Validate input using Zod schema (if provided fields are valid)
       const validated = AgentSchema.parse(agent);
 
-      const insertData = {
-        ...validated,
-        status: validated.status || 'offline',
-        capabilities: validated.capabilities || [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      const insertData: Partial<AgentRow> & { metadata?: Record<string, any> } = {
+        name: validated.name,
+        type: validated.type as any,
+        status: this.toDbStatus(validated.status as AgentStatus) as any,
+        metadata: (validated.metadata as Record<string, any>) || {},
+        created_at: new Date().toISOString() as any,
+        updated_at: new Date().toISOString() as any,
       };
+
+      if (validated.last_ping) {
+        insertData.last_ping = validated.last_ping as any;
+      }
 
       const { data, error } = await (this.supabase as any)
         .from('agents')
@@ -207,19 +262,22 @@ export class AgentModel {
    */
   async update(id: string, updates: AgentUpdate): Promise<AgentRow> {
     try {
-      // Validate partial update data
-      const validationResult = AgentSchema.partial().safeParse(updates);
-      if (!validationResult.success) {
-        throw new AgentValidationError(
-          'Invalid agent update data',
-          validationResult.error.issues
-        );
-      }
+      const allowedKeys = new Set(['name', 'type', 'status', 'last_ping', 'metadata']);
+      const updateData: Record<string, any> = {};
 
-      const updateData = {
-        ...updates,
-        updated_at: new Date().toISOString(),
-      };
+      Object.entries(updates).forEach(([key, value]) => {
+        if (!allowedKeys.has(key) || value === undefined) {
+          return;
+        }
+
+        if (key === 'status') {
+          updateData.status = this.toDbStatus(value as AgentStatus);
+        } else {
+          updateData[key] = value;
+        }
+      });
+
+      updateData.updated_at = new Date().toISOString();
 
       const { data, error } = await (this.supabase as any)
         .from('agents')
@@ -246,7 +304,7 @@ export class AgentModel {
    * Update agent status
    */
   async updateStatus(id: string, status: AgentStatus): Promise<AgentRow> {
-    return this.update(id, { status });
+    return this.update(id, { status: this.toDbStatus(status) } as any);
   }
 
   /**
@@ -255,7 +313,7 @@ export class AgentModel {
   async updateLastHeartbeat(id: string): Promise<AgentRow> {
     return this.update(id, {
       last_ping: new Date().toISOString(),
-      status: 'online'
+      status: this.toDbStatus('online')
     });
   }
 

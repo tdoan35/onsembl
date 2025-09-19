@@ -38,8 +38,8 @@ export const DEFAULT_RECONNECTION_CONFIG: ReconnectionConfig = {
   baseDelay: 1000,
   maxDelay: 30000,
   factor: 2,
-  jitter: 0.2,
-  maxAttempts: undefined // Unlimited by default
+  jitter: 0.2
+  // maxAttempts is omitted for unlimited attempts by default
 }
 
 export interface ConnectionEvents {

@@ -18,6 +18,9 @@ export ONSEMBL_AGENT_TYPE=claude
 export ONSEMBL_LOG_LEVEL=debug
 export ONSEMBL_SERVER_URL=ws://localhost:3001/ws
 
+# Ensure JWT secret matches backend for dev auth
+export JWT_SECRET="${JWT_SECRET:-supersecretkey}"
+
 # Check if Claude is available
 if command -v claude &> /dev/null; then
     echo "✅ Claude CLI found at: $(which claude)"

@@ -127,7 +127,7 @@ export async function createServer(): Promise<FastifyInstance> {
     services = {
       agentService: new AgentService(supabaseClient as any, server),
       commandService: new CommandService(supabaseClient as any, server, null),
-      authService: new AuthService(server, supabaseClient as any, db),
+      authService: new AuthService(server, supabaseClient as any),
       auditService: new AuditService(server, {}, supabaseClient as any),
       healthService: healthService,
     };

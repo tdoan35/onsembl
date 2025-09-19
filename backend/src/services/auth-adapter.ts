@@ -5,6 +5,7 @@ import { EnhancedWebSocketAuth, SecurityEvent, AuthContext as EnhancedAuthContex
 import { securityLogger } from './security-event-logger.js';
 import { DatabaseAdapter } from '../database/adapter.js';
 import pino from 'pino';
+import { config as serverConfig } from '../config/index.js';
 
 const logger = pino({ name: 'auth-adapter' });
 
@@ -25,7 +26,8 @@ export class AuthAdapter extends EventEmitter {
 
     // Initialize enhanced auth service
     this.enhancedAuth = new EnhancedWebSocketAuth({
-      jwtSecret: process.env['JWT_SECRET'],
+      // Align JWT secret with Fastify JWT config to validate wrapper tokens
+      jwtSecret: process.env['JWT_SECRET'] || serverConfig.JWT_SECRET || 'supersecretkey',
       supabaseUrl: process.env['SUPABASE_URL'],
       supabaseAnonKey: process.env['SUPABASE_ANON_KEY'],
       db: db,

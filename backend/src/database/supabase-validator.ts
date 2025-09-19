@@ -31,7 +31,7 @@ export class SupabaseValidator {
     this.config = {
       url: process.env['SUPABASE_URL'],
       anonKey: process.env['SUPABASE_ANON_KEY'],
-      serviceRoleKey: process.env['SUPABASE_SERVICE_ROLE_KEY']
+      serviceRoleKey: process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_SERVICE_KEY']
     };
   }
 
@@ -80,7 +80,8 @@ export class SupabaseValidator {
       result.environment = this.detectEnvironment(this.config.url);
 
       try {
-        this.client = createClient(this.config.url, this.config.anonKey);
+        const clientKey = this.config.serviceRoleKey || this.config.anonKey;
+        this.client = createClient(this.config.url, clientKey!);
 
         // Test connection with a simple query
         const testResult = await this.testConnection();

@@ -23,7 +23,7 @@ import {
   terminalStreamMessageSchema,
   traceUpdateMessageSchema,
   errorMessageSchema
-} from './schemas';
+} from './schemas.js';
 
 import type {
   AnyWebSocketMessage,
@@ -31,7 +31,7 @@ import type {
   ServerToAgentMessage,
   ServerToDashboardMessage,
   MessageType
-} from '../types/index';
+} from '../types/index.js';
 
 export interface ValidationResult<T = any> {
   success: boolean;
@@ -58,7 +58,7 @@ export class MessageValidator {
       if (result.success) {
         return {
           success: true,
-          data: result.data
+          data: result.data as AnyWebSocketMessage
         };
       }
 
@@ -67,8 +67,8 @@ export class MessageValidator {
         error: {
           code: 'VALIDATION_ERROR',
           message: 'Message validation failed',
-          issues: result.error.issues.map(issue => ({
-            path: issue.path.map(p => String(p)),
+          issues: result.error.issues.map((issue: any) => ({
+            path: issue.path.map((p: any) => String(p)),
             message: issue.message,
             code: issue.code
           }))
@@ -117,8 +117,8 @@ export class MessageValidator {
         error: {
           code: 'VALIDATION_ERROR',
           message: `Validation failed for message type: ${messageType}`,
-          issues: result.error.issues.map(issue => ({
-            path: issue.path.map(p => String(p)),
+          issues: result.error.issues.map((issue: any) => ({
+            path: issue.path.map((p: any) => String(p)),
             message: issue.message,
             code: issue.code
           }))
@@ -142,7 +142,7 @@ export class MessageValidator {
   static validateAgentMessage(message: unknown): ValidationResult<AgentToServerMessage> {
     const result = this.validate(message);
     if (!result.success) {
-      return result;
+      return result as ValidationResult<AgentToServerMessage>;
     }
 
     const agentMessageTypes = [
@@ -176,7 +176,7 @@ export class MessageValidator {
   static validateServerToAgentMessage(message: unknown): ValidationResult<ServerToAgentMessage> {
     const result = this.validate(message);
     if (!result.success) {
-      return result;
+      return result as ValidationResult<ServerToAgentMessage>;
     }
 
     const serverToAgentMessageTypes = [
@@ -207,7 +207,7 @@ export class MessageValidator {
   static validateServerToDashboardMessage(message: unknown): ValidationResult<ServerToDashboardMessage> {
     const result = this.validate(message);
     if (!result.success) {
-      return result;
+      return result as ValidationResult<ServerToDashboardMessage>;
     }
 
     const serverToDashboardMessageTypes = [

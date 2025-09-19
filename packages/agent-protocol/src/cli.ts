@@ -27,7 +27,7 @@ import {
   type AgentStatusPayload,
   type TerminalOutputPayload,
   type TraceEventPayload
-} from './types';
+} from './types.js';
 
 // Import constants from the right location
 const MESSAGE_TYPES = {
@@ -200,24 +200,24 @@ program
         case 'agent':
           filteredTypes = messageTypes.filter(type =>
             ['AGENT_CONNECT', 'AGENT_HEARTBEAT', 'AGENT_ERROR', 'COMMAND_ACK',
-             'COMMAND_COMPLETE', 'TERMINAL_OUTPUT', 'TRACE_EVENT', 'INVESTIGATION_REPORT'].includes(type)
+             'COMMAND_COMPLETE', 'TERMINAL_OUTPUT', 'TRACE_EVENT', 'INVESTIGATION_REPORT'].includes(type as string)
           );
           break;
         case 'server':
           filteredTypes = messageTypes.filter(type =>
             ['COMMAND_REQUEST', 'COMMAND_CANCEL', 'AGENT_CONTROL', 'TOKEN_REFRESH',
              'SERVER_HEARTBEAT', 'AGENT_STATUS', 'COMMAND_STATUS', 'TERMINAL_STREAM',
-             'TRACE_STREAM', 'QUEUE_UPDATE', 'EMERGENCY_STOP'].includes(type)
+             'TRACE_STREAM', 'QUEUE_UPDATE', 'EMERGENCY_STOP'].includes(type as string)
           );
           break;
         case 'dashboard':
           filteredTypes = messageTypes.filter(type =>
-            ['DASHBOARD_INIT', 'DASHBOARD_SUBSCRIBE', 'DASHBOARD_UNSUBSCRIBE'].includes(type)
+            ['DASHBOARD_INIT', 'DASHBOARD_SUBSCRIBE', 'DASHBOARD_UNSUBSCRIBE'].includes(type as string)
           );
           break;
         case 'common':
           filteredTypes = messageTypes.filter(type =>
-            ['PING', 'PONG', 'ACK', 'ERROR'].includes(type)
+            ['PING', 'PONG', 'ACK', 'ERROR'].includes(type as string)
           );
           break;
         default:

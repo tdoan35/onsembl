@@ -16,8 +16,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@onsembl/agent-protocol": ["../packages/agent-protocol/src"],
-      "@onsembl/agent-protocol/*": ["../packages/agent-protocol/src/*"],
+      "@onsembl/agent-protocol": ["../packages/agent-protocol/dist"],
+      "@onsembl/agent-protocol/*": ["../packages/agent-protocol/dist/*"],
       "@onsembl/command-queue": ["../packages/command-queue/src"],
       "@onsembl/command-queue/*": ["../packages/command-queue/src/*"],
       "@onsembl/trace-collector": ["../packages/trace-collector/src"],
@@ -33,6 +33,7 @@
   "exclude": [
     "node_modules",
     ".next",
-    "dist"
+    "dist",
+    "../packages/**"
   ]
 }
