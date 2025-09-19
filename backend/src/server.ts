@@ -23,7 +23,7 @@ import { registerErrorHandler } from './middleware/error-handler';
 // Services
 import { AgentService } from './services/agent.service';
 import { CommandService } from './services/command.service';
-import { AuthService } from './services/auth.service';
+import { AuthService } from './services/auth-adapter.js';
 import { AuditService } from './services/audit.service';
 
 // Database
@@ -127,7 +127,7 @@ export async function createServer(): Promise<FastifyInstance> {
     services = {
       agentService: new AgentService(supabaseClient as any, server),
       commandService: new CommandService(supabaseClient as any, server, null),
-      authService: new AuthService(server, supabaseClient as any),
+      authService: new AuthService(server, supabaseClient as any, db),
       auditService: new AuditService(server, {}, supabaseClient as any),
       healthService: healthService,
     };
