@@ -3,12 +3,15 @@ import { devtools } from 'zustand/middleware';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden';
+export type WebSocketState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export interface NotificationConfig {
   id: string;
   title: string;
+  message?: string;
   description?: string;
   type: 'info' | 'success' | 'warning' | 'error';
+  timestamp?: number;
   duration?: number;
   persistent?: boolean;
 }
@@ -32,6 +35,9 @@ interface UIStore {
   // Layout
   sidebarState: SidebarState;
   isFullscreen: boolean;
+
+  // WebSocket
+  webSocketState: WebSocketState;
 
   // Notifications
   notifications: NotificationConfig[];
@@ -86,6 +92,9 @@ interface UIStore {
   setTerminalVisible: (visible: boolean) => void;
   setTerminalMinimized: (minimized: boolean) => void;
   toggleTerminal: () => void;
+
+  // WebSocket
+  setWebSocketState: (state: WebSocketState) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -96,6 +105,7 @@ export const useUIStore = create<UIStore>()(
       systemTheme: 'light',
       sidebarState: 'expanded',
       isFullscreen: false,
+      webSocketState: 'disconnected' as WebSocketState,
       notifications: [],
       modal: {
         isOpen: false,
@@ -263,6 +273,12 @@ export const useUIStore = create<UIStore>()(
       toggleTerminal: () =>
         set((state) => ({
           terminalVisible: !state.terminalVisible,
+        })),
+
+      // WebSocket actions
+      setWebSocketState: (webSocketState) =>
+        set(() => ({
+          webSocketState,
         })),
     }),
     {
