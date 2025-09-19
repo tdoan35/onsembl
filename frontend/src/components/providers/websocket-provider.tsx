@@ -55,12 +55,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       }
     };
 
-    // Listen for connection state changes
-    webSocketStoreBridge.onConnectionStateChange((state) => {
-      console.log('[WebSocketProvider] Connection state changed:', state);
-      setWebSocketState(state as any);
-    });
-
     connectWebSocket();
     initialized.current = true;
 
