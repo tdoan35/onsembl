@@ -15,6 +15,7 @@ import { GeminiAgent } from './agents/gemini.js';
 import { CodexAgent } from './agents/codex.js';
 import { MockAgent } from './agents/mock.js';
 import { OutputChunk } from './stream-capture.js';
+import { InteractiveAgentWrapper, InteractiveOptions } from './terminal/interactive-wrapper.js';
 
 // Package info
 const packageJson = { name: 'onsembl-agent-wrapper', version: '1.0.0' };
@@ -392,6 +393,10 @@ function createCLI(): Command {
     .option('--auth-type <type>', 'Authentication type (api-key|subscription)', 'api-key')
     .option('-w, --working-dir <dir>', 'Working directory', process.cwd())
     .option('-c, --config <file>', 'Configuration file path')
+    .option('-i, --interactive', 'Run in interactive mode with terminal passthrough')
+    .option('--headless', 'Force headless mode (no terminal passthrough)')
+    .option('--no-websocket', 'Disable WebSocket connection (local only)')
+    .option('--status-bar', 'Show status bar in interactive mode')
     .action(async (options) => {
       try {
         const config = loadConfig({
@@ -400,10 +405,26 @@ function createCLI(): Command {
           apiKey: options.apiKey,
           authType: options.authType,
           workingDirectory: options.workingDir,
+          disableWebsocket: options.noWebsocket,
+          showStatusBar: options.statusBar,
         });
 
-        const wrapper = new AgentWrapper(config);
-        await wrapper.start();
+        // Use InteractiveAgentWrapper if interactive mode is requested
+        if (options.interactive || (!options.headless && process.stdin.isTTY)) {
+          const interactiveOptions: InteractiveOptions = {
+            interactive: options.interactive,
+            headless: options.headless,
+            noWebsocket: options.noWebsocket,
+            statusBar: options.statusBar,
+          };
+
+          const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
+          await wrapper.start();
+        } else {
+          // Use standard wrapper for headless mode
+          const wrapper = new AgentWrapper(config);
+          await wrapper.start();
+        }
 
         // Keep process alive
         process.stdin.resume();
@@ -493,6 +514,22 @@ function createCLI(): Command {
     .action((options) => {
       // This would need to be implemented based on logging setup
       console.log('Log viewing not yet implemented');
+    });
+
+  // Control command for switching between local and remote control
+  program
+    .command('control <mode>')
+    .description('Switch control mode (local|remote)')
+    .action((mode) => {
+      if (!['local', 'remote'].includes(mode)) {
+        console.error('Invalid mode. Use "local" or "remote"');
+        process.exit(1);
+      }
+
+      // This would send a signal to the running process
+      // For now, just show the intent
+      console.log(`Control mode switch to "${mode}" requested`);
+      console.log('Note: Dynamic control switching will be available in interactive mode');
     });
 
   return program;

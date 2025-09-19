@@ -39,6 +39,10 @@ const ConfigSchema = z
     logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     logFile: z.string().optional(),
 
+    // Interactive mode settings
+    disableWebsocket: z.boolean().default(false),
+    showStatusBar: z.boolean().default(false),
+
     // Agent-specific settings
     claude: z
       .object({

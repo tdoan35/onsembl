@@ -1,0 +1,442 @@
+#!/usr/bin/env node
+
+import { EventEmitter } from 'events';
+import { Config } from '../config.js';
+import { WebSocketClient, CommandMessage } from '../websocket-client.js';
+import { PTYManager } from './pty-manager.js';
+import { ModeDetector } from './mode-detector.js';
+import { OutputMultiplexer } from './output-multiplexer.js';
+import { InputMultiplexer } from './input-multiplexer.js';
+import { StateManager } from './state-manager.js';
+import { ResizeHandler } from './resize-handler.js';
+import pino from 'pino';
+import stripAnsi from 'strip-ansi';
+
+export interface InteractiveOptions {
+  interactive?: boolean;
+  headless?: boolean;
+  noWebsocket?: boolean;
+  statusBar?: boolean;
+}
+
+export class InteractiveAgentWrapper extends EventEmitter {
+  private config: Config;
+  private logger: pino.Logger;
+  private agentId: string;
+  private mode: string = 'headless';
+
+  // Core components
+  private wsClient: WebSocketClient | null = null;
+  private ptyManager: PTYManager | null = null;
+  private modeDetector: ModeDetector;
+  private outputMultiplexer: OutputMultiplexer | null = null;
+  private inputMultiplexer: InputMultiplexer | null = null;
+  private stateManager: StateManager;
+  private resizeHandler: ResizeHandler | null = null;
+
+  // State
+  private isRunning: boolean = false;
+  private isShuttingDown: boolean = false;
+
+  constructor(config: Config, options: InteractiveOptions = {}) {
+    super();
+    this.config = config;
+    this.agentId = `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Initialize logger
+    this.logger = pino({
+      name: 'interactive-wrapper',
+      level: process.env['LOG_LEVEL'] || 'info'
+    } as any);
+
+    // Initialize core components
+    this.modeDetector = new ModeDetector(this.logger);
+    this.stateManager = new StateManager({ logger: this.logger });
+
+    // Detect mode
+    const modeInfo = this.modeDetector.detectMode(options);
+    this.mode = modeInfo.mode;
+    this.logger.info('Mode detected', modeInfo);
+  }
+
+  async start(): Promise<void> {
+    if (this.isRunning) {
+      throw new Error('Agent wrapper is already running');
+    }
+
+    this.logger.info('Starting Interactive Agent Wrapper', {
+      agentId: this.agentId,
+      agentType: this.config.agentType,
+      mode: this.mode
+    });
+
+    try {
+      this.isRunning = true;
+
+      // Update state
+      this.stateManager.batchUpdate({
+        'mode': this.mode,
+        'agent.type': this.config.agentType,
+        'agent.status': 'starting',
+        'agent.startTime': Date.now()
+      });
+
+      // Initialize components based on mode
+      if (this.mode === 'interactive') {
+        await this.initializeInteractiveMode();
+      } else {
+        await this.initializeHeadlessMode();
+      }
+
+      // Connect to WebSocket if not disabled
+      if (!this.config.disableWebsocket) {
+        await this.initializeWebSocket();
+      }
+
+      // Set up signal handlers
+      this.setupSignalHandlers();
+
+      this.logger.info('Agent wrapper started successfully');
+      this.stateManager.updateState('agent.status', 'running');
+
+    } catch (error) {
+      this.logger.error('Failed to start agent wrapper', error);
+      await this.cleanup();
+      throw error;
+    }
+  }
+
+  private async initializeInteractiveMode(): Promise<void> {
+    this.logger.info('Initializing interactive mode with terminal passthrough');
+
+    // Initialize PTY manager
+    this.ptyManager = new PTYManager(this.logger);
+
+    // Initialize output multiplexer
+    this.outputMultiplexer = new OutputMultiplexer({
+      mode: 'interactive',
+      logger: this.logger,
+      preserveAnsi: true
+    });
+
+    // Initialize input multiplexer
+    this.inputMultiplexer = new InputMultiplexer({
+      mode: 'interactive',
+      logger: this.logger
+    });
+
+    // Initialize resize handler
+    this.resizeHandler = new ResizeHandler({
+      logger: this.logger,
+      ptyManager: this.ptyManager,
+      stateManager: this.stateManager
+    });
+
+    // Start resize handler
+    this.resizeHandler.start();
+
+    // Get the agent command
+    const agentCommand = this.getAgentCommand();
+
+    // Spawn PTY process
+    const ptyProcess = this.ptyManager.spawn(
+      agentCommand.command,
+      agentCommand.args,
+      { env: agentCommand.env }
+    );
+
+    // Set up PTY output handling
+    this.ptyManager.on('data', (data: string) => {
+      // Send to terminal (preserving ANSI)
+      process.stdout.write(data);
+
+      // Send to WebSocket (if connected)
+      if (this.wsClient?.connected) {
+        this.outputMultiplexer?.addDestination('websocket', (processedData: any) => {
+          const hasAnsi = data !== stripAnsi(data);
+          const ansiCodes = hasAnsi ? data : undefined;
+          this.wsClient?.sendOutput('terminal', 'stdout', processedData, ansiCodes);
+        }, { stripAnsi: true, format: 'json' });
+      }
+    });
+
+    // Set up terminal input handling
+    this.inputMultiplexer.addSource('terminal', process.stdin, {
+      priority: 10,
+      canInterrupt: true,
+      handler: (data: string) => {
+        this.ptyManager?.write(data);
+      }
+    });
+
+    // Enable raw mode for better terminal control
+    if (process.stdin.isTTY) {
+      this.inputMultiplexer.setupRawMode();
+    }
+
+    // Handle PTY exit
+    this.ptyManager.on('exit', ({ exitCode }) => {
+      this.logger.info('PTY process exited', { exitCode });
+      this.stateManager.updateState('agent.status', 'stopped');
+      this.stop();
+    });
+
+    // Status bar (optional)
+    if (this.config.showStatusBar) {
+      this.initializeStatusBar();
+    }
+  }
+
+  private async initializeHeadlessMode(): Promise<void> {
+    this.logger.info('Initializing headless mode (traditional piped approach)');
+
+    // Initialize output multiplexer (no ANSI preservation)
+    this.outputMultiplexer = new OutputMultiplexer({
+      mode: 'headless',
+      logger: this.logger,
+      preserveAnsi: false
+    });
+
+    // Initialize input multiplexer
+    this.inputMultiplexer = new InputMultiplexer({
+      mode: 'headless',
+      logger: this.logger
+    });
+
+    // Get the agent command
+    const agentCommand = this.getAgentCommand();
+
+    // Spawn process with piped stdio
+    const { spawn } = await import('child_process');
+    const childProcess = spawn(agentCommand.command, agentCommand.args, {
+      env: { ...process.env, ...agentCommand.env },
+      stdio: 'pipe'
+    });
+
+    // Handle stdout
+    childProcess.stdout?.on('data', (chunk: Buffer) => {
+      const data = chunk.toString();
+
+      // Send to WebSocket
+      if (this.wsClient?.connected) {
+        this.wsClient.sendOutput('terminal', 'stdout', stripAnsi(data), undefined);
+      }
+    });
+
+    // Handle stderr
+    childProcess.stderr?.on('data', (chunk: Buffer) => {
+      const data = chunk.toString();
+
+      // Send to WebSocket
+      if (this.wsClient?.connected) {
+        this.wsClient.sendOutput('terminal', 'stderr', stripAnsi(data), undefined);
+      }
+    });
+
+    // Handle process exit
+    childProcess.on('exit', (code) => {
+      this.logger.info('Child process exited', { code });
+      this.stateManager.updateState('agent.status', 'stopped');
+      this.stop();
+    });
+
+    // Store process reference
+    this.stateManager.updateState('agent.pid', childProcess.pid);
+  }
+
+  private async initializeWebSocket(): Promise<void> {
+    this.logger.info('Initializing WebSocket connection');
+
+    this.wsClient = new WebSocketClient({
+      config: this.config,
+      agentId: this.agentId,
+      onCommand: async (message: CommandMessage) => {
+        await this.handleRemoteCommand(message);
+      },
+      onError: (error: Error) => {
+        this.logger.error('WebSocket error', error);
+      }
+    });
+
+    // Add WebSocket as input source (lower priority than terminal)
+    this.inputMultiplexer?.addSource('dashboard', null, {
+      priority: 5,
+      canInterrupt: false,
+      handler: (data: string) => {
+        if (this.mode === 'interactive') {
+          // Queue the command if terminal is active
+          this.logger.info('Remote command queued (terminal has priority)');
+        } else {
+          // Process immediately in headless mode
+          this.processRemoteCommand(data);
+        }
+      }
+    });
+
+    await this.wsClient.connect();
+    this.stateManager.updateState('websocket.connected', true);
+  }
+
+  private async handleRemoteCommand(message: CommandMessage): Promise<void> {
+    this.logger.info('Received remote command', { command: message.command });
+
+    // In interactive mode, check control state
+    if (this.mode === 'interactive') {
+      const state = this.stateManager.getState();
+    const controlMode = state?.controlMode;
+
+      if (controlMode === 'local') {
+        // Queue the command
+        this.inputMultiplexer?.queueCommand({
+          source: 'dashboard',
+          data: message.command,
+          priority: 5,
+          timestamp: Date.now(),
+          id: (message as any).id || `cmd-${Date.now()}`
+        });
+
+        this.logger.info('Remote command queued (local control active)');
+        return;
+      }
+    }
+
+    // Process the command
+    this.processRemoteCommand(message.command);
+  }
+
+  private processRemoteCommand(command: string): void {
+    if (this.ptyManager?.isInteractive) {
+      this.ptyManager.write(command + '\n');
+    } else {
+      // Handle in headless mode
+      this.logger.info('Processing remote command in headless mode', { command });
+    }
+  }
+
+  private getAgentCommand(): { command: string; args: string[]; env: any } {
+    const agentCommands: Record<string, { command: string; args: string[]; env?: any }> = {
+      claude: {
+        command: 'claude',
+        args: [],
+        env: { CLAUDE_API_KEY: process.env['CLAUDE_API_KEY'] }
+      },
+      gemini: {
+        command: 'gemini',
+        args: [],
+        env: { GEMINI_API_KEY: process.env['GEMINI_API_KEY'] }
+      },
+      codex: {
+        command: 'codex',
+        args: [],
+        env: { CODEX_API_KEY: process.env['CODEX_API_KEY'] }
+      },
+      mock: {
+        command: 'bash',
+        args: ['-c', 'while true; do echo "Mock agent running..."; sleep 5; done'],
+        env: {}
+      }
+    };
+
+    const command = agentCommands[this.config.agentType] || agentCommands['mock'];
+    if (!command) {
+      throw new Error(`Unknown agent type: ${this.config.agentType}`);
+    }
+    return command;
+  }
+
+  private initializeStatusBar(): void {
+    // This would implement a minimal status bar
+    // For now, just log the intent
+    this.logger.info('Status bar requested but not yet implemented');
+  }
+
+  private setupSignalHandlers(): void {
+    const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGQUIT'];
+
+    signals.forEach(signal => {
+      process.on(signal, () => {
+        this.logger.info(`Received ${signal}, shutting down gracefully`);
+        this.stop()
+          .then(() => process.exit(0))
+          .catch((error) => {
+            this.logger.error('Error during shutdown', error);
+            process.exit(1);
+          });
+      });
+    });
+
+    // Handle terminal resize
+    if (this.mode === 'interactive') {
+      process.on('SIGWINCH', () => {
+        const { columns, rows } = process.stdout;
+        if (columns && rows) {
+          this.resizeHandler?.performResize();
+        }
+      });
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (this.isShuttingDown) {
+      return;
+    }
+
+    this.logger.info('Stopping agent wrapper');
+    this.isShuttingDown = true;
+    this.stateManager.updateState('agent.status', 'stopping');
+
+    try {
+      // Disable raw mode if enabled
+      if (this.mode === 'interactive') {
+        this.inputMultiplexer?.disableRawMode();
+      }
+
+      // Stop resize handler
+      this.resizeHandler?.stop();
+
+      // Kill PTY process
+      this.ptyManager?.kill();
+
+      // Disconnect WebSocket
+      if (this.wsClient) {
+        await this.wsClient.disconnect();
+      }
+
+      // Clean up
+      await this.cleanup();
+
+      this.logger.info('Agent wrapper stopped');
+      this.stateManager.updateState('agent.status', 'stopped');
+
+    } catch (error) {
+      this.logger.error('Error during shutdown', error);
+      throw error;
+    }
+  }
+
+  async switchMode(targetMode: 'local' | 'remote'): Promise<boolean> {
+    return this.stateManager.switchControlMode(targetMode);
+  }
+
+  getStatus(): any {
+    return {
+      agentId: this.agentId,
+      agentType: this.config.agentType,
+      mode: this.mode,
+      state: this.stateManager.getState(),
+      queueStatus: this.inputMultiplexer?.getQueueStatus(),
+      performance: this.stateManager.getPerformanceMetrics()
+    };
+  }
+
+  private async cleanup(): Promise<void> {
+    this.isRunning = false;
+    this.ptyManager = null;
+    this.outputMultiplexer = null;
+    this.inputMultiplexer = null;
+    this.resizeHandler = null;
+    this.wsClient = null;
+  }
+}
+
+export default InteractiveAgentWrapper;

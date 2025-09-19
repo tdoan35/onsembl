@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Config } from './config';
+import { Config } from './config.js';
 
 export interface ReconnectionOptions {
   config: Config;
