@@ -17,7 +17,9 @@ import {
   Sun,
   Terminal,
   User,
-  X
+  X,
+  Wifi,
+  WifiOff
 } from 'lucide-react'
 import './globals.css'
 
@@ -32,6 +34,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
+import { WebSocketProvider } from '@/components/providers/websocket-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -51,7 +54,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { theme, sidebarState, setTheme, toggleSidebar, setSidebarState } = useUIStore()
+  const { theme, sidebarState, webSocketState, setTheme, toggleSidebar, setSidebarState } = useUIStore()
   const [mounted, setMounted] = useState(false)
 
   // Handle hydration
@@ -97,7 +100,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <div className="min-h-screen bg-background font-sans antialiased">
+        <WebSocketProvider>
+          <div className="min-h-screen bg-background font-sans antialiased">
           <div className="flex h-screen overflow-hidden">
             {/* Sidebar */}
             <div
@@ -227,10 +231,29 @@ export default function RootLayout({
                     </h1>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {/* Status indicator */}
+                    {/* WebSocket status indicator */}
                     <div className="flex items-center space-x-2">
-                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <span className="text-sm text-muted-foreground">Connected</span>
+                      {webSocketState === 'connected' ? (
+                        <>
+                          <Wifi className="h-4 w-4 text-green-500" />
+                          <span className="text-sm text-muted-foreground">Connected</span>
+                        </>
+                      ) : webSocketState === 'connecting' ? (
+                        <>
+                          <Wifi className="h-4 w-4 text-yellow-500 animate-pulse" />
+                          <span className="text-sm text-muted-foreground">Connecting...</span>
+                        </>
+                      ) : webSocketState === 'error' ? (
+                        <>
+                          <WifiOff className="h-4 w-4 text-red-500" />
+                          <span className="text-sm text-muted-foreground">Error</span>
+                        </>
+                      ) : (
+                        <>
+                          <WifiOff className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-muted-foreground">Disconnected</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -243,6 +266,7 @@ export default function RootLayout({
             </div>
           </div>
         </div>
+        </WebSocketProvider>
       </body>
     </html>
   )
