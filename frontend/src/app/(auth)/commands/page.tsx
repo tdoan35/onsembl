@@ -21,14 +21,17 @@ export default function CommandsPage() {
 
   const { sessions, activeSessionId, setActiveSession, clearSession } = useTerminalStore();
   const { agents } = useAgentStore();
-  const { commands, executeCommand, cancelCommand } = useCommandStore();
+  const { commands } = useCommandStore();
+  // TODO: Add executeCommand and cancelCommand to command store
+  const executeCommand = (cmd: any) => console.log('Execute command:', cmd);
+  const cancelCommand = (id: string) => console.log('Cancel command:', id);
 
   // Get active agents
-  const activeAgents = Array.from(agents.values()).filter(agent => agent.status === 'READY');
+  const activeAgents = Array.from(agents.values()).filter(agent => agent.status === 'connected');
 
   // Auto-select first agent if none selected
   useEffect(() => {
-    if (!selectedAgentId && activeAgents.length > 0) {
+    if (!selectedAgentId && activeAgents.length > 0 && activeAgents[0]) {
       setSelectedAgentId(activeAgents[0].id);
     }
   }, [activeAgents, selectedAgentId]);
@@ -40,12 +43,15 @@ export default function CommandsPage() {
     const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Send command request via WebSocket
+    // TODO: The protocol needs to be updated to include agentId in CommandRequestPayload
     webSocketService.send('dashboard', MessageType.COMMAND_REQUEST, {
       commandId,
-      agentId: selectedAgentId,
-      command: command.trim(),
+      content: command.trim(),
+      type: 'execute' as any, // TODO: Import CommandType enum
       priority,
-      timeout: 300000 // 5 minutes timeout
+      executionConstraints: {
+        timeLimitMs: 300000 // 5 minutes timeout
+      }
     });
 
     // Create terminal session
@@ -68,7 +74,8 @@ export default function CommandsPage() {
   const handleCancelCommand = useCallback((commandId: string) => {
     // Send cancel request via WebSocket
     webSocketService.send('dashboard', MessageType.COMMAND_CANCEL, {
-      commandId
+      commandId,
+      reason: 'User cancelled' // Required field
     });
 
     // Update command status
@@ -79,22 +86,25 @@ export default function CommandsPage() {
     // Send emergency stop to all agents
     webSocketService.send('dashboard', MessageType.EMERGENCY_STOP, {
       reason: 'User initiated emergency stop',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      triggeredBy: 'dashboard', // Required field
+      agentsStopped: 0, // Will be populated by backend
+      commandsCancelled: 0 // Will be populated by backend
     });
   }, []);
 
   // Get queue of commands
   const queuedCommands = Array.from(commands.values())
-    .filter(cmd => cmd.status === 'QUEUED' || cmd.status === 'RUNNING')
+    .filter(cmd => cmd.status === 'queued' || cmd.status === 'executing')
     .sort((a, b) => {
-      if (a.status === 'RUNNING' && b.status !== 'RUNNING') return -1;
-      if (b.status === 'RUNNING' && a.status !== 'RUNNING') return 1;
+      if (a.status === 'executing' && b.status !== 'executing') return -1;
+      if (b.status === 'executing' && a.status !== 'executing') return 1;
       return (b.priority || 0) - (a.priority || 0);
     });
 
   const completedCommands = Array.from(commands.values())
-    .filter(cmd => cmd.status === 'COMPLETED' || cmd.status === 'FAILED' || cmd.status === 'CANCELLED')
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .filter(cmd => cmd.status === 'completed' || cmd.status === 'failed' || cmd.status === 'cancelled')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
 
   return (
@@ -196,7 +206,7 @@ export default function CommandsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <code className="text-sm font-mono">{cmd.command}</code>
-                          <Badge variant={cmd.status === 'RUNNING' ? 'default' : 'secondary'}>
+                          <Badge variant={cmd.status === 'executing' ? 'default' : 'secondary'}>
                             {cmd.status}
                           </Badge>
                         </div>
@@ -249,8 +259,8 @@ export default function CommandsPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <Badge
                             variant={
-                              cmd.status === 'COMPLETED' ? 'success' :
-                              cmd.status === 'FAILED' ? 'destructive' :
+                              cmd.status === 'completed' ? 'success' :
+                              cmd.status === 'failed' ? 'destructive' :
                               'secondary'
                             }
                           >
