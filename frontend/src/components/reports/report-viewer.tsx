@@ -16,7 +16,7 @@ import {
   Clock,
   BarChart3,
   FileJson,
-  FileCsv,
+  FileText as FileCsv,
   FileImage
 } from 'lucide-react';
 
