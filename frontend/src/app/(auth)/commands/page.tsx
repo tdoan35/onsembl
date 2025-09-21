@@ -211,7 +211,7 @@ export default function CommandsPage() {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Agent: {cmd.agentId} • Priority: {cmd.priority}
+                          Agent: {cmd.agent_id} • Priority: {cmd.priority}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -267,7 +267,7 @@ export default function CommandsPage() {
                             {cmd.status}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(cmd.createdAt).toLocaleTimeString()}
+                            {new Date(cmd.created_at).toLocaleTimeString()}
                           </span>
                         </div>
                       </div>
@@ -310,9 +310,9 @@ export default function CommandsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {activeSessionId ? (
+              {activeSessionId && sessions.get(activeSessionId)?.agentId ? (
                 <TerminalViewer
-                  agentId={sessions.get(activeSessionId)?.agentId}
+                  agentId={sessions.get(activeSessionId)!.agentId}
                   height={500}
                   readOnly={true}
                 />

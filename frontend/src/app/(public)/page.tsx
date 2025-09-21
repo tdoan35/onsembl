@@ -1,34 +1,37 @@
-export default function HomePage() {
+'use client';
+
+import { motion } from 'framer-motion';
+import HeroSection from '@/components/landing/HeroSection';
+import FeaturesSection from '@/components/landing/FeaturesSection';
+import AgentShowcase from '@/components/landing/AgentShowcase';
+import HowItWorks from '@/components/landing/HowItWorks';
+import TechStack from '@/components/landing/TechStack';
+import PricingSection from '@/components/landing/PricingSection';
+import Testimonials from '@/components/landing/Testimonials';
+import Footer from '@/components/landing/Footer';
+
+export default function LandingPage() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground mb-4">
-          Welcome to Onsembl.ai
-        </h1>
-        <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
-          Agent Control Center for orchestrating multiple AI coding agents through a unified dashboard with real-time WebSocket streaming.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
-          <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Agent Management</h3>
-            <p className="text-muted-foreground">
-              Monitor and control multiple AI agents including Claude, Gemini, and Codex.
-            </p>
-          </div>
-          <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Real-time Streaming</h3>
-            <p className="text-muted-foreground">
-              Watch command execution in real-time with WebSocket streaming and terminal output.
-            </p>
-          </div>
-          <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Command Queue</h3>
-            <p className="text-muted-foreground">
-              Priority-based command queueing with interruption support and emergency stop.
-            </p>
-          </div>
-        </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-onsembl-bg text-white overflow-x-hidden"
+    >
+      {/* Animated gradient background */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-cyan-900/20" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-transparent" />
       </div>
-    </div>
-  )
+
+      <HeroSection />
+      <FeaturesSection />
+      <AgentShowcase />
+      <HowItWorks />
+      <TechStack />
+      <PricingSection />
+      <Testimonials />
+      <Footer />
+    </motion.div>
+  );
 }

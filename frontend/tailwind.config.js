@@ -50,6 +50,21 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Onsembl theme colors
+        onsembl: {
+          bg: "#0B0F17",
+          "bg-light": "#0E1420",
+          "bg-lighter": "#141B29",
+          "bg-overlay": "rgba(11, 15, 23, 0.5)",
+          "bg-overlay-light": "rgba(11, 15, 23, 0.3)",
+          "bg-overlay-heavy": "rgba(11, 15, 23, 0.8)",
+          gradient: {
+            primary: "linear-gradient(135deg, #8B5CF6, #06B6D4)",
+            secondary: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
+            tertiary: "linear-gradient(135deg, #10B981, #3B82F6)",
+            quaternary: "linear-gradient(135deg, #F59E0B, #EF4444)",
+          }
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
