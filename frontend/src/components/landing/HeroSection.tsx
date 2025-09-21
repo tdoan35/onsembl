@@ -196,7 +196,7 @@ const HeroSection = () => {
         >
           <div className="relative">
             {/* iPad-style bezel */}
-            <div className="relative bg-gradient-to-b from-gray-300 to-gray-600 rounded-[2.5rem] p-6 shadow-2xl">
+            <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 rounded-[2.5rem] p-6 shadow-2xl">
               {/* Inner screen bezel */}
               <div className="bg-black rounded-[1.5rem] p-1">
                 {/* Screen content */}
@@ -222,7 +222,7 @@ const HeroSection = () => {
               </div>
 
               {/* Home indicator */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-1 bg-gray-400 rounded-full"></div>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-1 bg-gray-600 rounded-full"></div>
             </div>
 
             {/* Floating elements */}

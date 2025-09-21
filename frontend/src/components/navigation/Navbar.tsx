@@ -24,7 +24,7 @@ export function Navbar({
   const { isAuthenticated } = useAuth();
 
   return (
-    <header className={cn("fixed top-0 left-0 right-0 z-50", className)}>
+    <header className={cn("fixed top-0 left-0 right-0 z-50 border-b border-border", className)}>
       <nav className="w-full px-4">
         <div className="flex h-14 items-center relative">
           {/* Logo/Brand - absolutely positioned */}
