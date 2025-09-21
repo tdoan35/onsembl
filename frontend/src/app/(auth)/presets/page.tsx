@@ -238,7 +238,7 @@ export default function PresetsPage() {
         <TabsContent value="manage" className="space-y-4">
           <PresetManager
             onPresetSelect={handlePresetSelect}
-            selectedPresetId={selectedPreset?.id}
+            selectedPresetId={selectedPreset?.id || ''}
           />
         </TabsContent>
 
