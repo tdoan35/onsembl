@@ -38,7 +38,7 @@ const statusConfig: Record<AgentStatus, {
   icon: React.ComponentType<{ className?: string }>;
 }> = {
   online: {
-    color: 'text-green-600',
+    color: 'text-success',
     variant: 'success',
     icon: Activity
   },
@@ -48,12 +48,12 @@ const statusConfig: Record<AgentStatus, {
     icon: Square
   },
   error: {
-    color: 'text-red-600',
+    color: 'text-destructive',
     variant: 'destructive',
     icon: AlertCircle
   },
   connecting: {
-    color: 'text-yellow-600',
+    color: 'text-secondary',
     variant: 'warning',
     icon: RotateCcw
   },
@@ -202,7 +202,7 @@ export default function AgentCard({ agent, compact = false }: AgentCardProps) {
               <StatusIcon className={cn("h-8 w-8", statusInfo.color)} />
               {agent.status === 'connecting' && (
                 <div className="absolute inset-0 animate-spin">
-                  <RotateCcw className="h-8 w-8 text-yellow-600" />
+                  <RotateCcw className="h-8 w-8 text-secondary" />
                 </div>
               )}
             </div>
@@ -281,12 +281,12 @@ export default function AgentCard({ agent, compact = false }: AgentCardProps) {
 
         {/* Error Display */}
         {agent.error && (
-          <div className="p-3 border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 rounded-lg">
+          <div className="p-3 border border-destructive/20 bg-destructive/10 rounded-lg">
             <div className="flex items-start space-x-2">
-              <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">Error</p>
-                <p className="text-sm text-red-700 dark:text-red-300">{agent.error}</p>
+                <p className="text-sm font-medium text-destructive">Error</p>
+                <p className="text-sm text-destructive/80">{agent.error}</p>
               </div>
             </div>
           </div>

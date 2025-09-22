@@ -54,33 +54,9 @@ module.exports = {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
         },
-        // Midnight Terminal theme colors
-        terminal: {
-          // Dark mode colors
-          "bg-dark": "#0B0F17",
-          "surface-dark": "#1E2533",
-          "primary-dark": "#4CC9F0",
-          "secondary-dark": "#FFB703",
-          "success-dark": "#8BE38A",
-          "error-dark": "#EF476F",
-          "text-primary-dark": "#EDEDED",
-          "text-muted-dark": "#9CA3AF",
-          // Light mode colors
-          "bg-light": "#F8FAFC",
-          "surface-light": "#E2E8F0",
-          "primary-light": "#0077B6",
-          "secondary-light": "#F59E0B",
-          "success-light": "#22C55E",
-          "error-light": "#DC2626",
-          "text-primary-light": "#111827",
-          "text-muted-light": "#4B5563",
-          // Gradients
-          gradient: {
-            primary: "linear-gradient(135deg, #4CC9F0, #0077B6)",
-            secondary: "linear-gradient(135deg, #FFB703, #F59E0B)",
-            success: "linear-gradient(135deg, #8BE38A, #22C55E)",
-            error: "linear-gradient(135deg, #EF476F, #DC2626)",
-          }
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          foreground: "hsl(var(--surface-foreground))",
         },
       },
       borderRadius: {

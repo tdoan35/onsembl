@@ -141,10 +141,10 @@ export function ConnectionStatus({
           <div className="space-y-1 text-sm">
             <div className="font-semibold">WebSocket Status</div>
             {connectionState === 'connected' && (
-              <div className="text-green-500">Active connection</div>
+              <div className="text-success">Active connection</div>
             )}
             {connectionState === 'connecting' && (
-              <div className="text-yellow-500">
+              <div className="text-secondary">
                 {reconnectAttempts > 0
                   ? `Reconnection attempt ${reconnectAttempts}`
                   : 'Establishing connection...'}

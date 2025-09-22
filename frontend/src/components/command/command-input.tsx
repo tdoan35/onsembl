@@ -46,10 +46,10 @@ interface CommandInputProps {
 }
 
 const priorityColors: Record<CommandPriority, string> = {
-  low: 'text-blue-600',
-  normal: 'text-green-600',
-  high: 'text-yellow-600',
-  urgent: 'text-red-600',
+  low: 'text-primary',
+  normal: 'text-success',
+  high: 'text-secondary',
+  urgent: 'text-destructive',
 };
 
 const priorityLabels: Record<CommandPriority, string> = {
@@ -305,7 +305,7 @@ export default function CommandInput({
                   {onlineAgents.map(agent => (
                     <SelectItem key={agent.id} value={agent.id}>
                       <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <div className="w-2 h-2 rounded-full bg-success"></div>
                         <span>{agent.name}</span>
                         <Badge variant="outline" className="ml-auto text-xs">
                           {agent.type}
@@ -500,18 +500,18 @@ export default function CommandInput({
 
           {/* Status Messages */}
           {(!onlineAgents.length) && (
-            <div className="flex items-center space-x-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <span className="text-sm text-yellow-800 dark:text-yellow-200">
+            <div className="flex items-center space-x-2 p-3 bg-secondary/10 border border-secondary/20 rounded-lg">
+              <AlertCircle className="h-4 w-4 text-secondary" />
+              <span className="text-sm text-secondary/80">
                 No agents are currently online. Commands cannot be executed.
               </span>
             </div>
           )}
 
           {isExecuting && (
-            <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <Clock className="h-4 w-4 text-blue-600 animate-spin" />
-              <span className="text-sm text-blue-800 dark:text-blue-200">
+            <div className="flex items-center space-x-2 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+              <Clock className="h-4 w-4 text-primary animate-spin" />
+              <span className="text-sm text-primary/80">
                 Command is being executed...
               </span>
             </div>

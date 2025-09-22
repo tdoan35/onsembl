@@ -40,17 +40,17 @@ export function NavbarActions({ onOpenAuthModal, onLogout, showDemoMenu = false 
         <div className="flex items-center space-x-1 px-2">
           {webSocketState === 'connected' ? (
             <>
-              <Wifi className="h-4 w-4 text-green-500" />
+              <Wifi className="h-4 w-4 text-success" />
               <span className="text-xs text-muted-foreground hidden sm:inline">Connected</span>
             </>
           ) : webSocketState === 'connecting' ? (
             <>
-              <Wifi className="h-4 w-4 text-yellow-500 animate-pulse" />
+              <Wifi className="h-4 w-4 text-secondary animate-pulse" />
               <span className="text-xs text-muted-foreground hidden sm:inline">Connecting</span>
             </>
           ) : webSocketState === 'error' ? (
             <>
-              <WifiOff className="h-4 w-4 text-red-500" />
+              <WifiOff className="h-4 w-4 text-destructive" />
               <span className="text-xs text-muted-foreground hidden sm:inline">Error</span>
             </>
           ) : (
