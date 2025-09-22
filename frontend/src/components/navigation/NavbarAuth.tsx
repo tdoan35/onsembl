@@ -46,8 +46,9 @@ export function NavbarAuth({ onOpenAuthModal, onLogout }: NavbarAuthProps) {
       </Button>
 
       <Button
+        variant="default"
         size="sm"
-        className="hidden md:flex bg-blue-600 hover:bg-blue-700 text-white"
+        className="hidden md:flex"
         onClick={() => onOpenAuthModal?.('signup')}
       >
         Get Started

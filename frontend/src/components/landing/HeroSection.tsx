@@ -3,6 +3,7 @@ import { ArrowRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import UnicornScene from "unicornstudio-react";
+import { Button } from '@/components/ui/button';
 
 const HeroSection = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,21 +44,23 @@ const HeroSection = () => {
           {/* CTA Buttons */}
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-3">
             <Link href="/login">
-              <button
-                type="button"
-                role="button"
-                aria-label="Start Free Trial"
-                className="group relative inline-flex shadow-[0_8px_16px_-4px_rgba(255,255,255,0.05)] hover:shadow-[0_12px_20px_-6px_rgba(255,255,255,0.1)] transition duration-300 ease-out select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 transform-gpu hover:-translate-y-0.5 text-white rounded-lg pt-[1px] pr-[1px] pb-[1px] pl-[1px] items-center justify-center"
-                style={{ backgroundImage: 'linear-gradient(144deg,rgba(255,255,255,0.3), rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.2))' }}
+              <Button
+                variant="default"
+                size="default"
+                className="min-w-[140px] text-[15px]"
               >
-                <span className="flex items-center justify-center gap-2 text-[15px] leading-none min-w-[140px] w-full h-full transition-colors duration-300 group-hover:bg-black/50 font-medium bg-black/80 rounded-lg pt-3 pr-5 pb-3 pl-5">
-                  <span>Get Started</span>
-                </span>
-              </button>
+                Get Started
+              </Button>
             </Link>
 
-            <a href="#features" className="inline-flex items-center gap-2 ring-1 ring-white/5 hover:bg-white/5 text-sm font-medium text-zinc-200 rounded-md pt-2.5 pr-4 pb-2.5 pl-4">
-              <span>Tour the platform</span>
+            <a href="#features">
+              <Button
+                variant="outline"
+                size="default"
+                className="text-sm"
+              >
+                Tour the platform
+              </Button>
             </a>
           </div>
         </div>
