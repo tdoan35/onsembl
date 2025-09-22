@@ -67,7 +67,108 @@ const HeroSection = () => {
           <div className="absolute inset-x-0 -bottom-8 mx-auto h-40 max-w-6xl bg-gradient-to-t from-black/60 to-transparent blur-2xl"></div>
 
           <div className="max-w-4xl mr-auto ml-auto">
-            <div className="relative ring-1 ring-black/10 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] w-full max-w-4xl mx-auto bg-gradient-to-b from-zinc-900/70 to-zinc-950/80 border-white/10 border rounded-2xl backdrop-blur-lg">
+
+            {/* Mobile Product Preview - Positioned at top right */}
+            <div className="absolute -top-48 -right-8 z-20 hidden xl:block">
+              {/* iPhone-like bezel/frame */}
+              <div className="relative">
+                {/* Outer bezel - modern iPhone style matching desktop colors */}
+                <div className="relative w-64 h-[32rem] rounded-[2rem] bg-gradient-to-b from-zinc-800/30 to-zinc-900/40 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-sm border border-white/10">
+                  {/* Inner screen area */}
+                  <div className="w-full h-full rounded-[1.75rem] bg-gradient-to-b from-zinc-900/40 to-zinc-950/50 backdrop-blur-md border border-white/10 overflow-hidden relative ring-1 ring-black/10">
+                    {/* Mobile content */}
+                    <div className="h-full flex flex-col pt-2">
+                      {/* Status bar */}
+                      <div className="flex items-center justify-between px-6 text-sm text-zinc-400">
+                        <span className="font-medium">9:41</span>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                          </svg>
+                          <div className="w-6 h-3 border-2 border-zinc-500 rounded-sm">
+                            <div className="w-4 h-1.5 bg-green-400 rounded-sm m-0.5"></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* App header */}
+                      <div className="px-4 py-4 border-b border-white/10">
+                        <h2 className="text-sm font-semibold text-white">Claude - Code Review</h2>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                            <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></div>
+                            Active
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] text-blue-300">
+                            TypeScript
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Mobile terminal content */}
+                      <div className="flex-1 flex flex-col px-4 py-4">
+                        <div className="flex items-center gap-1 mb-4 text-xs text-zinc-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" x2="20" y1="19" y2="19"></line>
+                          </svg>
+                          <span>Terminal</span>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                            <path d="m9 18 6-6-6-6"></path>
+                          </svg>
+                          <span>Claude</span>
+                        </div>
+
+                        <div className="mb-3 flex-1 flex flex-col">
+                          {/* Command execution */}
+                          <div className="flex-1 rounded-xl bg-black/20 p-4 ring-1 ring-white/10 flex flex-col">
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-zinc-300">npm</span>
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-zinc-300">run</span>
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-zinc-300">dev</span>
+                            </div>
+                            <pre className="text-xs leading-5 text-zinc-300 overflow-hidden">
+                              <code>
+                                <span className="text-green-400">✓</span> Server started
+                                <br />
+                                <span className="text-blue-400">→</span> Local: http://localhost:3000
+                                <br />
+                                <span className="text-cyan-400">◐</span> Ready in 2.1s
+                                <br />
+                                <span className="text-purple-400">⚡</span> Hot reload enabled
+                              </code>
+                            </pre>
+                          </div>
+                        </div>
+
+                        {/* Chat input - Fixed at bottom */}
+                        <div className="px-4 pb-4">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Send command"
+                              className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-transparent pr-12"
+                            />
+                            <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-lg bg-indigo-500/20 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-indigo-300">
+                                <path d="m22 2-7 20-4-9-9-4Z"/>
+                                <path d="M22 2 11 13"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Desktop preview with glass-like bezel */}
+            <div className="relative w-full max-w-4xl mx-auto">
+              {/* Outer bezel - glass-like framing */}
+              <div className="relative bg-gradient-to-b from-zinc-800/30 to-zinc-900/40 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-sm border border-white/10 rounded-3xl">
+                {/* Inner screen area */}
+                <div className="relative ring-1 ring-black/10 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] w-full bg-gradient-to-b from-zinc-900/70 to-zinc-950/80 border-white/10 border rounded-2xl backdrop-blur-lg">
               {/* Window header */}
               <div className="flex border-white/10 border-b pt-3 pr-4 pb-3 pl-4 items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -272,6 +373,8 @@ const HeroSection = () => {
                     </section>
                   </div>
                 </main>
+              </div>
+                </div>
               </div>
             </div>
           </div>
