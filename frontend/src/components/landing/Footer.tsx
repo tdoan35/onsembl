@@ -64,7 +64,7 @@ const Footer = () => {
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/5 to-onsembl-bg" />
 
-      <div className="container mx-auto max-w-7xl relative">
+      <div className="container mx-auto max-w-5xl relative">
         {/* Newsletter Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
