@@ -1,251 +1,285 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Check, X, Sparkles, Zap, Crown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Check, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
-
-const plans = [
-  {
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    description: 'Perfect for trying out Onsembl',
-    icon: Sparkles,
-    color: 'from-gray-500 to-gray-600',
-    features: [
-      { name: '1 Agent connection', included: true },
-      { name: '100 commands/month', included: true },
-      { name: 'Basic terminal streaming', included: true },
-      { name: 'Community support', included: true },
-      { name: '7-day audit logs', included: true },
-      { name: 'Priority queue', included: false },
-      { name: 'Custom agents', included: false },
-      { name: 'Advanced analytics', included: false },
-    ],
-    cta: 'Start Free',
-    popular: false,
-  },
-  {
-    name: 'Pro',
-    price: '$49',
-    period: 'per month',
-    description: 'For professional developers',
-    icon: Zap,
-    color: 'from-purple-500 to-cyan-500',
-    features: [
-      { name: '5 Agent connections', included: true },
-      { name: 'Unlimited commands', included: true },
-      { name: 'Real-time streaming', included: true },
-      { name: 'Priority support', included: true },
-      { name: '30-day audit logs', included: true },
-      { name: 'Priority queue', included: true },
-      { name: 'Custom agents', included: true },
-      { name: 'Advanced analytics', included: false },
-    ],
-    cta: 'Start Pro Trial',
-    popular: true,
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: 'contact sales',
-    description: 'For teams and organizations',
-    icon: Crown,
-    color: 'from-orange-500 to-red-500',
-    features: [
-      { name: 'Unlimited agents', included: true },
-      { name: 'Unlimited commands', included: true },
-      { name: 'Real-time streaming', included: true },
-      { name: 'Dedicated support', included: true },
-      { name: 'Unlimited audit logs', included: true },
-      { name: 'Priority queue', included: true },
-      { name: 'Custom agents', included: true },
-      { name: 'Advanced analytics', included: true },
-    ],
-    cta: 'Contact Sales',
-    popular: false,
-  },
-];
-
-const PricingCard = ({ plan, index }: { plan: typeof plans[0], index: number }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const Icon = plan.icon;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.1, duration: 0.5 }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="relative"
-    >
-      {/* Popular badge */}
-      {plan.popular && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute -top-4 left-1/2 -translate-x-1/2 z-10"
-        >
-          <div className="bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-sm px-4 py-1 rounded-full font-semibold">
-            Most Popular
-          </div>
-        </motion.div>
-      )}
-
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        transition={{ duration: 0.2 }}
-        className={`relative h-full ${
-          plan.popular ? 'bg-gradient-to-br from-purple-600/20 to-cyan-600/20' : 'bg-onsembl-bg-overlay'
-        } backdrop-blur-sm rounded-2xl border ${
-          plan.popular ? 'border-purple-500/40' : 'border-purple-500/20'
-        } p-8 overflow-hidden`}
-      >
-        {/* Animated background gradient */}
-        <motion.div
-          animate={{
-            opacity: isHovered ? 0.1 : 0,
-          }}
-          className={`absolute inset-0 bg-gradient-to-br ${plan.color}`}
-        />
-
-        {/* Content */}
-        <div className="relative z-10">
-          {/* Icon and name */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`p-2 rounded-lg bg-gradient-to-br ${plan.color}`}>
-              <Icon className="w-6 h-6 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
-          </div>
-
-          {/* Price */}
-          <div className="mb-2">
-            <span className="text-4xl font-bold text-white">{plan.price}</span>
-            <span className="text-gray-400 ml-2">/{plan.period}</span>
-          </div>
-
-          {/* Description */}
-          <p className="text-gray-400 mb-6">{plan.description}</p>
-
-          {/* Features */}
-          <div className="space-y-3 mb-8">
-            {plan.features.map((feature, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, x: -10 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 + idx * 0.02 }}
-                className="flex items-center gap-3"
-              >
-                {feature.included ? (
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
-                ) : (
-                  <X className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                )}
-                <span className={feature.included ? 'text-gray-300' : 'text-gray-600'}>
-                  {feature.name}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* CTA Button */}
-          <Link href="/login">
-            <Button
-              className={`w-full py-6 text-lg font-semibold rounded-xl transition-all duration-300 ${
-                plan.popular
-                  ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white'
-                  : 'bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300'
-              }`}
-            >
-              {plan.cta}
-            </Button>
-          </Link>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-};
 
 const PricingSection = () => {
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
-
   return (
-    <section className="py-20 px-4 relative" id="pricing">
-      <div className="container mx-auto max-w-7xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400">
-            Simple, Transparent Pricing
-          </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-8">
-            Choose the perfect plan for your needs. Always flexible to scale.
-          </p>
-
-          {/* Billing toggle */}
-          <div className="inline-flex items-center gap-4 bg-onsembl-bg-overlay backdrop-blur-sm rounded-full p-1 border border-purple-500/20">
-            <button
-              onClick={() => setBillingPeriod('monthly')}
-              className={`px-6 py-2 rounded-full transition-all duration-300 ${
-                billingPeriod === 'monthly'
-                  ? 'bg-purple-500 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingPeriod('yearly')}
-              className={`px-6 py-2 rounded-full transition-all duration-300 ${
-                billingPeriod === 'yearly'
-                  ? 'bg-purple-500 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Yearly
-              <span className="ml-2 text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-                Save 20%
-              </span>
-            </button>
+    <section className="relative bg-black pt-24 pb-24" id="pricing">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex gap-2 text-xs text-zinc-300 bg-white/5 border-white/10 border rounded-full pt-1 pr-3 pb-1 pl-3 items-center mb-6">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            <span className="font-medium">Pricing</span>
           </div>
-        </motion.div>
-
-        {/* Pricing cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {plans.map((plan, index) => (
-            <PricingCard key={index} plan={plan} index={index} />
-          ))}
+          <h2 className="text-4xl sm:text-5xl font-light tracking-tighter text-white mb-4" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>
+            Simple, transparent pricing
+          </h2>
+          <p className="text-lg text-zinc-300">Start building for free, then add a site plan to go live. Account plans unlock additional features.</p>
         </div>
 
-        {/* FAQ or additional info */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="mt-16 text-center"
-        >
-          <p className="text-gray-400">
-            All plans include SSL encryption, 99.9% uptime SLA, and regular updates.
-          </p>
-          <p className="text-gray-400 mt-2">
-            Questions?{' '}
-            <Link href="/contact" className="text-purple-400 hover:text-purple-300 underline">
-              Contact our sales team
+        {/* Pricing Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+          {/* Starter Plan */}
+          <div className="relative group rounded-2xl bg-zinc-900/50 border border-white/10 backdrop-blur-sm p-8">
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>Starter</h3>
+              <p className="text-zinc-400 text-sm mt-2">Perfect for personal projects and small teams getting started.</p>
+            </div>
+
+            <div className="mb-8">
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-light text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>$0</span>
+                <span className="text-zinc-400">/month</span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1">Free forever</p>
+            </div>
+
+            <ul className="space-y-3 mb-8 text-sm">
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Up to 3 AI agents</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">100 commands per month</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Basic terminal streaming</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Email support</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Community integrations</span>
+              </li>
+            </ul>
+
+            <Link href="/login">
+              <button className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-white/30 rounded-lg py-3 px-4 text-sm font-medium transition-all duration-200">
+                Get Started
+              </button>
             </Link>
-          </p>
-        </motion.div>
+          </div>
+
+          {/* Pro Plan - Featured */}
+          <div className="relative group rounded-2xl bg-zinc-900/50 border-2 border-white/30 backdrop-blur-sm p-8">
+            {/* Popular badge */}
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-white text-black text-xs font-semibold px-3 py-1 rounded-full">Most Popular</span>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>Pro</h3>
+              <p className="text-zinc-400 text-sm mt-2">For growing teams that need more power and collaboration features.</p>
+            </div>
+
+            <div className="mb-8">
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-light text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>$19</span>
+                <span className="text-zinc-400">/agent/month</span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1">Billed annually or $24 monthly</p>
+            </div>
+
+            <ul className="space-y-3 mb-8 text-sm">
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Everything in Starter</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Unlimited AI agents</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Unlimited commands</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Advanced analytics & insights</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Custom workflows & automation</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Priority support</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Advanced integrations</span>
+              </li>
+            </ul>
+
+            <Link href="/login">
+              <button
+                type="button"
+                role="button"
+                aria-label="Start Pro Trial"
+                className="group relative inline-flex w-full shadow-[0_8px_16px_-4px_rgba(255,255,255,0.05)] hover:shadow-[0_12px_20px_-6px_rgba(255,255,255,0.1)] transition duration-300 ease-out select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 transform-gpu hover:-translate-y-0.5 text-white rounded-lg pt-[1px] pr-[1px] pb-[1px] pl-[1px] items-center justify-center"
+                style={{ backgroundImage: 'linear-gradient(144deg,rgba(255,255,255,0.3), rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.2))' }}
+              >
+                <span className="flex items-center justify-center gap-2 leading-none w-full h-full transition-colors duration-300 group-hover:bg-black/50 font-medium bg-black/80 rounded-lg pt-3 pr-4 pb-3 pl-4">
+                  <span className="text-sm">Start Free Trial</span>
+                </span>
+              </button>
+            </Link>
+          </div>
+
+          {/* Enterprise Plan */}
+          <div className="relative group rounded-2xl bg-zinc-900/50 border border-white/10 backdrop-blur-sm p-8">
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>Enterprise</h3>
+              <p className="text-zinc-400 text-sm mt-2">Advanced security and compliance features for large organizations.</p>
+            </div>
+
+            <div className="mb-8">
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-light text-white" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>$49</span>
+                <span className="text-zinc-400">/agent/month</span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1">Custom pricing available</p>
+            </div>
+
+            <ul className="space-y-3 mb-8 text-sm">
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Everything in Pro</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">SOC2 compliance</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">SSO & advanced security</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Dedicated success manager</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">Custom integrations</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-zinc-300">99.9% SLA guarantee</span>
+              </li>
+            </ul>
+
+            <button className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-white/30 rounded-lg py-3 px-4 text-sm font-medium transition-all duration-200">
+              Contact Sales
+            </button>
+          </div>
+        </div>
+
+        {/* Trust indicators */}
+        <section className="relative z-10 sm:py-24 pt-8 pb-8">
+          <div className="max-w-5xl sm:px-6 lg:px-8 mr-auto ml-auto pr-4 pl-4">
+            <div className="text-center mb-12">
+              <p className="uppercase text-xs font-medium text-zinc-500 tracking-wide">Trusted by teams at</p>
+            </div>
+
+            {/* Ticker Container */}
+            <div className="relative overflow-hidden">
+              {/* Gradient Overlays */}
+              <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
+              <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
+
+              {/* Animated Ticker */}
+              <div className="ticker-track flex gap-16 pt-2 pb-2 items-center">
+                {/* First set of logos */}
+                <div className="flex gap-16 shrink-0 items-center">
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">TechFlow</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-bold tracking-tighter">Nexus Labs</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-semibold tracking-tighter">DataSync</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">VisionCorp</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-semibold tracking-tighter">CloudBase</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">InnovateTech</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-bold tracking-tighter">FlowState</span>
+                  </div>
+                </div>
+
+                {/* Duplicate set for seamless loop */}
+                <div className="flex items-center gap-16 shrink-0">
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">TechFlow</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-bold tracking-tighter">Nexus Labs</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-semibold tracking-tighter">DataSync</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">VisionCorp</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-semibold tracking-tighter">CloudBase</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-normal tracking-tighter">InnovateTech</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors duration-300">
+                    <span className="text-lg font-bold tracking-tighter">FlowState</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <style jsx>{`
+            @keyframes ticker {
+              0% {
+                transform: translateX(0);
+              }
+              100% {
+                transform: translateX(-100%);
+              }
+            }
+
+            .ticker-track {
+              animation: ticker 40s linear infinite;
+              width: calc(200% + 16px);
+            }
+
+            .ticker-track:hover {
+              animation-play-state: paused;
+            }
+          `}</style>
+        </section>
       </div>
     </section>
   );
