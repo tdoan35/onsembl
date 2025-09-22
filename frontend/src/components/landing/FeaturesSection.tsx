@@ -23,7 +23,7 @@ const features = [
     description: 'Watch command execution in real-time with sub-200ms latency',
     icon: Terminal,
     className: 'col-span-1 md:col-span-2 lg:col-span-2',
-    gradient: 'from-purple-500 to-cyan-500',
+    gradient: 'from-primary to-secondary',
   },
   {
     title: 'Multi-Agent Orchestration',
@@ -73,7 +73,7 @@ const FeatureCard = ({ feature, index }: { feature: typeof features[0], index: n
       transition={{ delay: index * 0.1, duration: 0.5 }}
       whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
       className={cn(
-        'relative group overflow-hidden rounded-2xl bg-onsembl-bg-overlay backdrop-blur-sm border border-purple-500/20 p-6',
+        'relative group overflow-hidden rounded-2xl bg-onsembl-bg-overlay backdrop-blur-sm border border-primary/20 p-6',
         feature.className
       )}
     >
@@ -86,7 +86,7 @@ const FeatureCard = ({ feature, index }: { feature: typeof features[0], index: n
       />
 
       {/* Glow effect */}
-      <div className="absolute -inset-px bg-gradient-to-r from-transparent via-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500" />
+      <div className="absolute -inset-px bg-gradient-to-r from-transparent via-primary/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500" />
 
       {/* Content */}
       <div className="relative z-10">
@@ -173,9 +173,9 @@ const FeaturesSection = () => {
             <motion.div
               key={index}
               whileHover={{ scale: 1.05 }}
-              className="bg-onsembl-bg-overlay-light backdrop-blur-sm rounded-xl border border-purple-500/10 p-4 text-center"
+              className="bg-onsembl-bg-overlay-light backdrop-blur-sm rounded-xl border border-primary/10 p-4 text-center"
             >
-              <item.icon className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+              <item.icon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <div className="text-2xl font-bold text-white">{item.label}</div>
               <div className="text-sm text-gray-500">{item.description}</div>
             </motion.div>

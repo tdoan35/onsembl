@@ -58,6 +58,11 @@ module.exports = {
           DEFAULT: "hsl(var(--surface))",
           foreground: "hsl(var(--surface-foreground))",
         },
+        // Legacy onsembl colors for landing page compatibility
+        'onsembl-bg': "hsl(var(--background))",
+        'onsembl-bg-overlay': "hsl(var(--card))",
+        'onsembl-bg-overlay-light': "hsl(var(--surface))",
+        'onsembl-bg-overlay-heavy': "hsl(var(--muted))",
       },
       borderRadius: {
         lg: "var(--radius)",

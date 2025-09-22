@@ -193,7 +193,7 @@ const HeroSection = () => {
 
       {/* Gradient overlay for better text readability */}
       <div
-        className="absolute inset-0 bg-gradient-to-b from-onsembl-bg/50 via-transparent to-onsembl-bg/80"
+        className="absolute inset-0 bg-gradient-to-b from-background/50 via-transparent to-background/80"
         style={{ zIndex: 1 }}
       />
 
