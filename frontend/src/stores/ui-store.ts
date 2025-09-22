@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
 export type Theme = 'light' | 'dark' | 'system';
+export type ColorTheme = 'midnight-terminal' | 'ocean-breeze' | 'forest-night' | 'sunset-glow';
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden';
 export type WebSocketState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -43,6 +44,7 @@ export interface ModalState {
 interface UIStore {
   // Theme
   theme: Theme;
+  colorTheme: ColorTheme;
   systemTheme: 'light' | 'dark';
 
   // Layout
@@ -77,6 +79,7 @@ interface UIStore {
 
   // Actions
   setTheme: (theme: Theme) => void;
+  setColorTheme: (colorTheme: ColorTheme) => void;
   setSystemTheme: (theme: 'light' | 'dark') => void;
   toggleSidebar: () => void;
   setSidebarState: (state: SidebarState) => void;
@@ -127,6 +130,7 @@ export const useUIStore = create<UIStore>()(
     (set, get) => ({
       // Initial state
       theme: 'system',
+      colorTheme: 'midnight-terminal',
       systemTheme: 'light',
       sidebarState: 'expanded',
       isFullscreen: false,
@@ -149,6 +153,11 @@ export const useUIStore = create<UIStore>()(
       setTheme: (theme) =>
         set(() => ({
           theme,
+        })),
+
+      setColorTheme: (colorTheme) =>
+        set(() => ({
+          colorTheme,
         })),
 
       setSystemTheme: (systemTheme) =>

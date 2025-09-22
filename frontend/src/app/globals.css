@@ -4,7 +4,12 @@
 
 @layer base {
   :root {
-    /* Midnight Terminal Light Mode */
+    --radius: 0.5rem;
+  }
+
+  /* Midnight Terminal Theme */
+  .theme-midnight-terminal {
+    /* Light Mode */
     --background: 210 40% 98%;
     --foreground: 220 39% 11%;
 
@@ -38,12 +43,10 @@
     --border: 214 32% 85%;
     --input: 214 32% 85%;
     --ring: 204 100% 36%;
-
-    --radius: 0.5rem;
   }
 
-  .dark {
-    /* Midnight Terminal Dark Mode */
+  .theme-midnight-terminal.dark {
+    /* Dark Mode */
     --background: 216 45% 7%;
     --foreground: 0 0% 93%;
 
@@ -77,6 +80,231 @@
     --border: 215 25% 20%;
     --input: 215 25% 20%;
     --ring: 193 82% 63%;
+  }
+
+  /* Ocean Breeze Theme */
+  .theme-ocean-breeze {
+    /* Light Mode */
+    --background: 210 40% 98%;
+    --foreground: 220 39% 11%;
+
+    --card: 209 32% 91%;
+    --card-foreground: 220 39% 11%;
+
+    --popover: 209 32% 91%;
+    --popover-foreground: 220 39% 11%;
+
+    --surface: 209 32% 91%;
+    --surface-foreground: 220 39% 11%;
+
+    --primary: 196 100% 45%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 166 76% 37%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 209 32% 91%;
+    --muted-foreground: 220 13% 34%;
+
+    --accent: 209 32% 91%;
+    --accent-foreground: 220 39% 11%;
+
+    --destructive: 0 84% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
+
+    --border: 209 32% 85%;
+    --input: 209 32% 85%;
+    --ring: 196 100% 45%;
+  }
+
+  .theme-ocean-breeze.dark {
+    /* Dark Mode */
+    --background: 216 45% 7%;
+    --foreground: 0 0% 93%;
+
+    --card: 215 25% 16%;
+    --card-foreground: 0 0% 93%;
+
+    --popover: 215 25% 16%;
+    --popover-foreground: 0 0% 93%;
+
+    --surface: 215 25% 16%;
+    --surface-foreground: 0 0% 93%;
+
+    --primary: 196 100% 60%;
+    --primary-foreground: 216 45% 7%;
+
+    --secondary: 166 76% 50%;
+    --secondary-foreground: 216 45% 7%;
+
+    --muted: 215 25% 16%;
+    --muted-foreground: 220 14% 66%;
+
+    --accent: 215 25% 16%;
+    --accent-foreground: 0 0% 93%;
+
+    --destructive: 346 83% 61%;
+    --destructive-foreground: 0 0% 93%;
+
+    --success: 142 71% 60%;
+    --success-foreground: 216 45% 7%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 196 100% 60%;
+  }
+
+  /* Forest Night Theme */
+  .theme-forest-night {
+    /* Light Mode */
+    --background: 210 40% 98%;
+    --foreground: 220 39% 11%;
+
+    --card: 120 32% 91%;
+    --card-foreground: 220 39% 11%;
+
+    --popover: 120 32% 91%;
+    --popover-foreground: 220 39% 11%;
+
+    --surface: 120 32% 91%;
+    --surface-foreground: 220 39% 11%;
+
+    --primary: 142 76% 36%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 71 76% 45%;
+    --secondary-foreground: 220 39% 11%;
+
+    --muted: 120 32% 91%;
+    --muted-foreground: 220 13% 34%;
+
+    --accent: 120 32% 91%;
+    --accent-foreground: 220 39% 11%;
+
+    --destructive: 0 84% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
+
+    --border: 120 32% 85%;
+    --input: 120 32% 85%;
+    --ring: 142 76% 36%;
+  }
+
+  .theme-forest-night.dark {
+    /* Dark Mode */
+    --background: 216 45% 7%;
+    --foreground: 0 0% 93%;
+
+    --card: 215 25% 16%;
+    --card-foreground: 0 0% 93%;
+
+    --popover: 215 25% 16%;
+    --popover-foreground: 0 0% 93%;
+
+    --surface: 215 25% 16%;
+    --surface-foreground: 0 0% 93%;
+
+    --primary: 142 76% 55%;
+    --primary-foreground: 216 45% 7%;
+
+    --secondary: 71 76% 60%;
+    --secondary-foreground: 216 45% 7%;
+
+    --muted: 215 25% 16%;
+    --muted-foreground: 220 14% 66%;
+
+    --accent: 215 25% 16%;
+    --accent-foreground: 0 0% 93%;
+
+    --destructive: 346 83% 61%;
+    --destructive-foreground: 0 0% 93%;
+
+    --success: 142 71% 60%;
+    --success-foreground: 216 45% 7%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 142 76% 55%;
+  }
+
+  /* Sunset Glow Theme */
+  .theme-sunset-glow {
+    /* Light Mode */
+    --background: 210 40% 98%;
+    --foreground: 220 39% 11%;
+
+    --card: 27 32% 91%;
+    --card-foreground: 220 39% 11%;
+
+    --popover: 27 32% 91%;
+    --popover-foreground: 220 39% 11%;
+
+    --surface: 27 32% 91%;
+    --surface-foreground: 220 39% 11%;
+
+    --primary: 14 91% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 340 75% 55%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 27 32% 91%;
+    --muted-foreground: 220 13% 34%;
+
+    --accent: 27 32% 91%;
+    --accent-foreground: 220 39% 11%;
+
+    --destructive: 0 84% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
+
+    --border: 27 32% 85%;
+    --input: 27 32% 85%;
+    --ring: 14 91% 60%;
+  }
+
+  .theme-sunset-glow.dark {
+    /* Dark Mode */
+    --background: 216 45% 7%;
+    --foreground: 0 0% 93%;
+
+    --card: 215 25% 16%;
+    --card-foreground: 0 0% 93%;
+
+    --popover: 215 25% 16%;
+    --popover-foreground: 0 0% 93%;
+
+    --surface: 215 25% 16%;
+    --surface-foreground: 0 0% 93%;
+
+    --primary: 14 91% 70%;
+    --primary-foreground: 216 45% 7%;
+
+    --secondary: 340 75% 65%;
+    --secondary-foreground: 216 45% 7%;
+
+    --muted: 215 25% 16%;
+    --muted-foreground: 220 14% 66%;
+
+    --accent: 215 25% 16%;
+    --accent-foreground: 0 0% 93%;
+
+    --destructive: 346 83% 61%;
+    --destructive-foreground: 0 0% 93%;
+
+    --success: 142 71% 60%;
+    --success-foreground: 216 45% 7%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 14 91% 70%;
   }
 }
 

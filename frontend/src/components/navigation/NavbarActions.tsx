@@ -3,7 +3,7 @@ import { Edit, Palette, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProject } from '@/hooks/useProject';
 import { useUIStore } from '@/stores/ui-store';
-import { ThemeToggle } from './ThemeToggle';
+import { ThemeSelector } from './ThemeSelector';
 import { NavbarAuth } from './NavbarAuth';
 import { NavbarMenu } from './NavbarMenu';
 
@@ -65,8 +65,8 @@ export function NavbarActions({ onOpenAuthModal, onLogout, showDemoMenu = false 
       {/* Demo Menu - show for demo pages or authenticated users */}
       {(showDemoMenu || isAuthenticated) && <NavbarMenu />}
 
-      {/* Theme Toggle */}
-      <ThemeToggle />
+      {/* Theme Selector */}
+      <ThemeSelector />
 
       {/* Auth Buttons/User Info */}
       {!isAuthenticated && (

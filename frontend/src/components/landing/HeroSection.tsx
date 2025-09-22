@@ -8,7 +8,7 @@ import { useUIStore } from '@/stores/ui-store';
 
 const HeroSection = () => {
   const [isHovered, setIsHovered] = useState(false);
-  const { theme } = useUIStore();
+  const { theme, colorTheme } = useUIStore();
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('dark');
 
   // Determine current theme
