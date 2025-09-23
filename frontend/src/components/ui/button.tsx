@@ -70,14 +70,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           ref={ref}
           {...props}
         >
-          <span className="font-medium">{children}</span>
+          {children}
         </Comp>
       )
     }
 
+    // For icon size buttons, don't add extra padding
+    const extraPadding = size === "icon" ? "" : "px-4 py-2"
+
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }), "px-4 py-2")}
+        className={cn(buttonVariants({ variant, size, className }), extraPadding)}
         ref={ref}
         {...props}
       >

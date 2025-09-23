@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -12,9 +13,12 @@ interface PublicLayoutProps {
 
 export function PublicLayout({ children }: PublicLayoutProps) {
   const router = useRouter();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
 
   const handleOpenAuthModal = (mode: 'signup' | 'login') => {
-    router.push(`/${mode}`);
+    setAuthMode(mode === 'login' ? 'signin' : 'signup');
+    setIsAuthModalOpen(true);
   };
 
   return (
@@ -27,7 +31,7 @@ export function PublicLayout({ children }: PublicLayoutProps) {
               <span className="inline-flex h-8 w-8 items-center justify-center ring-1 ring-white/10 bg-zinc-800 rounded-full">
                 🪄
               </span>
-              <span className="text-2xl font-semibold tracking-tight">Onsembl</span>
+              <span className="text-2xl tracking-tight">Onsembl</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-8 text-sm text-zinc-300">
@@ -65,6 +69,13 @@ export function PublicLayout({ children }: PublicLayoutProps) {
 
       {/* Main content area */}
       <main className="flex-1">{children}</main>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        defaultMode={authMode}
+      />
     </div>
   );
 }
