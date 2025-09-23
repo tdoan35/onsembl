@@ -1,0 +1,429 @@
+openapi: 3.0.0
+info:
+  title: Onsembl Auth API
+  description: Authentication endpoints for Onsembl.ai Agent Control Center
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:3010/api
+    description: Development server
+  - url: https://api.onsembl.ai
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/session:
+    get:
+      summary: Get current session
+      description: Returns the current authenticated user session
+      operationId: getCurrentSession
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/profile:
+    get:
+      summary: Get user profile
+      description: Returns the authenticated user's profile
+      operationId: getUserProfile
+      tags:
+        - User Profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update user profile
+      description: Updates the authenticated user's profile
+      operationId: updateUserProfile
+      tags:
+        - User Profile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/validate:
+    post:
+      summary: Validate JWT token
+      description: Validates a JWT token and returns user information
+      operationId: validateToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: JWT token to validate
+      responses:
+        '200':
+          description: Valid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /agents:
+    get:
+      summary: List user's agents
+      description: Returns all agents owned by the authenticated user
+      operationId: listAgents
+      tags:
+        - Agents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /commands:
+    get:
+      summary: List user's commands
+      description: Returns command history for the authenticated user
+      operationId: listCommands
+      tags:
+        - Commands
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: agent_id
+          in: query
+          description: Filter by agent ID
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          description: Maximum number of commands to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of commands
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commands:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Command'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID from Supabase auth
+        email:
+          type: string
+          format: email
+          description: User's email address
+        email_confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_metadata:
+          type: object
+          properties:
+            username:
+              type: string
+            avatar_url:
+              type: string
+            full_name:
+              type: string
+
+    SessionResponse:
+      type: object
+      required:
+        - user
+        - expires_at
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        expires_at:
+          type: integer
+          description: Token expiration timestamp
+        expires_in:
+          type: integer
+          description: Seconds until expiration
+
+    UserProfile:
+      type: object
+      required:
+        - id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          nullable: true
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9_]+$'
+        avatar_url:
+          type: string
+          nullable: true
+          format: uri
+        full_name:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+        preferences:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9_]+$'
+        avatar_url:
+          type: string
+          format: uri
+        full_name:
+          type: string
+        bio:
+          type: string
+          maxLength: 500
+        preferences:
+          type: object
+          additionalProperties: true
+
+    TokenValidationResponse:
+      type: object
+      required:
+        - valid
+        - user_id
+      properties:
+        valid:
+          type: boolean
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        expires_at:
+          type: integer
+
+    Agent:
+      type: object
+      required:
+        - id
+        - user_id
+        - name
+        - type
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [claude, gemini, codex]
+        status:
+          type: string
+          enum: [online, offline, busy, error]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Command:
+      type: object
+      required:
+        - id
+        - user_id
+        - agent_id
+        - type
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [pending, executing, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: BAD_REQUEST
+            message: Invalid request parameters
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: UNAUTHORIZED
+            message: Invalid or expired token
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: NOT_FOUND
+            message: Resource not found
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: INTERNAL_ERROR
+            message: An unexpected error occurred
