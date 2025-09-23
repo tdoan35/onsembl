@@ -6,6 +6,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
+import { auth, profiles, audit } from '../lib/supabase.js';
+import { authenticateSupabase } from '../middleware/auth.js';
 
 // Zod schemas for validation
 const magicLinkRequestZod = z.object({
@@ -324,5 +326,264 @@ export async function registerAuthRoutes(
         error: 'Not authenticated'
       });
     }
+  });
+
+  // ====== SUPABASE AUTH ENDPOINTS ======
+
+  // GET /api/auth/session - Get current Supabase session
+  server.get('/api/auth/session', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                email: { type: 'string' },
+                email_confirmed_at: { type: 'string', nullable: true },
+                created_at: { type: 'string' },
+                updated_at: { type: 'string' },
+                user_metadata: { type: 'object' }
+              }
+            },
+            expires_at: { type: 'number' },
+            expires_in: { type: 'number' }
+          }
+        }
+      },
+      tags: ['auth'],
+      summary: 'Get current Supabase session',
+      description: 'Returns the current authenticated user session from Supabase'
+    },
+    preHandler: authenticateSupabase
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = (request as any).user;
+    if (!user) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'No active session'
+      });
+    }
+
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    let expiresAt = 0;
+    let expiresIn = 0;
+
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          if (payload.exp) {
+            expiresAt = payload.exp;
+            expiresIn = Math.max(0, expiresAt - Math.floor(Date.now() / 1000));
+          }
+        }
+      } catch (e) {
+        // Ignore decode errors
+      }
+    }
+
+    return reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        email_confirmed_at: user.email_confirmed_at,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        user_metadata: user.metadata || {}
+      },
+      expires_at: expiresAt,
+      expires_in: expiresIn
+    });
+  });
+
+  // GET /api/auth/profile - Get user profile
+  server.get('/api/auth/profile', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            username: { type: 'string', nullable: true },
+            avatar_url: { type: 'string', nullable: true },
+            full_name: { type: 'string', nullable: true },
+            bio: { type: 'string', nullable: true },
+            preferences: { type: 'object' },
+            created_at: { type: 'string' },
+            updated_at: { type: 'string' }
+          }
+        },
+        404: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' }
+          }
+        }
+      },
+      tags: ['auth'],
+      summary: 'Get user profile',
+      description: 'Returns the authenticated user\'s profile'
+    },
+    preHandler: authenticateSupabase
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = (request as any).user;
+    if (!user) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      });
+    }
+
+    const profile = await profiles.get(user.id);
+    if (!profile) {
+      return reply.code(404).send({
+        error: 'NOT_FOUND',
+        message: 'User profile not found'
+      });
+    }
+
+    return reply.send(profile);
+  });
+
+  // PUT /api/auth/profile - Update user profile
+  server.put('/api/auth/profile', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          username: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 30,
+            pattern: '^[a-zA-Z0-9_]+$'
+          },
+          avatar_url: { type: 'string', format: 'uri' },
+          full_name: { type: 'string' },
+          bio: { type: 'string', maxLength: 500 },
+          preferences: { type: 'object' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            username: { type: 'string', nullable: true },
+            avatar_url: { type: 'string', nullable: true },
+            full_name: { type: 'string', nullable: true },
+            bio: { type: 'string', nullable: true },
+            preferences: { type: 'object' },
+            created_at: { type: 'string' },
+            updated_at: { type: 'string' }
+          }
+        }
+      },
+      tags: ['auth'],
+      summary: 'Update user profile',
+      description: 'Updates the authenticated user\'s profile'
+    },
+    preHandler: authenticateSupabase
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = (request as any).user;
+    if (!user) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      });
+    }
+
+    const body = request.body as any;
+
+    try {
+      const updatedProfile = await profiles.upsert(user.id, body);
+
+      // Log profile update
+      await audit.log({
+        user_id: user.id,
+        event_type: 'profile_update',
+        event_data: { fields: Object.keys(body) },
+        ip_address: request.ip,
+        user_agent: request.headers['user-agent']
+      });
+
+      return reply.send(updatedProfile);
+    } catch (error: any) {
+      if (error.code === '23505' && error.constraint === 'user_profiles_username_key') {
+        return reply.code(409).send({
+          error: 'CONFLICT',
+          message: 'Username already taken'
+        });
+      }
+      throw error;
+    }
+  });
+
+  // POST /api/auth/validate - Validate Supabase JWT token
+  server.post('/api/auth/validate', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            valid: { type: 'boolean' },
+            user_id: { type: 'string' },
+            email: { type: 'string', nullable: true },
+            expires_at: { type: 'number' }
+          }
+        }
+      },
+      tags: ['auth'],
+      summary: 'Validate JWT token',
+      description: 'Validates a Supabase JWT token and returns user information'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.body as { token: string };
+
+    if (!token) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'No token provided'
+      });
+    }
+
+    const user = await auth.validateToken(token);
+    if (!user) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Invalid or expired token'
+      });
+    }
+
+    let expiresAt = 0;
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        if (payload.exp) {
+          expiresAt = payload.exp;
+        }
+      }
+    } catch (e) {
+      // Ignore decode errors
+    }
+
+    return reply.send({
+      valid: true,
+      user_id: user.id,
+      email: user.email,
+      expires_at: expiresAt
+    });
   });
 }

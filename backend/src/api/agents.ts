@@ -6,6 +6,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
+import { authenticateSupabase } from '../middleware/auth.js';
 
 // Request/Response schemas
 const createAgentSchema = z.object({
@@ -86,12 +87,21 @@ export async function registerAgentRoutes(
       summary: 'List all agents',
       description: 'Retrieve a paginated list of all registered agents with optional filtering'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
+      const user = (request as any).user;
+      if (!user) {
+        return reply.code(401).send({
+          error: 'UNAUTHORIZED',
+          message: 'Authentication required'
+        });
+      }
+
       const { type, status, limit = 50, offset = 0 } = request.query as z.infer<typeof agentListQuerySchema>;
 
       const agents = await agentService.listAgents({
+        user_id: user.id, // Filter by authenticated user
         ...(type && { type }),
         ...(status && { status }),
         limit,
@@ -158,7 +168,7 @@ export async function registerAgentRoutes(
       summary: 'Get agent details',
       description: 'Retrieve detailed information about a specific agent'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const { id } = request.params as z.infer<typeof agentIdParamsSchema>;
@@ -225,7 +235,7 @@ export async function registerAgentRoutes(
       summary: 'Create new agent',
       description: 'Register a new agent in the system'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const agentData = request.body as z.infer<typeof createAgentSchema>;
@@ -297,7 +307,7 @@ export async function registerAgentRoutes(
       summary: 'Update agent',
       description: 'Update an existing agent\'s information'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const { id } = request.params as z.infer<typeof agentIdParamsSchema>;
@@ -354,7 +364,7 @@ export async function registerAgentRoutes(
       summary: 'Delete agent',
       description: 'Remove an agent from the system'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const { id } = request.params as z.infer<typeof agentIdParamsSchema>;
@@ -413,7 +423,7 @@ export async function registerAgentRoutes(
       summary: 'Restart agent',
       description: 'Restart an agent and reset its connection'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const { id } = request.params as z.infer<typeof agentIdParamsSchema>;

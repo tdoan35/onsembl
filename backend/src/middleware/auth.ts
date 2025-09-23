@@ -1,7 +1,8 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, User } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
-import { AuthenticationError, AuthorizationError } from './error-handler';
+import { AuthenticationError, AuthorizationError } from './error-handler.js';
+import { auth, audit, getJWTSecret } from '../lib/supabase.js';
 
 export interface AuthenticatedRequest extends FastifyRequest {
   user?: {
@@ -105,8 +106,18 @@ export async function authenticateSupabase(
     const authHeader = request.headers.authorization;
 
     if (!authHeader) {
+      await audit.log({
+        event_type: 'auth_failed',
+        event_data: {
+          reason: 'missing_header',
+          ip: request.ip,
+        },
+        ip_address: request.ip,
+        user_agent: request.headers['user-agent'],
+      });
+
       return reply.code(401).send({
-        error: 'Unauthorized',
+        error: 'UNAUTHORIZED',
         message: 'No authorization header provided',
       });
     }
@@ -114,35 +125,38 @@ export async function authenticateSupabase(
     const [bearer, token] = authHeader.split(' ');
 
     if (bearer !== 'Bearer' || !token) {
+      await audit.log({
+        event_type: 'auth_failed',
+        event_data: {
+          reason: 'invalid_format',
+          ip: request.ip,
+        },
+        ip_address: request.ip,
+        user_agent: request.headers['user-agent'],
+      });
+
       return reply.code(401).send({
-        error: 'Unauthorized',
+        error: 'UNAUTHORIZED',
         message: 'Invalid authorization format. Use: Bearer <token>',
       });
     }
 
-    // Create Supabase client with the user's token
-    const supabase = createClient(
-      process.env['SUPABASE_URL']!,
-      process.env['SUPABASE_ANON_KEY']!,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      }
-    );
+    // Verify the token using our Supabase auth helper
+    const user = await auth.validateToken(token);
 
-    // Verify the token by getting the user
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (!user) {
+      await audit.log({
+        event_type: 'auth_failed',
+        event_data: {
+          reason: 'invalid_token',
+          ip: request.ip,
+        },
+        ip_address: request.ip,
+        user_agent: request.headers['user-agent'],
+      });
 
-    if (error || !user) {
       return reply.code(401).send({
-        error: 'Unauthorized',
+        error: 'UNAUTHORIZED',
         message: 'Invalid or expired token',
       });
     }
@@ -156,10 +170,25 @@ export async function authenticateSupabase(
     };
     request.token = token;
 
+    // Log successful authentication (optional, can be noisy)
+    if (process.env['LOG_AUTH_SUCCESS'] === 'true') {
+      await audit.log({
+        user_id: user.id,
+        event_type: 'auth_success',
+        event_data: {
+          email: user.email,
+        },
+        ip_address: request.ip,
+        user_agent: request.headers['user-agent'],
+      });
+    }
+
     return;
   } catch (error) {
+    console.error('Supabase auth middleware error:', error);
+
     return reply.code(401).send({
-      error: 'Unauthorized',
+      error: 'UNAUTHORIZED',
       message: 'Authentication failed',
     });
   }

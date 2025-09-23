@@ -1,9 +1,14 @@
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthenticatedLayout>{children}</AuthenticatedLayout>;
+  return (
+    <ProtectedRoute>
+      <AuthenticatedLayout>{children}</AuthenticatedLayout>
+    </ProtectedRoute>
+  );
 }
