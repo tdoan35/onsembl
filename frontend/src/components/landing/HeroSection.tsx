@@ -1,12 +1,19 @@
 'use client';
 import { ArrowRight, Sparkles } from 'lucide-react';
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import UnicornScene from "unicornstudio-react";
 import { Button } from '@/components/ui/button';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 const HeroSection = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+
+  const handleOpenAuthModal = (mode: 'signin' | 'signup') => {
+    setAuthMode(mode);
+    setIsAuthModalOpen(true);
+  };
 
   return (
     <section className="relative isolate overflow-hidden h-[850px]">
@@ -43,15 +50,14 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-3">
-            <Link href="/login">
-              <Button
-                variant="default"
-                size="default"
-                className="min-w-[140px] text-[15px]"
-              >
-                Get Started
-              </Button>
-            </Link>
+            <Button
+              variant="default"
+              size="default"
+              className="min-w-[140px] text-[15px]"
+              onClick={() => handleOpenAuthModal('signup')}
+            >
+              Get Started
+            </Button>
 
             <a href="#features">
               <Button
@@ -383,6 +389,13 @@ const HeroSection = () => {
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        defaultMode={authMode}
+      />
     </section>
   );
 };

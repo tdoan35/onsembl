@@ -119,4 +119,4 @@ playwright/.cache/
 # Project-specific
 *.log
 .env*
-!.env.example
+!.env.exampleworktrees/
