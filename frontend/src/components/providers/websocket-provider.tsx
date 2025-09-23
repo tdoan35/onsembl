@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { webSocketStoreBridge } from '@/services/websocket-store-bridge';
 import { useUIStore } from '@/stores/ui-store';
+import { useAuth } from '@/contexts/auth-context';
 
 export interface WebSocketProviderProps {
   children: React.ReactNode;
@@ -10,36 +11,59 @@ export interface WebSocketProviderProps {
 
 export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const initialized = useRef(false);
+  const previousToken = useRef<string | null>(null);
   const { setWebSocketState } = useUIStore();
+  const { session, user, loading: authLoading } = useAuth();
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (initialized.current) return;
+    // Wait for auth to be loaded
+    if (authLoading) return;
+
+    // Don't connect if not authenticated
+    if (!session || !user) {
+      console.log('[WebSocketProvider] Not authenticated, skipping WebSocket connection');
+      setWebSocketState('disconnected');
+
+      // If we were previously connected, disconnect
+      if (initialized.current) {
+        webSocketStoreBridge.disconnect();
+        initialized.current = false;
+        previousToken.current = null;
+      }
+      return;
+    }
+
+    // Check if token has changed (refresh occurred)
+    const tokenChanged = previousToken.current && previousToken.current !== session.access_token;
+
+    if (tokenChanged) {
+      console.log('[WebSocketProvider] Token refreshed, reconnecting with new token...');
+      // Disconnect existing connection
+      webSocketStoreBridge.disconnect();
+      initialized.current = false;
+    }
+
+    // Avoid re-initialization if already connected with same token
+    if (initialized.current && !tokenChanged) return;
 
     // Initialize the WebSocket store bridge
     webSocketStoreBridge.initialize();
 
-    // Generate session ID for development (in production, this would come from auth)
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // For development, we'll use a basic auth setup
-    // In production, this should come from your auth provider
-    const auth = {
-      accessToken: process.env['NEXT_PUBLIC_API_TOKEN'] || sessionId,
-      userId: process.env['NEXT_PUBLIC_USER_ID'] || 'dashboard_user'
-    };
-
-    // Connect to WebSocket
+    // Connect to WebSocket with auth token
     const connectWebSocket = async () => {
       try {
         setWebSocketState('connecting');
         console.log('[WebSocketProvider] Attempting to connect to WebSocket...');
 
-        await webSocketStoreBridge.connect(auth.accessToken, auth.userId);
+        await webSocketStoreBridge.connect(session.access_token, user.id);
 
         console.log('[WebSocketProvider] WebSocket connected successfully');
         setWebSocketState('connected');
         setRetryCount(0);
+
+        // Store the current token for comparison
+        previousToken.current = session.access_token;
       } catch (error) {
         console.error('[WebSocketProvider] Failed to connect WebSocket:', error);
         setWebSocketState('error');
@@ -63,8 +87,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       console.log('[WebSocketProvider] Cleaning up WebSocket connection...');
       webSocketStoreBridge.disconnect();
       webSocketStoreBridge.destroy();
+      initialized.current = false;
     };
-  }, [setWebSocketState, retryCount]);
+  }, [setWebSocketState, retryCount, authLoading, session, user]);
 
   return <>{children}</>;
 }

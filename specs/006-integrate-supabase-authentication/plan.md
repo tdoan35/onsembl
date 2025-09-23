@@ -1,8 +1,8 @@
+# Implementation Plan: Integrate Supabase Authentication
 
-# Implementation Plan: [FEATURE]
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Branch**: `006-integrate-supabase-authentication` | **Date**: 2025-09-22 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/006-integrate-supabase-authentication/spec.md`
 
 ## Execution Flow (/plan command scope)
 ```
@@ -11,19 +11,18 @@
 2. Fill Technical Context (scan for NEEDS CLARIFICATION)
    → Detect Project Type from context (web=frontend+backend, mobile=app+api)
    → Set Structure Decision based on project type
-3. Fill the Constitution Check section based on the content of the constitution document.
-4. Evaluate Constitution Check section below
+3. Evaluate Constitution Check section below
    → If violations exist: Document in Complexity Tracking
    → If no justification possible: ERROR "Simplify approach first"
    → Update Progress Tracking: Initial Constitution Check
-5. Execute Phase 0 → research.md
+4. Execute Phase 0 → research.md
    → If NEEDS CLARIFICATION remain: ERROR "Resolve unknowns"
-6. Execute Phase 1 → contracts, data-model.md, quickstart.md, agent-specific template file (e.g., `CLAUDE.md` for Claude Code, `.github/copilot-instructions.md` for GitHub Copilot, `GEMINI.md` for Gemini CLI, `QWEN.md` for Qwen Code or `AGENTS.md` for opencode).
-7. Re-evaluate Constitution Check section
+5. Execute Phase 1 → contracts, data-model.md, quickstart.md, agent-specific template file (e.g., `CLAUDE.md` for Claude Code, `.github/copilot-instructions.md` for GitHub Copilot, or `GEMINI.md` for Gemini CLI).
+6. Re-evaluate Constitution Check section
    → If new violations: Refactor design, return to Phase 1
    → Update Progress Tracking: Post-Design Constitution Check
-8. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
-9. STOP - Ready for /tasks command
+7. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
+8. STOP - Ready for /tasks command
 ```
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
@@ -31,23 +30,55 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-[Extract from feature spec: primary requirement + technical approach from research]
+Integrate Supabase authentication into Onsembl.ai Agent Control Center to provide secure user authentication via OAuth (Google/GitHub) and email/password, with session management, password reset, and data isolation. The implementation will leverage Supabase's built-in auth SDK for frontend authentication and JWT validation for backend API/WebSocket protection.
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: TypeScript 5.x (backend/frontend), Node.js 20+ (backend)
+**Primary Dependencies**:
+  - Frontend: @supabase/supabase-js, @supabase/auth-helpers-nextjs, Next.js 14, Zustand
+  - Backend: @supabase/supabase-js, Fastify 4.x, jsonwebtoken
+**Storage**: Supabase PostgreSQL (auth.users table + RLS policies)
+**Testing**: Jest (frontend), Tap/Fastify test framework (backend), Playwright (E2E)
+**Target Platform**: Web browser (frontend), Node.js server (backend)
+**Project Type**: web - Frontend (Next.js) + Backend (Fastify)
+**Performance Goals**: <200ms auth response time, instant session validation
+**Constraints**: JWT token validation on every WebSocket connection, RLS enforcement on all queries
+**Scale/Scope**: Support 100+ concurrent users, multi-tenant data isolation
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+**Simplicity**:
+- Projects: 2 (frontend, backend) ✅
+- Using framework directly? Yes - Supabase SDK, no wrappers ✅
+- Single data model? Yes - using Supabase auth.users directly ✅
+- Avoiding patterns? Yes - direct Supabase calls, no repository pattern ✅
+
+**Architecture**:
+- EVERY feature as library? Pending - auth module will be library
+- Libraries listed:
+  - `@onsembl/auth-client`: Frontend auth state management
+  - `@onsembl/auth-guard`: Backend JWT validation middleware
+- CLI per library: Will add CLI commands for testing auth
+- Library docs: llms.txt format will be included
+
+**Testing (NON-NEGOTIABLE)**:
+- RED-GREEN-Refactor cycle enforced? Yes - tests first ✅
+- Git commits show tests before implementation? Will enforce ✅
+- Order: Contract→Integration→E2E→Unit strictly followed? Yes ✅
+- Real dependencies used? Real Supabase instance ✅
+- Integration tests for: auth flow, JWT validation, RLS policies ✅
+- FORBIDDEN: Implementation before test - understood ✅
+
+**Observability**:
+- Structured logging included? Yes - Pino logger ✅
+- Frontend logs → backend? Auth events will be logged ✅
+- Error context sufficient? Full auth error context planned ✅
+
+**Versioning**:
+- Version number assigned? 0.1.0 initial release
+- BUILD increments on every change? Will follow
+- Breaking changes handled? N/A for initial implementation
 
 ## Project Structure
 
@@ -99,7 +130,7 @@ ios/ or android/
 └── [platform-specific structure]
 ```
 
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
+**Structure Decision**: Option 2 - Web application (frontend + backend)
 
 ## Phase 0: Outline & Research
 1. **Extract unknowns from Technical Context** above:
@@ -145,8 +176,7 @@ ios/ or android/
    - Quickstart test = story validation steps
 
 5. **Update agent file incrementally** (O(1) operation):
-   - Run `.specify/scripts/bash/update-agent-context.sh claude`
-     **IMPORTANT**: Execute it exactly as specified above. Do not add or remove any arguments.
+   - Run `/scripts/bash/update-agent-context.sh claude` for your AI assistant
    - If exists: Add only NEW tech from current plan
    - Preserve manual additions between markers
    - Update recent changes (keep last 3)
@@ -159,19 +189,34 @@ ios/ or android/
 *This section describes what the /tasks command will do - DO NOT execute during /plan*
 
 **Task Generation Strategy**:
-- Load `.specify/templates/tasks-template.md` as base
+- Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
-- Each contract → contract test task [P]
-- Each entity → model creation task [P] 
-- Each user story → integration test task
+- Each auth endpoint → contract test task [P]
+- Each RLS policy → database migration task
+- Each auth flow → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
-- Dependency order: Models before services before UI
+- TDD order: Tests before implementation
+- Dependency order:
+  1. Database migrations (user_id columns, RLS policies)
+  2. Backend JWT middleware
+  3. Frontend Supabase client setup
+  4. Auth store implementation
+  5. UI component integration
+  6. WebSocket authentication
+  7. E2E tests
 - Mark [P] for parallel execution (independent files)
 
-**Estimated Output**: 25-30 numbered, ordered tasks in tasks.md
+**Estimated Output**: 30-35 numbered, ordered tasks in tasks.md
+
+Key task categories:
+- Database setup (5 tasks)
+- Backend auth middleware (5 tasks)
+- Frontend auth integration (8 tasks)
+- WebSocket auth (4 tasks)
+- Integration tests (8 tasks)
+- E2E tests (5 tasks)
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
@@ -195,18 +240,18 @@ ios/ or android/
 *This checklist is updated during execution flow*
 
 **Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [ ] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [x] All NEEDS CLARIFICATION resolved
+- [x] Complexity deviations documented (none required)
 
 ---
 *Based on Constitution v2.1.1 - See `/memory/constitution.md`*

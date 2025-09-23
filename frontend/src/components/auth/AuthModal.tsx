@@ -3,56 +3,29 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/auth-context';
 import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
+  loginSchema,
+  signupSchema,
+  type LoginFormData,
+  type SignupFormData
+} from '@/lib/auth-validation';
+import {
   Github,
   Chrome,
-  Loader2,
-  X,
   ArrowLeft,
-  User
+  CheckCircle,
+  Mail as MailIcon,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { useUIStore } from '@/stores/ui-store';
-
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
-
-const signupSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  username: z.string().optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  passwordConfirm: z.string(),
-}).refine((data) => data.password === data.passwordConfirm, {
-  message: "Passwords don't match",
-  path: ["passwordConfirm"],
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
-type SignupFormData = z.infer<typeof signupSchema>;
+import { LoginForm } from './LoginForm';
+import { SignupForm } from './SignupForm';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -62,11 +35,10 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSignupMode, setIsSignupMode] = useState(false);
-  const router = useRouter();
-  const { addNotification } = useUIStore();
+  const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
+  const { signIn, signUp, signInWithGoogle, signInWithGithub } = useAuth();
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -89,23 +61,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleLoginSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      addNotification({
-        title: 'Welcome back!',
-        description: 'Successfully logged in',
-        type: 'success',
-      });
-
+      await signIn(data.email.toLowerCase().trim(), data.password);
       onClose();
-      router.push('/dashboard');
     } catch (error) {
-      addNotification({
-        title: 'Login Failed',
-        description: 'Please check your credentials and try again',
-        type: 'error',
-      });
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -114,23 +73,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleSignupSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      addNotification({
-        title: 'Account created!',
-        description: 'Welcome to Onsembl.ai',
-        type: 'success',
-      });
-
-      onClose();
-      router.push('/dashboard');
+      const username = data.username?.trim() ? data.username.trim() : undefined;
+      await signUp(data.email.toLowerCase().trim(), data.password, username);
+      // Show confirmation message instead of closing immediately
+      setShowConfirmationMessage(true);
+      setIsSignupMode(false);
     } catch (error) {
-      addNotification({
-        title: 'Signup Failed',
-        description: 'Please try again or use a different email',
-        type: 'error',
-      });
+      console.error('Signup error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -139,26 +88,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleSocialLogin = async (provider: 'github' | 'google') => {
     setIsLoading(true);
     try {
-      // Simulate OAuth flow
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      addNotification({
-        title: 'Redirecting...',
-        description: `Authenticating with ${provider === 'github' ? 'GitHub' : 'Google'}`,
-        type: 'info',
-      });
-
-      // In real implementation, redirect to OAuth provider
-      setTimeout(() => {
-        onClose();
-        router.push('/dashboard');
-      }, 2000);
+      if (provider === 'github') {
+        await signInWithGithub();
+      } else {
+        await signInWithGoogle();
+      }
     } catch (error) {
-      addNotification({
-        title: 'Authentication Failed',
-        description: `Failed to authenticate with ${provider}`,
-        type: 'error',
-      });
+      console.error('OAuth error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -167,8 +103,17 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const resetModal = () => {
     setShowEmailForm(false);
     setIsSignupMode(false);
-    loginForm.reset();
-    signupForm.reset();
+    setShowConfirmationMessage(false);
+    loginForm.reset({
+      email: '',
+      password: '',
+    });
+    signupForm.reset({
+      email: '',
+      username: '',
+      password: '',
+      passwordConfirm: '',
+    });
   };
 
   const handleClose = () => {
@@ -178,17 +123,25 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const toggleAuthMode = () => {
     setIsSignupMode(!isSignupMode);
-    loginForm.reset();
-    signupForm.reset();
+    loginForm.reset({
+      email: '',
+      password: '',
+    });
+    signupForm.reset({
+      email: '',
+      username: '',
+      password: '',
+      passwordConfirm: '',
+    });
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden bg-gradient-to-b from-zinc-900/98 to-zinc-950/98 backdrop-blur-xl border border-white/10 [&>button]:text-zinc-400 [&>button]:hover:text-zinc-100 [&>button]:hover:bg-white/10 [&>button>svg]:h-5 [&>button>svg]:w-5">
+      <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden bg-gradient-to-b from-zinc-900/70 to-zinc-950/80 backdrop-blur-lg border border-white/10 [&>button]:text-zinc-400 [&>button]:hover:text-zinc-100 [&>button]:hover:bg-white/10 [&>button>svg]:h-5 [&>button>svg]:w-5">
 
         <div className="p-8">
           <DialogHeader className="mb-8 text-center">
-            {showEmailForm && (
+            {showEmailForm && !showConfirmationMessage && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -206,7 +159,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </div>
             </div>
 
-            {!showEmailForm && (
+            {!showEmailForm && !showConfirmationMessage && (
               <p className="text-sm text-zinc-400 mt-2">
                 To use Onsembl you must log into an existing account or
                 create one using one of the options below
@@ -214,7 +167,50 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             )}
           </DialogHeader>
 
-          {!showEmailForm ? (
+          {showConfirmationMessage ? (
+            // Email confirmation message
+            <div className="space-y-6 text-center">
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <MailIcon className="h-8 w-8 text-green-500" />
+                  </div>
+                  <CheckCircle className="h-5 w-5 text-green-500 absolute -bottom-1 -right-1" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-zinc-100">Check your email!</h3>
+                <p className="text-sm text-zinc-400 max-w-sm mx-auto">
+                  We've sent you a confirmation link. Please check your inbox and click the link to complete your registration.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs text-zinc-500">
+                  Didn't receive the email? Check your spam folder or
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowConfirmationMessage(false);
+                    setShowEmailForm(true);
+                    setIsSignupMode(true);
+                  }}
+                  className="w-full h-10 bg-white/5 border-white/10 text-zinc-100 hover:bg-white/10 hover:text-white hover:border-white/20"
+                >
+                  Try signing up again
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleClose}
+                  className="w-full h-10 text-zinc-400 hover:text-zinc-100"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : !showEmailForm ? (
             <div className="space-y-3">
               <Button
                 variant="primary"
@@ -263,250 +259,19 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </div>
             </div>
           ) : !isSignupMode ? (
-            // Login Form
-            <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
-                <FormField
-                  control={loginForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">Email</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type="email"
-                            placeholder="Enter your email"
-                            className="pl-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            autoFocus
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={loginForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Enter your password"
-                            className="pl-10 pr-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-zinc-400 hover:text-zinc-100"
-                            onClick={() => setShowPassword(!showPassword)}
-                            disabled={isLoading}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    className="w-full h-12"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      'Continue'
-                    )}
-                  </Button>
-                </div>
-
-                <div className="text-center pt-2 space-y-2">
-                  <a href="/forgot-password" className="block text-sm text-zinc-400 hover:text-zinc-300">
-                    Forgot your password?
-                  </a>
-                  <p className="text-sm text-zinc-400">
-                    Don't have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={toggleAuthMode}
-                      className="text-zinc-300 hover:text-white underline"
-                    >
-                      Sign up
-                    </button>
-                  </p>
-                </div>
-              </form>
-            </Form>
+            <LoginForm
+              form={loginForm}
+              onSubmit={handleLoginSubmit}
+              isLoading={isLoading}
+              onToggleMode={toggleAuthMode}
+            />
           ) : (
-            // Signup Form
-            <Form {...signupForm}>
-              <form onSubmit={signupForm.handleSubmit(handleSignupSubmit)} className="space-y-4">
-                <FormField
-                  control={signupForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">Email</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type="email"
-                            placeholder="Enter your email"
-                            className="pl-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            autoFocus
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={signupForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">
-                        Username <span className="text-zinc-500">(optional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type="text"
-                            placeholder="Choose a username"
-                            className="pl-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={signupForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Create a password"
-                            className="pl-10 pr-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-zinc-400 hover:text-zinc-100"
-                            onClick={() => setShowPassword(!showPassword)}
-                            disabled={isLoading}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={signupForm.control}
-                  name="passwordConfirm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-zinc-200">Confirm Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Confirm your password"
-                            className="pl-10 h-10 bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-500 focus:border-white/20 focus:bg-white/10"
-                            disabled={isLoading}
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    className="w-full h-12"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      'Sign up'
-                    )}
-                  </Button>
-                </div>
-
-                <div className="text-center pt-2">
-                  <p className="text-sm text-zinc-400">
-                    Already have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={toggleAuthMode}
-                      className="text-zinc-300 hover:text-white underline"
-                    >
-                      Log in
-                    </button>
-                  </p>
-                </div>
-              </form>
-            </Form>
+            <SignupForm
+              form={signupForm}
+              onSubmit={handleSignupSubmit}
+              isLoading={isLoading}
+              onToggleMode={toggleAuthMode}
+            />
           )}
         </div>
       </DialogContent>

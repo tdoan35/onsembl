@@ -6,6 +6,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
+import { authenticateSupabase } from '../middleware/auth.js';
 
 // Request/Response schemas
 const createCommandSchema = z.object({
@@ -119,7 +120,7 @@ export async function registerCommandRoutes(
       summary: 'List all commands',
       description: 'Retrieve a paginated list of all commands with optional filtering'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CommandListRequest, reply: FastifyReply) => {
     try {
       const { status, type, agentId, limit = 50, offset = 0 } = request.query;
@@ -204,7 +205,7 @@ export async function registerCommandRoutes(
       summary: 'Get command details',
       description: 'Retrieve detailed information about a specific command'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CommandIdRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params;
@@ -285,7 +286,7 @@ export async function registerCommandRoutes(
       summary: 'Create new command',
       description: 'Submit a new command for execution by agents'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CreateCommandRequest, reply: FastifyReply) => {
     try {
       const commandData = request.body;
@@ -351,7 +352,7 @@ export async function registerCommandRoutes(
       summary: 'Cancel command',
       description: 'Cancel a pending or executing command'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CommandIdRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params;
@@ -434,7 +435,7 @@ export async function registerCommandRoutes(
       summary: 'Get command output',
       description: 'Retrieve terminal output for a specific command'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CommandOutputRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params;
@@ -523,7 +524,7 @@ export async function registerCommandRoutes(
       summary: 'Get command trace tree',
       description: 'Retrieve LLM trace tree for a specific command'
     },
-    preHandler: server.authenticate
+    preHandler: authenticateSupabase
   }, async (request: CommandIdRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params;
