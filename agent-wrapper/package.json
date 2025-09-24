@@ -26,12 +26,16 @@
     "inquirer": "^9.2.0",
     "jsonwebtoken": "^9.0.2",
     "node-pty": "^1.0.0",
+    "open": "^9.1.0",
     "ora": "^7.0.0",
     "pino": "^8.16.0",
     "pino-pretty": "^10.2.0",
     "strip-ansi": "^7.1.2",
     "ws": "^8.14.0",
     "zod": "^3.22.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.0",

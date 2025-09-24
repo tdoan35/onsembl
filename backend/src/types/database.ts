@@ -12,6 +12,7 @@ export interface Database {
       agents: {
         Row: {
           id: string
+          user_id: string
           name: string
           type: 'claude' | 'gemini' | 'codex' | 'custom'
           status: 'online' | 'offline' | 'executing' | 'error' | 'maintenance'
@@ -24,6 +25,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          user_id: string
           name: string
           type: 'claude' | 'gemini' | 'codex' | 'custom'
           status?: 'online' | 'offline' | 'executing' | 'error' | 'maintenance'
@@ -36,6 +38,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          user_id?: string
           name?: string
           type?: 'claude' | 'gemini' | 'codex' | 'custom'
           status?: 'online' | 'offline' | 'executing' | 'error' | 'maintenance'
@@ -50,6 +53,7 @@ export interface Database {
       commands: {
         Row: {
           id: string
+          user_id: string
           agent_id: string
           command: string
           arguments: Json | null
@@ -64,6 +68,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          user_id: string
           agent_id: string
           command: string
           arguments?: Json | null
@@ -78,6 +83,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          user_id?: string
           agent_id?: string
           command?: string
           arguments?: Json | null
@@ -328,6 +334,56 @@ export interface Database {
           priority?: number
           estimated_duration_ms?: number | null
           created_at?: string
+        }
+      }
+      cli_tokens: {
+        Row: {
+          id: string
+          user_id: string
+          device_code: string
+          user_code: string
+          access_token: string | null
+          refresh_token: string | null
+          expires_at: string | null
+          refresh_expires_at: string | null
+          is_revoked: boolean
+          scopes: string[]
+          device_name: string | null
+          last_used_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_code: string
+          user_code: string
+          access_token?: string | null
+          refresh_token?: string | null
+          expires_at?: string | null
+          refresh_expires_at?: string | null
+          is_revoked?: boolean
+          scopes?: string[]
+          device_name?: string | null
+          last_used_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_code?: string
+          user_code?: string
+          access_token?: string | null
+          refresh_token?: string | null
+          expires_at?: string | null
+          refresh_expires_at?: string | null
+          is_revoked?: boolean
+          scopes?: string[]
+          device_name?: string | null
+          last_used_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
     }

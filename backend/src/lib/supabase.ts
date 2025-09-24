@@ -78,6 +78,26 @@ export type Database = {
         Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>;
       };
+      cli_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          device_code: string;
+          user_code: string;
+          access_token: string | null;
+          refresh_token: string | null;
+          expires_at: string | null;
+          refresh_expires_at: string | null;
+          is_revoked: boolean;
+          scopes: string[];
+          device_name: string | null;
+          last_used_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['cli_tokens']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['cli_tokens']['Insert']>;
+      };
     };
     Views: {
       [_ in never]: never;

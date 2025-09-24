@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import os from 'os';
 import jwt from 'jsonwebtoken';
 import { Config } from './config.js';
+import AuthManager from './auth/auth-manager.js';
 import { MessageType, WebSocketMessage, TerminalOutputPayload } from '@onsembl/agent-protocol';
 import { ReconnectionManager, ConnectionCircuitBreaker } from './reconnection.js';
 
@@ -106,6 +107,7 @@ export class WebSocketClient extends EventEmitter {
   private reconnectionManager: ReconnectionManager | null = null;
   private circuitBreaker: ConnectionCircuitBreaker;
   private lastPongReceived: number = Date.now();
+  private authManager: AuthManager | null = null;
 
   private onCommand: (message: CommandMessage) => Promise<void>;
   private onError: (error: Error) => void;
@@ -116,6 +118,11 @@ export class WebSocketClient extends EventEmitter {
     this.agentId = options.agentId;
     this.onCommand = options.onCommand;
     this.onError = options.onError;
+
+    // Initialize AuthManager if user authentication is available
+    if (options.config.userId) {
+      this.authManager = new AuthManager();
+    }
 
     // Initialize circuit breaker with sensible defaults
     this.circuitBreaker = new ConnectionCircuitBreaker(
@@ -147,11 +154,11 @@ export class WebSocketClient extends EventEmitter {
       throw error;
     }
 
-    const wsUrl = this.getWebSocketUrl();
+    const wsUrl = await this.getWebSocketUrl();
     console.log(`[Connection] Attempting connection to ${wsUrl}`);
 
     try {
-      const token = this.buildAuthToken();
+      const token = await this.buildAuthToken();
       this.ws = new WebSocket(wsUrl, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -334,13 +341,13 @@ export class WebSocketClient extends EventEmitter {
     return this.circuitBreaker.getState();
   }
 
-  private getWebSocketUrl(): string {
+  private async getWebSocketUrl(): Promise<string> {
     const url = new URL(this.config.serverUrl);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.pathname = '/ws/agent';
     // Append backend-required query parameters
     url.searchParams.set('agentId', this.agentId);
-    const token = this.buildAuthToken();
+    const token = await this.buildAuthToken();
     if (token) url.searchParams.set('token', token);
     return url.toString();
   }
@@ -623,7 +630,18 @@ export class WebSocketClient extends EventEmitter {
     }
   }
 
-  private buildAuthToken(): string | null {
+  private async buildAuthToken(): Promise<string | null> {
+    // If we have an AuthManager, use real user authentication
+    if (this.authManager) {
+      try {
+        return await this.authManager.getAccessToken();
+      } catch (error) {
+        console.error('Failed to get user access token:', error);
+        // Fall back to old behavior if authentication fails
+      }
+    }
+
+    // Legacy fallback for backward compatibility
     const provided = this.config.apiKey || null;
     if (provided && provided.split('.').length === 3) {
       return provided; // Looks like a JWT already

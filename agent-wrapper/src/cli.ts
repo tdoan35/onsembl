@@ -16,6 +16,8 @@ import { CodexAgent } from './agents/codex.js';
 import { MockAgent } from './agents/mock.js';
 import { OutputChunk } from './stream-capture.js';
 import { InteractiveAgentWrapper, InteractiveOptions } from './terminal/interactive-wrapper.js';
+import AuthManager from './auth/auth-manager.js';
+import APIClient from './api/client.js';
 
 // Package info
 const packageJson = { name: 'onsembl-agent-wrapper', version: '1.0.0' };
@@ -39,7 +41,8 @@ class AgentWrapper extends EventEmitter {
   constructor(config: Config) {
     super();
     this.config = config;
-    this.agentId = `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Use the registered agent ID if available, otherwise fall back to random ID
+    this.agentId = config.agentId || `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
@@ -530,6 +533,340 @@ function createCLI(): Command {
       // For now, just show the intent
       console.log(`Control mode switch to "${mode}" requested`);
       console.log('Note: Dynamic control switching will be available in interactive mode');
+    });
+
+  // ====== AUTHENTICATION COMMANDS ======
+
+  const authCommand = program
+    .command('auth')
+    .description('Authentication commands');
+
+  // Login command
+  authCommand
+    .command('login')
+    .description('Authenticate with Onsembl.ai')
+    .option('-s, --server <url>', 'Server URL to authenticate with')
+    .option('--no-browser', 'Skip opening browser automatically')
+    .option('--scope <scope>', 'Authentication scope', 'agent:manage')
+    .option('--force', 'Force re-authentication even if already logged in')
+    .action(async (options) => {
+      try {
+        const authManager = new AuthManager({
+          serverUrl: options.server
+        });
+
+        await authManager.login({
+          scope: options.scope,
+          openBrowser: options.browser !== false,
+          force: options.force
+        });
+      } catch (error) {
+        console.error('Login failed:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Logout command
+  authCommand
+    .command('logout')
+    .description('Sign out of Onsembl.ai')
+    .action(async () => {
+      try {
+        const authManager = new AuthManager();
+        await authManager.logout();
+      } catch (error) {
+        console.error('Logout failed:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Status command
+  authCommand
+    .command('status')
+    .description('View authentication status')
+    .action(async () => {
+      try {
+        const authManager = new AuthManager();
+        const status = await authManager.getAuthStatus();
+
+        if (status.authenticated) {
+          console.log('✓ Authenticated');
+          console.log(`  User ID: ${status.user_id}`);
+          console.log(`  Server: ${status.server_url}`);
+          console.log(`  Scopes: ${status.scopes?.join(', ')}`);
+
+          if (status.expires_at) {
+            const expiresAt = new Date(status.expires_at * 1000);
+            console.log(`  Token expires: ${expiresAt.toLocaleString()}`);
+          }
+        } else {
+          console.log('✗ Not authenticated');
+          console.log('Run "onsembl auth login" to authenticate');
+        }
+      } catch (error) {
+        console.error('Failed to get auth status:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // ====== AGENT MANAGEMENT COMMANDS ======
+
+  const agentCommand = program
+    .command('agent')
+    .description('Agent management commands');
+
+  // List agents command
+  agentCommand
+    .command('list')
+    .alias('ls')
+    .description('List registered agents')
+    .option('--status <status>', 'Filter by status (online|offline|executing|error|maintenance)')
+    .option('--type <type>', 'Filter by type (claude|gemini|codex|custom)')
+    .action(async (options) => {
+      try {
+        const apiClient = new APIClient();
+
+        // Check authentication
+        if (!(await apiClient.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl auth login');
+          process.exit(1);
+        }
+
+        const { agents } = await apiClient.listAgents({
+          status: options.status,
+          type: options.type
+        });
+
+        if (agents.length === 0) {
+          console.log('No agents found.');
+          console.log('Register an agent with: onsembl agent register --name <name> --type <type>');
+          return;
+        }
+
+        console.log(`Found ${agents.length} agent(s):\n`);
+
+        agents.forEach(agent => {
+          const statusIcon = agent.status === 'online' ? '🟢' :
+                           agent.status === 'offline' ? '🔴' :
+                           agent.status === 'executing' ? '🟡' :
+                           agent.status === 'error' ? '🔴' : '⚪';
+
+          console.log(`${statusIcon} ${agent.name}`);
+          console.log(`   ID: ${agent.id}`);
+          console.log(`   Type: ${agent.type}`);
+          console.log(`   Status: ${agent.status}`);
+          console.log(`   Version: ${agent.version}`);
+          if (agent.last_ping) {
+            console.log(`   Last ping: ${new Date(agent.last_ping).toLocaleString()}`);
+          }
+          if (agent.metadata?.description) {
+            console.log(`   Description: ${agent.metadata.description}`);
+          }
+          console.log('');
+        });
+
+      } catch (error) {
+        console.error('Failed to list agents:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Register agent command
+  agentCommand
+    .command('register')
+    .description('Register a new agent')
+    .option('-n, --name <name>', 'Agent name (required)')
+    .option('-t, --type <type>', 'Agent type (claude|gemini|codex|custom)', 'claude')
+    .option('-d, --description <description>', 'Agent description')
+    .action(async (options) => {
+      try {
+        if (!options.name) {
+          console.error('Agent name is required. Use --name <name>');
+          process.exit(1);
+        }
+
+        const apiClient = new APIClient();
+
+        // Check authentication
+        if (!(await apiClient.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl auth login');
+          process.exit(1);
+        }
+
+        console.log(`Registering agent "${options.name}"...`);
+
+        const agent = await apiClient.createAgent({
+          name: options.name,
+          type: options.type,
+          description: options.description,
+          capabilities: []
+        });
+
+        console.log('✓ Agent registered successfully!');
+        console.log(`  ID: ${agent.id}`);
+        console.log(`  Name: ${agent.name}`);
+        console.log(`  Type: ${agent.type}`);
+        console.log(`  Status: ${agent.status}`);
+
+      } catch (error) {
+        console.error('Failed to register agent:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Start agent command
+  agentCommand
+    .command('start <name>')
+    .description('Start an agent by name')
+    .option('-a, --agent <type>', 'Agent type override (claude|gemini|codx|mock)')
+    .option('-s, --server <url>', 'Server URL override')
+    .option('-k, --api-key <key>', 'API key override')
+    .option('-w, --working-dir <dir>', 'Working directory override')
+    .option('-i, --interactive', 'Run in interactive mode')
+    .option('--headless', 'Force headless mode')
+    .action(async (name, options) => {
+      try {
+        const apiClient = new APIClient();
+
+        // Check authentication
+        if (!(await apiClient.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl auth login');
+          process.exit(1);
+        }
+
+        // Get agent by name
+        let agent;
+        try {
+          agent = await apiClient.getAgentByName(name);
+        } catch (error) {
+          console.error(`Agent "${name}" not found. Register it first with: onsembl agent register --name ${name}`);
+          process.exit(1);
+        }
+
+        console.log(`Starting agent "${agent.name}" (${agent.type})...`);
+
+        // Load config with authentication
+        const userId = await new AuthManager().getCurrentUserId();
+        const config = loadConfig({
+          agentType: options.agent || agent.type,
+          serverUrl: options.server,
+          apiKey: options.apiKey,
+          workingDirectory: options.workingDir,
+          userId: userId, // Pass user ID to config
+          agentName: agent.name,
+          agentId: agent.id
+        });
+
+        // Use InteractiveAgentWrapper if interactive mode is requested
+        if (options.interactive || (!options.headless && process.stdin.isTTY)) {
+          const interactiveOptions: InteractiveOptions = {
+            interactive: options.interactive,
+            headless: options.headless,
+            statusBar: true
+          };
+
+          const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
+          await wrapper.start();
+        } else {
+          // Use standard wrapper for headless mode
+          const wrapper = new AgentWrapper(config);
+          await wrapper.start();
+        }
+
+        // Keep process alive
+        process.stdin.resume();
+
+      } catch (error) {
+        console.error('Failed to start agent:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Delete agent command
+  agentCommand
+    .command('delete <name>')
+    .description('Delete an agent by name')
+    .option('--force', 'Skip confirmation prompt')
+    .action(async (name, options) => {
+      try {
+        const apiClient = new APIClient();
+
+        // Check authentication
+        if (!(await apiClient.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl auth login');
+          process.exit(1);
+        }
+
+        // Get agent by name
+        let agent;
+        try {
+          agent = await apiClient.getAgentByName(name);
+        } catch (error) {
+          console.error(`Agent "${name}" not found.`);
+          process.exit(1);
+        }
+
+        if (!options.force) {
+          const { default: inquirer } = await import('inquirer');
+          const { confirm } = await inquirer.prompt([{
+            type: 'confirm',
+            name: 'confirm',
+            message: `Are you sure you want to delete agent "${agent.name}"?`,
+            default: false
+          }]);
+
+          if (!confirm) {
+            console.log('Deletion cancelled.');
+            return;
+          }
+        }
+
+        await apiClient.deleteAgent(agent.id);
+        console.log(`✓ Agent "${agent.name}" deleted successfully.`);
+
+      } catch (error) {
+        console.error('Failed to delete agent:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Restart agent command
+  agentCommand
+    .command('restart <name>')
+    .description('Restart an agent by name')
+    .action(async (name) => {
+      try {
+        const apiClient = new APIClient();
+
+        // Check authentication
+        if (!(await apiClient.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl auth login');
+          process.exit(1);
+        }
+
+        // Get agent by name
+        let agent;
+        try {
+          agent = await apiClient.getAgentByName(name);
+        } catch (error) {
+          console.error(`Agent "${name}" not found.`);
+          process.exit(1);
+        }
+
+        console.log(`Restarting agent "${agent.name}"...`);
+        const result = await apiClient.restartAgent(agent.id);
+
+        if (result.success) {
+          console.log(`✓ ${result.message}`);
+        } else {
+          console.error('Failed to restart agent');
+          process.exit(1);
+        }
+
+      } catch (error) {
+        console.error('Failed to restart agent:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
     });
 
   return program;
