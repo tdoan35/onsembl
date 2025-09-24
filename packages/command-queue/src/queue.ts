@@ -11,7 +11,7 @@
  * - Redis connection management with automatic reconnection
  */
 
-import { Queue, Worker, Job, QueueEvents } from 'bullmq';
+import { Queue, Job, QueueEvents } from 'bullmq';
 import { EventEmitter } from 'events';
 import { Logger } from 'pino';
 import { ConfigManager } from './config.js';
@@ -20,7 +20,6 @@ import type {
   CommandJobResult,
   QueuedCommand,
   QueueMetrics,
-  AgentAvailability,
   CommandFilter,
   InterruptRequest,
   InterruptResult

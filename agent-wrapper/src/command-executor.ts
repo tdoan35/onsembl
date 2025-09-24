@@ -8,8 +8,8 @@ export interface ExecutionResult {
   commandId: string;
   exitCode: number;
   duration: number;
-  error?: string;
-  llmTraces?: LLMTrace[];
+  error?: string | undefined;
+  llmTraces?: LLMTrace[] | undefined;
 }
 
 export interface LLMTrace {
@@ -278,13 +278,13 @@ export class CommandExecutor extends EventEmitter {
 
         // Extract model information
         const modelMatch = output.match(/(?:model|llm):\s*([\w-]+)/i);
-        if (modelMatch) {
+        if (modelMatch?.[1]) {
           trace.model = modelMatch[1];
         }
 
         // Extract token information
         const tokenMatch = output.match(/tokens?.*?(\d+)/i);
-        if (tokenMatch) {
+        if (tokenMatch?.[1]) {
           trace.tokens = {
             input: parseInt(tokenMatch[1], 10),
             output: 0, // Would need more sophisticated parsing
@@ -336,6 +336,6 @@ interface ActiveCommandInfo {
   commandId: string;
   startTime: number;
   duration: number;
-  pid?: number;
+  pid?: number | undefined;
   cancelled: boolean;
 }

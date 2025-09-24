@@ -19,6 +19,7 @@ export class StateManager extends EventEmitter {
         hasOutput: false,
         isInteractive: false
       },
+      firstOutputReceived: false,
       websocket: {
         connected: false,
         connectionId: null,

@@ -6,7 +6,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
-import { auth, profiles, audit } from '../lib/supabase.js';
+import { auth, profiles, audit, supabaseAdmin } from '../lib/supabase.js';
 import { authenticateSupabase } from '../middleware/auth.js';
 
 // Zod schemas for validation
@@ -27,11 +27,37 @@ const logoutRequestZod = z.object({
   userId: z.string().uuid()
 });
 
+// CLI OAuth device flow schemas
+const deviceAuthRequestZod = z.object({
+  client_id: z.string().optional().default('onsembl-cli'),
+  scope: z.string().optional().default('agent:manage')
+});
+
+const deviceTokenRequestZod = z.object({
+  device_code: z.string(),
+  grant_type: z.literal('urn:ietf:params:oauth:grant-type:device_code')
+});
+
+const cliRefreshTokenRequestZod = z.object({
+  refresh_token: z.string(),
+  grant_type: z.literal('refresh_token')
+});
+
+const cliTokenValidationRequestZod = z.object({
+  access_token: z.string()
+});
+
 // Convert Zod schemas to JSON Schema for Fastify
 const magicLinkRequestSchema = zodToJsonSchema(magicLinkRequestZod);
 const verifyTokenRequestSchema = zodToJsonSchema(verifyTokenRequestZod);
 const refreshTokenRequestSchema = zodToJsonSchema(refreshTokenRequestZod);
 const logoutRequestSchema = zodToJsonSchema(logoutRequestZod);
+
+// CLI OAuth schemas
+const deviceAuthRequestSchema = zodToJsonSchema(deviceAuthRequestZod);
+const deviceTokenRequestSchema = zodToJsonSchema(deviceTokenRequestZod);
+const cliRefreshTokenRequestSchema = zodToJsonSchema(cliRefreshTokenRequestZod);
+const cliTokenValidationRequestSchema = zodToJsonSchema(cliTokenValidationRequestZod);
 
 
 /**
@@ -586,4 +612,332 @@ export async function registerAuthRoutes(
       expires_at: expiresAt
     });
   });
+
+  // ====== CLI OAUTH DEVICE FLOW ENDPOINTS ======
+
+  // POST /api/auth/device/authorize - Start OAuth device flow
+  server.post('/api/auth/device/authorize', {
+    schema: {
+      body: deviceAuthRequestSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            device_code: { type: 'string' },
+            user_code: { type: 'string' },
+            verification_uri: { type: 'string' },
+            verification_uri_complete: { type: 'string' },
+            expires_in: { type: 'number' },
+            interval: { type: 'number' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Start OAuth device authorization flow',
+      description: 'Initiates the OAuth device flow for CLI authentication'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { client_id, scope } = request.body as z.infer<typeof deviceAuthRequestZod>;
+
+    // Generate device and user codes
+    const deviceCode = generateRandomCode(32);
+    const userCode = generateUserCode(); // 6-digit human-friendly code
+    const expiresIn = 600; // 10 minutes
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    // Store the device authorization
+    const { data, error } = await supabaseAdmin.from('cli_tokens').insert({
+      device_code: deviceCode,
+      user_code: userCode,
+      expires_at: expiresAt,
+      scopes: scope.split(' '),
+      user_id: '', // Will be set when user authorizes
+      is_revoked: false
+    });
+
+    if (error) {
+      request.log.error({ error }, 'Failed to create device authorization');
+      return reply.code(500).send({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to create device authorization'
+      });
+    }
+
+    const baseUrl = process.env['FRONTEND_URL'] || 'http://localhost:3000';
+    const verificationUri = `${baseUrl}/auth/device`;
+    const verificationUriComplete = `${verificationUri}?user_code=${userCode}`;
+
+    return reply.send({
+      device_code: deviceCode,
+      user_code: userCode,
+      verification_uri: verificationUri,
+      verification_uri_complete: verificationUriComplete,
+      expires_in: expiresIn,
+      interval: 5 // Poll every 5 seconds
+    });
+  });
+
+  // POST /api/auth/device/token - Exchange device code for access token
+  server.post('/api/auth/device/token', {
+    schema: {
+      body: deviceTokenRequestSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            access_token: { type: 'string' },
+            refresh_token: { type: 'string' },
+            token_type: { type: 'string' },
+            expires_in: { type: 'number' },
+            scope: { type: 'string' }
+          }
+        },
+        400: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            error_description: { type: 'string' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Exchange device code for access token',
+      description: 'Exchanges device code for access token in OAuth device flow'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { device_code } = request.body as z.infer<typeof deviceTokenRequestZod>;
+
+    // Find the device authorization
+    const { data: tokenData, error: findError } = await supabaseAdmin
+      .from('cli_tokens')
+      .select('*')
+      .eq('device_code', device_code)
+      .eq('is_revoked', false)
+      .single();
+
+    if (findError || !tokenData) {
+      return reply.code(400).send({
+        error: 'invalid_grant',
+        error_description: 'Device code not found or expired'
+      });
+    }
+
+    // Check if expired
+    if (new Date() > new Date(tokenData.expires_at!)) {
+      return reply.code(400).send({
+        error: 'expired_token',
+        error_description: 'Device code has expired'
+      });
+    }
+
+    // Check if user has authorized (user_id is set and access_token exists)
+    if (!tokenData.user_id || !tokenData.access_token) {
+      return reply.code(400).send({
+        error: 'authorization_pending',
+        error_description: 'User has not yet authorized the device'
+      });
+    }
+
+    // Return the tokens
+    return reply.send({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token!,
+      token_type: 'Bearer',
+      expires_in: 3600, // 1 hour
+      scope: tokenData.scopes.join(' ')
+    });
+  });
+
+  // POST /api/auth/cli/refresh - Refresh CLI access token
+  server.post('/api/auth/cli/refresh', {
+    schema: {
+      body: cliRefreshTokenRequestSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            access_token: { type: 'string' },
+            refresh_token: { type: 'string' },
+            token_type: { type: 'string' },
+            expires_in: { type: 'number' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Refresh CLI access token',
+      description: 'Refreshes an expired CLI access token using refresh token'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { refresh_token } = request.body as z.infer<typeof cliRefreshTokenRequestZod>;
+
+    // Find token by refresh token
+    const { data: tokenData, error: findError } = await supabaseAdmin
+      .from('cli_tokens')
+      .select('*')
+      .eq('refresh_token', refresh_token)
+      .eq('is_revoked', false)
+      .single();
+
+    if (findError || !tokenData) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Invalid or expired refresh token'
+      });
+    }
+
+    // Check refresh token expiry
+    if (tokenData.refresh_expires_at && new Date() > new Date(tokenData.refresh_expires_at)) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Refresh token has expired'
+      });
+    }
+
+    // Generate new tokens
+    const newAccessToken = server.jwt.sign(
+      { sub: tokenData.user_id, scope: tokenData.scopes.join(' '), type: 'cli' },
+      { expiresIn: '1h' }
+    );
+    const newRefreshToken = server.jwt.sign(
+      { sub: tokenData.user_id, type: 'cli_refresh' },
+      { expiresIn: '30d' }
+    );
+
+    // Update token in database
+    const newExpiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+    const newRefreshExpiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+
+    const { error: updateError } = await supabaseAdmin
+      .from('cli_tokens')
+      .update({
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        expires_at: newExpiresAt,
+        refresh_expires_at: newRefreshExpiresAt,
+        last_used_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', tokenData.id);
+
+    if (updateError) {
+      request.log.error({ error: updateError }, 'Failed to update CLI tokens');
+      return reply.code(500).send({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to refresh token'
+      });
+    }
+
+    return reply.send({
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
+      token_type: 'Bearer',
+      expires_in: 3600
+    });
+  });
+
+  // POST /api/auth/cli/validate - Validate CLI access token
+  server.post('/api/auth/cli/validate', {
+    schema: {
+      body: cliTokenValidationRequestSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            valid: { type: 'boolean' },
+            user_id: { type: 'string' },
+            scopes: { type: 'array', items: { type: 'string' } },
+            expires_at: { type: 'number' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Validate CLI access token',
+      description: 'Validates a CLI access token and returns user info'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { access_token } = request.body as z.infer<typeof cliTokenValidationRequestZod>;
+
+    try {
+      const decoded = server.jwt.verify(access_token) as any;
+
+      if (decoded.type !== 'cli') {
+        return reply.code(401).send({
+          error: 'UNAUTHORIZED',
+          message: 'Invalid token type'
+        });
+      }
+
+      return reply.send({
+        valid: true,
+        user_id: decoded.sub,
+        scopes: decoded.scope ? decoded.scope.split(' ') : [],
+        expires_at: decoded.exp
+      });
+    } catch (error) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Invalid or expired token'
+      });
+    }
+  });
+
+  // POST /api/auth/cli/revoke - Revoke CLI tokens
+  server.post('/api/auth/cli/revoke', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          token: { type: 'string' },
+          token_type_hint: { type: 'string', enum: ['access_token', 'refresh_token'] }
+        },
+        required: ['token']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Revoke CLI token',
+      description: 'Revokes a CLI access or refresh token'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.body as { token: string };
+
+    // Try to find and revoke the token
+    const { error } = await supabaseAdmin
+      .from('cli_tokens')
+      .update({ is_revoked: true, updated_at: new Date().toISOString() })
+      .or(`access_token.eq.${token},refresh_token.eq.${token}`);
+
+    if (error) {
+      request.log.error({ error }, 'Failed to revoke CLI token');
+    }
+
+    // Always return success for security (don't reveal if token exists)
+    return reply.send({ success: true });
+  });
+}
+
+// Utility functions
+function generateRandomCode(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function generateUserCode(): string {
+  // Generate 6-digit human-friendly code (avoiding confusing characters)
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

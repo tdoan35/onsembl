@@ -22,6 +22,11 @@ const ConfigSchema = z
     agentCommand: z.string().optional(),
     workingDirectory: z.string().default(process.cwd()),
 
+    // Authentication and agent identity
+    userId: z.string().uuid().optional(),
+    agentId: z.string().uuid().optional(),
+    agentName: z.string().optional(),
+
     // Process limits
     maxMemoryMb: z.number().positive().default(1024),
     maxCpuPercent: z.number().min(1).max(100).default(80),

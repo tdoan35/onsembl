@@ -5,6 +5,7 @@ import { z } from 'zod';
 // Enhanced Agent schema validation matching database schema
 export const AgentSchema = z.object({
   id: z.string().uuid().optional(),
+  user_id: z.string().uuid(),
   name: z.string().min(1).max(100),
   type: z.enum(['claude', 'gemini', 'codex', 'custom']),
   status: z.enum(['online', 'offline', 'executing', 'error', 'maintenance']),
@@ -117,15 +118,15 @@ export class AgentModel {
   }
 
   /**
-   * Find all agents with optional filtering
+   * Find all agents with optional filtering (user-scoped)
    */
-  async findAll(filters?: {
+  async findAll(userId: string, filters?: {
     status?: AgentStatus | AgentStatus[];
     type?: AgentType | AgentType[];
     connected?: boolean;
   }) {
     try {
-      let query = this.supabase.from('agents').select('*');
+      let query = this.supabase.from('agents').select('*').eq('user_id', userId);
 
       if (filters?.status) {
         if (Array.isArray(filters.status)) {
@@ -192,13 +193,14 @@ export class AgentModel {
   }
 
   /**
-   * Find agent by unique name
+   * Find agent by unique name (user-scoped)
    */
-  async findByName(name: string): Promise<AgentRow> {
+  async findByName(userId: string, name: string): Promise<AgentRow> {
     try {
       const { data, error } = await this.supabase
         .from('agents')
         .select('*')
+        .eq('user_id', userId)
         .eq('name', name)
         .single();
 
