@@ -5,7 +5,7 @@
  * (similar to `gh auth login`, `docker login`, etc.)
  */
 
-import { open } from 'open';
+import open from 'open';
 import chalk from 'chalk';
 import ora from 'ora';
 

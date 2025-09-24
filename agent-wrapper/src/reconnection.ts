@@ -11,8 +11,8 @@ export interface ReconnectionOptions {
 export interface ReconnectionState {
   isReconnecting: boolean;
   attemptCount: number;
-  nextAttemptTime?: Date;
-  lastError?: Error;
+  nextAttemptTime?: Date | undefined;
+  lastError?: Error | undefined;
 }
 
 /**
@@ -54,7 +54,7 @@ export class ReconnectionManager extends EventEmitter {
     console.log('Starting reconnection process');
     this.state.isReconnecting = true;
     this.state.attemptCount = 0;
-    this.state.lastError = undefined;
+    delete this.state.lastError;
 
     this.emit('reconnection_started');
     this.scheduleNextAttempt();
@@ -72,7 +72,7 @@ export class ReconnectionManager extends EventEmitter {
     this.clearReconnectTimer();
     this.state.isReconnecting = false;
     this.state.attemptCount = 0;
-    this.state.nextAttemptTime = undefined;
+    delete this.state.nextAttemptTime;
 
     this.emit('reconnection_stopped');
   }
@@ -169,7 +169,7 @@ export class ReconnectionManager extends EventEmitter {
     }
 
     this.state.attemptCount++;
-    this.state.nextAttemptTime = undefined;
+    delete this.state.nextAttemptTime;
 
     console.log(`Reconnection attempt ${this.state.attemptCount}/${this.config.reconnectAttempts}`);
 
@@ -185,7 +185,7 @@ export class ReconnectionManager extends EventEmitter {
       console.log('Reconnection successful');
       this.state.isReconnecting = false;
       this.state.attemptCount = 0;
-      this.state.lastError = undefined;
+      delete this.state.lastError;
 
       this.emit('reconnection_successful');
 
@@ -267,7 +267,7 @@ export class ConnectionCircuitBreaker extends EventEmitter {
    */
   recordSuccess(): void {
     this.failureCount = 0;
-    this.lastFailureTime = undefined;
+    delete this.lastFailureTime;
 
     if (this.state !== 'closed') {
       this.state = 'closed';
@@ -299,7 +299,7 @@ export class ConnectionCircuitBreaker extends EventEmitter {
   getState(): {
     state: 'closed' | 'open' | 'half-open';
     failureCount: number;
-    lastFailureTime?: Date;
+    lastFailureTime?: Date | undefined;
   } {
     return {
       state: this.state,
@@ -313,7 +313,7 @@ export class ConnectionCircuitBreaker extends EventEmitter {
    */
   reset(): void {
     this.failureCount = 0;
-    this.lastFailureTime = undefined;
+    delete this.lastFailureTime;
     this.state = 'closed';
     this.emit('state_changed', 'closed');
   }

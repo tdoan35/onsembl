@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { promisify } from 'util';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export interface StoredCredentials {
   access_token: string;
@@ -189,8 +189,8 @@ class FileCredentialStore implements CredentialStore {
 
   private decrypt(encryptedData: string, key: string): string {
     const parts = encryptedData.split(':');
-    const iv = Buffer.from(parts[0], 'hex');
-    const encrypted = parts[1];
+    const iv = Buffer.from(parts[0] || '', 'hex');
+    const encrypted = parts[1] || '';
     const decipher = crypto.createDecipher('aes-256-cbc', key);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');

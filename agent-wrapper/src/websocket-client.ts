@@ -86,7 +86,7 @@ export interface TokenRefreshMessage {
 }
 
 export type IncomingMessage = CommandMessage | ErrorMessage | TokenRefreshMessage;
-export type OutgoingMessage = AgentStatusMessage | OutputMessage | CommandCompleteMessage | HeartbeatMessage | AuthMessage;
+export type OutgoingMessage = AgentStatusMessage | OutputMessage | CommandCompleteMessage | HeartbeatMessage | AuthMessage | WebSocketMessage<any>;
 
 export interface WebSocketClientOptions {
   config: Config;
@@ -271,8 +271,7 @@ export class WebSocketClient extends EventEmitter {
       content: data,
       streamType: stream === 'stderr' ? 'STDERR' : 'STDOUT',
       ansiCodes: !!ansiCodes,
-      sequence: this.getNextSequence(commandId),
-      timestamp: Date.now()
+      sequence: this.getNextSequence(commandId)
     };
 
     const message: WebSocketMessage<TerminalOutputPayload> = {
@@ -361,7 +360,7 @@ export class WebSocketClient extends EventEmitter {
 
     this.ws.on('message', async (data: WebSocket.Data) => {
       try {
-        const message = JSON.parse(data.toString()) as IncomingMessage;
+        const message = JSON.parse(data.toString()) as IncomingMessage | WebSocketMessage<any>;
         await this.handleMessage(message);
       } catch (error) {
         console.error('Failed to parse incoming message:', error);
@@ -393,11 +392,11 @@ export class WebSocketClient extends EventEmitter {
     });
   }
 
-  private async handleMessage(message: IncomingMessage): Promise<void> {
+  private async handleMessage(message: IncomingMessage | WebSocketMessage<any>): Promise<void> {
     switch (message.type) {
       case 'command':
         try {
-          await this.onCommand(message);
+          await this.onCommand(message as CommandMessage);
         } catch (error) {
           console.error('Failed to handle command:', error);
         }
@@ -453,9 +452,6 @@ export class WebSocketClient extends EventEmitter {
     }
   }
 
-  private async authenticate(): Promise<void> {
-    // No-op: Authentication is handled by sendAgentConnect + Authorization header
-  }
 
   private async sendAgentConnect(): Promise<void> {
     const message: WebSocketMessage = {

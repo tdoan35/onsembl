@@ -8,7 +8,7 @@ const ANSI_COLOR_REGEX = /\x1b\[([0-9;]+)m/g;
 
 export interface OutputChunk {
   data: string;
-  ansiCodes?: string;
+  ansiCodes?: string | undefined;
   timestamp: Date;
 }
 
@@ -112,7 +112,7 @@ export class StreamCapture extends EventEmitter {
           callback(null, chunk); // Pass through the original chunk
         } catch (error) {
           this.onError(error as Error);
-          callback(error);
+          callback(error as Error);
         }
       },
       flush: (callback) => {
@@ -157,7 +157,7 @@ export class StreamCapture extends EventEmitter {
     // Keep the last incomplete line in the buffer
     if (lines.length > 1) {
       const completeLines = lines.slice(0, -1);
-      const incompleteLinei = lines[lines.length - 1];
+      const incompleteLine = lines[lines.length - 1];
 
       // Process complete lines
       for (const line of completeLines) {
@@ -167,7 +167,7 @@ export class StreamCapture extends EventEmitter {
       }
 
       // Update buffer with remaining incomplete line
-      const newBuffer = Buffer.from(incompleteLinei, 'utf8');
+      const newBuffer = Buffer.from(incompleteLine || '', 'utf8');
       if (streamType === 'stdout') {
         this.stdoutBuffer = newBuffer;
       } else {
@@ -234,45 +234,45 @@ export class AnsiParser {
       const match = code.match(/\x1b\[([0-9;]+)m/);
       if (!match) continue;
 
-      const params = match[1].split(';').map(Number);
+      const params = match?.[1]?.split(';').map(Number) || [];
 
       for (const param of params) {
         switch (param) {
           case 0: // Reset
             return {};
           case 1: // Bold
-            styles.fontWeight = 'bold';
+            styles['fontWeight'] = 'bold';
             break;
           case 3: // Italic
-            styles.fontStyle = 'italic';
+            styles['fontStyle'] = 'italic';
             break;
           case 4: // Underline
-            styles.textDecoration = 'underline';
+            styles['textDecoration'] = 'underline';
             break;
-          case 30: styles.color = '#000000'; break; // Black
-          case 31: styles.color = '#cd0000'; break; // Red
-          case 32: styles.color = '#00cd00'; break; // Green
-          case 33: styles.color = '#cdcd00'; break; // Yellow
-          case 34: styles.color = '#0000ee'; break; // Blue
-          case 35: styles.color = '#cd00cd'; break; // Magenta
-          case 36: styles.color = '#00cdcd'; break; // Cyan
-          case 37: styles.color = '#e5e5e5'; break; // White
-          case 90: styles.color = '#7f7f7f'; break; // Bright Black
-          case 91: styles.color = '#ff0000'; break; // Bright Red
-          case 92: styles.color = '#00ff00'; break; // Bright Green
-          case 93: styles.color = '#ffff00'; break; // Bright Yellow
-          case 94: styles.color = '#5c5cff'; break; // Bright Blue
-          case 95: styles.color = '#ff00ff'; break; // Bright Magenta
-          case 96: styles.color = '#00ffff'; break; // Bright Cyan
-          case 97: styles.color = '#ffffff'; break; // Bright White
-          case 40: styles.backgroundColor = '#000000'; break; // Black background
-          case 41: styles.backgroundColor = '#cd0000'; break; // Red background
-          case 42: styles.backgroundColor = '#00cd00'; break; // Green background
-          case 43: styles.backgroundColor = '#cdcd00'; break; // Yellow background
-          case 44: styles.backgroundColor = '#0000ee'; break; // Blue background
-          case 45: styles.backgroundColor = '#cd00cd'; break; // Magenta background
-          case 46: styles.backgroundColor = '#00cdcd'; break; // Cyan background
-          case 47: styles.backgroundColor = '#e5e5e5'; break; // White background
+          case 30: styles['color'] = '#000000'; break; // Black
+          case 31: styles['color'] = '#cd0000'; break; // Red
+          case 32: styles['color'] = '#00cd00'; break; // Green
+          case 33: styles['color'] = '#cdcd00'; break; // Yellow
+          case 34: styles['color'] = '#0000ee'; break; // Blue
+          case 35: styles['color'] = '#cd00cd'; break; // Magenta
+          case 36: styles['color'] = '#00cdcd'; break; // Cyan
+          case 37: styles['color'] = '#e5e5e5'; break; // White
+          case 90: styles['color'] = '#7f7f7f'; break; // Bright Black
+          case 91: styles['color'] = '#ff0000'; break; // Bright Red
+          case 92: styles['color'] = '#00ff00'; break; // Bright Green
+          case 93: styles['color'] = '#ffff00'; break; // Bright Yellow
+          case 94: styles['color'] = '#5c5cff'; break; // Bright Blue
+          case 95: styles['color'] = '#ff00ff'; break; // Bright Magenta
+          case 96: styles['color'] = '#00ffff'; break; // Bright Cyan
+          case 97: styles['color'] = '#ffffff'; break; // Bright White
+          case 40: styles['backgroundColor'] = '#000000'; break; // Black background
+          case 41: styles['backgroundColor'] = '#cd0000'; break; // Red background
+          case 42: styles['backgroundColor'] = '#00cd00'; break; // Green background
+          case 43: styles['backgroundColor'] = '#cdcd00'; break; // Yellow background
+          case 44: styles['backgroundColor'] = '#0000ee'; break; // Blue background
+          case 45: styles['backgroundColor'] = '#cd00cd'; break; // Magenta background
+          case 46: styles['backgroundColor'] = '#00cdcd'; break; // Cyan background
+          case 47: styles['backgroundColor'] = '#e5e5e5'; break; // White background
         }
       }
     }
@@ -297,7 +297,7 @@ export class AnsiParser {
     let nonPrintable = 0;
     for (let i = 0; i < Math.min(buffer.length, 1024); i++) {
       const byte = buffer[i];
-      if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
+      if (byte !== undefined && byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
         nonPrintable++;
       }
     }
