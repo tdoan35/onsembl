@@ -15,7 +15,7 @@ export function NavbarBrand({ className }: NavbarBrandProps) {
       )}
     >
       <span className="text-xl drop-shadow-sm">🪄</span>
-      <span className="text-foreground">Ensemble</span>
+      <span className="text-foreground">Onsembl</span>
     </Link>
   );
 }
