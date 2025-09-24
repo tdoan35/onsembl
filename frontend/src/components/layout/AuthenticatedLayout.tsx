@@ -36,13 +36,13 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
       {/* Navigation Bar */}
       <Navbar
-        className="h-14 bg-background/95 backdrop-blur-sm border-b"
+        className="h-12 bg-zinc-950 border-b border-border"
         onLogout={handleLogout}
         showProjectTitle={true}
       />
 
       {/* Main content area with padding for fixed header */}
-      <div className="flex h-screen pt-14">
+      <div className="flex h-screen pt-12">
         {/* Enhanced Sidebar */}
         <EnhancedSidebar />
 

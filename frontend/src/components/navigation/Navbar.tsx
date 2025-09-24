@@ -1,3 +1,4 @@
+import React from 'react';
 import { cn } from '@/lib/utils';
 import { NavbarBrand } from './NavbarBrand';
 import { NavbarCenter } from './NavbarCenter';
@@ -25,25 +26,29 @@ export function Navbar({
 
   return (
     <header className={cn("fixed top-0 left-0 right-0 z-50 border-b border-border", className)}>
-      <nav className="w-full px-4">
-        <div className="flex h-14 items-center relative">
-          {/* Logo/Brand - absolutely positioned */}
-          <div className={cn("absolute left-0 flex items-center h-full", brandClassName)}>
+      <nav className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex h-12 items-center relative">
+          {/* Logo/Brand - far left */}
+          <div className={cn("flex items-center h-full", brandClassName)}>
             <NavbarBrand />
           </div>
 
-          {/* Center Content */}
-          <NavbarCenter
-            isAuthenticated={isAuthenticated}
-            showProjectTitle={showProjectTitle}
-          />
+          {/* Center Content - absolutely centered */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <NavbarCenter
+              isAuthenticated={isAuthenticated}
+              showProjectTitle={showProjectTitle}
+            />
+          </div>
 
-          {/* Right side controls */}
-          <NavbarActions
-            onOpenAuthModal={onOpenAuthModal}
-            onLogout={onLogout}
-            showDemoMenu={showDemoMenu}
-          />
+          {/* Right side controls - far right */}
+          <div className="ml-auto flex items-center h-full">
+            <NavbarActions
+              onOpenAuthModal={onOpenAuthModal}
+              onLogout={onLogout}
+              showDemoMenu={showDemoMenu}
+            />
+          </div>
         </div>
       </nav>
     </header>

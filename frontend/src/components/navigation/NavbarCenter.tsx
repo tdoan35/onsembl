@@ -63,7 +63,7 @@ export function NavbarCenter({ isAuthenticated, showProjectTitle }: NavbarCenter
   // Show project title when authenticated and on a project page
   if (isAuthenticated && isProjectPage && currentProject && showProjectTitle) {
     return (
-      <div className="hidden md:flex items-center gap-8 mx-auto">
+      <div className="hidden md:flex items-center gap-8">
         <Popover open={isEditingProjectName} onOpenChange={setIsEditingProjectName}>
           <PopoverTrigger asChild>
             <button
@@ -111,21 +111,18 @@ export function NavbarCenter({ isAuthenticated, showProjectTitle }: NavbarCenter
     );
   }
 
-  // Show navigation links for non-project pages
-  if (!isProjectPage) {
+  // Show breadcrumb navigation for authenticated pages
+  if (isAuthenticated) {
     return (
-      <div className="hidden md:flex items-center gap-8 mx-auto h-full">
-        <span className="text-sm font-medium text-foreground/40 cursor-not-allowed transition-all duration-200 hover:text-foreground/60">
-          Features
+      <div className="hidden md:flex items-center gap-2 h-full">
+        <span className="text-sm font-medium text-zinc-300">
+          Workspace
         </span>
-        <span className="text-sm font-medium text-foreground/40 cursor-not-allowed transition-all duration-200 hover:text-foreground/60">
-          Learn
+        <span className="text-sm font-medium text-zinc-500">
+          &gt;
         </span>
-        <span className="text-sm font-medium text-foreground/40 cursor-not-allowed transition-all duration-200 hover:text-foreground/60">
-          Pricing
-        </span>
-        <span className="text-sm font-medium text-foreground/40 cursor-not-allowed transition-all duration-200 hover:text-foreground/60">
-          Enterprise
+        <span className="text-sm font-medium text-zinc-100">
+          All Agents
         </span>
       </div>
     );
