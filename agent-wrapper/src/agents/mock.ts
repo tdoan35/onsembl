@@ -95,7 +95,8 @@ export class MockAgent extends EventEmitter {
     // Simulate command output
     await this.onOutput('stdout', {
       data: `Mock execution of: ${command}\n`,
-      ansiCodes: [],
+      ansiCodes: undefined,
+      timestamp: new Date(),
     });
 
     // Simulate some work
@@ -103,7 +104,8 @@ export class MockAgent extends EventEmitter {
 
     await this.onOutput('stdout', {
       data: 'Command completed successfully\n',
-      ansiCodes: [],
+      ansiCodes: undefined,
+      timestamp: new Date(),
     });
 
     this.setStatus('ready');

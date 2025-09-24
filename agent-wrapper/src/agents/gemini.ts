@@ -345,7 +345,7 @@ export class GeminiAgent extends EventEmitter {
 
       // Extract model information if available
       const modelMatch = data.match(/Model:\s*(gemini-[\w-]+)/i);
-      if (modelMatch) {
+      if (modelMatch && modelMatch[1]) {
         this.metadata.version = modelMatch[1];
       }
 
@@ -447,7 +447,7 @@ export class GeminiAgent extends EventEmitter {
     }
 
     this.process = null;
-    this.metadata.pid = undefined;
+    delete this.metadata.pid;
   }
 
   private setStatus(status: AgentStatus): void {

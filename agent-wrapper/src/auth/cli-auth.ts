@@ -122,7 +122,7 @@ export class CLIAuth {
       );
     }
 
-    return response.json();
+    return response.json() as Promise<TokenResponse>;
   }
 
   /**
@@ -148,7 +148,7 @@ export class CLIAuth {
       );
     }
 
-    return response.json();
+    return response.json() as Promise<TokenValidationResponse>;
   }
 
   /**
@@ -200,7 +200,7 @@ export class CLIAuth {
       );
     }
 
-    return response.json();
+    return response.json() as Promise<DeviceAuthResponse>;
   }
 
   /**
@@ -228,10 +228,10 @@ export class CLIAuth {
 
         if (response.ok) {
           spinner.succeed('Authorization completed');
-          return response.json();
+          return response.json() as Promise<TokenResponse>;
         }
 
-        const errorData = await response.json();
+        const errorData = await response.json() as { error: string; error_description?: string };
 
         if (errorData.error === 'authorization_pending') {
           // Still waiting for user to authorize

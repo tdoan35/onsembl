@@ -73,7 +73,7 @@ export class APIClient {
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
       try {
-        const errorData = await response.json();
+        const errorData = await response.json() as { message?: string; error?: string };
         errorMessage = errorData.message || errorData.error || errorMessage;
       } catch {
         errorMessage = await response.text() || errorMessage;
@@ -86,7 +86,7 @@ export class APIClient {
       return {} as T;
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   /**

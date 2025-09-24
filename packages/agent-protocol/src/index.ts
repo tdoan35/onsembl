@@ -10,12 +10,20 @@
  */
 
 // Export core types and enums
+// Export command types
+export {
+  type Command,
+  type CommandType,
+  type CommandStatus,
+  type ExecutionConstraints,
+  type CommandProgress
+} from './types/command.js';
+
 export {
   MessageType,
   type WebSocketMessage,
   type AgentStatus,
   type AgentActivityState,
-  type CommandType,
   type StreamType,
   type TraceType,
   type ErrorType,
