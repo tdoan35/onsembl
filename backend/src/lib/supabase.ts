@@ -115,8 +115,8 @@ export type Database = {
 
 // Create Supabase client
 export const supabase = createClient<Database>(
-  config.supabaseUrl || 'http://127.0.0.1:54321',
-  config.supabaseAnonKey || '',
+  config.SUPABASE_URL || 'http://127.0.0.1:54321',
+  config.SUPABASE_ANON_KEY || '',
   {
     auth: {
       persistSession: false,
@@ -132,8 +132,8 @@ export const supabase = createClient<Database>(
 
 // Service role client for admin operations
 export const supabaseAdmin = createClient<Database>(
-  config.supabaseUrl || 'http://127.0.0.1:54321',
-  config.supabaseServiceKey || config.supabaseAnonKey || '',
+  config.SUPABASE_URL || 'http://127.0.0.1:54321',
+  config.SUPABASE_SERVICE_KEY || config.SUPABASE_ANON_KEY || '',
   {
     auth: {
       persistSession: false,
