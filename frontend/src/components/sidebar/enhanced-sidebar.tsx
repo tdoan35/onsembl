@@ -47,11 +47,13 @@ const coreNavigation = [
     label: 'Commands',
     href: '/commands',
     icon: <IconTerminal className="h-5 w-5" />,
+    disabled: true,
   },
   {
     label: 'Traces',
     href: '/traces',
     icon: <IconChartBar className="h-5 w-5" />,
+    disabled: true,
   },
 ];
 
@@ -178,6 +180,7 @@ export function EnhancedSidebar() {
               <div className="relative">
                 <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  disabled
                   placeholder="Search agents..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}

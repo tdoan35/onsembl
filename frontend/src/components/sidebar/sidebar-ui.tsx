@@ -11,6 +11,7 @@ interface Links {
   icon: React.ReactNode;
   onClick?: () => void;
   isActive?: boolean;
+  disabled?: boolean;
 }
 
 interface SidebarContextProps {
@@ -202,11 +203,59 @@ export const SidebarLink = ({
   const { open, animate } = useSidebar();
 
   const handleClick = (e: React.MouseEvent) => {
+    if (link.disabled) {
+      e.preventDefault();
+      return;
+    }
     if (link.onClick) {
       e.preventDefault();
       link.onClick();
     }
   };
+
+  if (link.disabled) {
+    return (
+      <div
+        onClick={handleClick}
+        className={cn(
+          'flex items-center gap-2 group/sidebar py-2 relative rounded-xl transition-colors',
+          'mx-1 px-3',
+          'opacity-50 cursor-not-allowed',
+          className,
+        )}
+        {...props}
+      >
+        {/* Icon */}
+        <div className="relative z-10 flex-shrink-0">{link.icon}</div>
+
+        {/* Label */}
+        <motion.span
+          initial={false}
+          animate={{
+            opacity: animate ? (open ? 1 : 0) : open ? 1 : 0,
+            width: animate ? (open ? 'auto' : 0) : open ? 'auto' : 0,
+          }}
+          transition={{
+            duration: animate ? 0.2 : 0,
+            ease: 'easeInOut',
+            opacity: {
+              duration: animate ? 0.15 : 0,
+              delay: animate && open ? 0.05 : 0,
+            },
+          }}
+          className={cn(
+            'text-sm whitespace-nowrap overflow-hidden relative z-10',
+            'text-neutral-700 dark:text-neutral-200',
+          )}
+          style={{ originX: 0 }}
+        >
+          <span className="inline-block px-2">
+            {link.label}
+          </span>
+        </motion.span>
+      </div>
+    );
+  }
 
   return (
     <Link
@@ -246,7 +295,10 @@ export const SidebarLink = ({
               opacity: open ? 0 : 1,
               left: '50%',
               x: '-50%',
-              width: '40px',
+              width: '24px',
+              height: '24px',
+              top: '50%',
+              y: '-50%',
             }}
             transition={{
               duration: animate ? 0.2 : 0,
@@ -256,20 +308,12 @@ export const SidebarLink = ({
         </>
       )}
 
-      <span
-        className={cn(
-          'flex-shrink-0 relative z-10',
-          link.isActive && 'text-neutral-900 dark:text-white',
-        )}
-      >
-        {link.icon}
-      </span>
+      {/* Icon */}
+      <div className="relative z-10 flex-shrink-0">{link.icon}</div>
 
+      {/* Label */}
       <motion.span
-        initial={{
-          opacity: open ? 1 : 0,
-          width: open ? 'auto' : 0,
-        }}
+        initial={false}
         animate={{
           opacity: animate ? (open ? 1 : 0) : open ? 1 : 0,
           width: animate ? (open ? 'auto' : 0) : open ? 'auto' : 0,
