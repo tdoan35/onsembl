@@ -195,6 +195,14 @@ export function AppSidebar({ className, ...props }: AppSidebarProps) {
             >
               Dashboard
             </SidebarButton>
+
+            <SidebarButton
+              href="/agents"
+              icon={Activity}
+              isActive={pathname === '/agents'}
+            >
+              Active Agents
+            </SidebarButton>
           </div>
 
           {/* Workspaces Section */}
