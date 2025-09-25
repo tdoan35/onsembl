@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { EnhancedSidebar } from '@/components/sidebar/enhanced-sidebar';
@@ -15,6 +15,35 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut, isAuthenticated } = useAuth();
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    // Load expanded state from localStorage to match sidebar behavior
+    if (typeof window !== 'undefined') {
+      const savedExpanded = localStorage.getItem('sidebar-expanded');
+      return savedExpanded === 'true';
+    }
+    return false;
+  });
+
+  // Listen for changes to sidebar expanded state
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window !== 'undefined') {
+        const savedExpanded = localStorage.getItem('sidebar-expanded');
+        setSidebarExpanded(savedExpanded === 'true');
+      }
+    };
+
+    // Listen for localStorage changes
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also check periodically in case changes happen in same tab
+    const interval = setInterval(handleStorageChange, 100);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await signOut();
@@ -49,16 +78,15 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
         {/* Spacer for sidebar - matches the sidebar width */}
         <div
           className={cn(
-            "hidden md:block transition-all duration-200 flex-shrink-0",
-            "w-[69px] data-[open=true]:w-[250px]"
+            'hidden md:block transition-all duration-200 flex-shrink-0',
+            sidebarExpanded ? 'w-[250px]' : 'w-[69px]'
           )}
-          data-open="false"
           id="sidebar-spacer"
         />
 
         {/* Main Content Area */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <main className="flex h-full w-full flex-1 flex-col">
+          <main className="flex h-full w-full flex-1 flex-col pt-6 px-6">
             {children}
           </main>
         </div>

@@ -35,6 +35,7 @@ interface AgentStore {
   updateAgentMetrics: (agentId: string, metrics: Agent['metrics']) => void;
   selectAgent: (agentId: string | null) => void;
   clearAgents: () => void;
+  refreshAgents: () => Promise<void>;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
@@ -98,6 +99,29 @@ export const useAgentStore = create<AgentStore>()(
           agents: [],
           selectedAgentId: null,
         })),
+
+      refreshAgents: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          // Simulate API call - in real implementation this would fetch from backend
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Update last ping times for all agents
+          set((state) => ({
+            agents: state.agents.map(agent => ({
+              ...agent,
+              lastPing: new Date().toISOString(),
+            })),
+            isLoading: false,
+          }));
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to refresh agents',
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
 
       setLoading: (loading) =>
         set(() => ({

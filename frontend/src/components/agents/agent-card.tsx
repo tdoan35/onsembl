@@ -9,7 +9,7 @@ import {
   Square,
   RotateCcw,
   Cpu,
-  Memory,
+  HardDrive,
   Clock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +35,7 @@ interface AgentCardProps {
 const statusConfig: Record<AgentStatus, {
   color: string;
   variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
-  icon: React.ComponentType<{ className?: string }>;
+  icon: any;
 }> = {
   online: {
     color: 'text-success',
@@ -308,7 +308,7 @@ export default function AgentCard({ agent, compact = false }: AgentCardProps) {
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Memory className="h-3 w-3 text-muted-foreground" />
+                  <HardDrive className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Memory</span>
                 </div>
                 <p className="text-sm font-medium">
