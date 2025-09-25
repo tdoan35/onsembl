@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type ColorTheme = 'midnight-terminal' | 'ocean-breeze' | 'forest-night' | 'sunset-glow';
+export type ColorTheme = 'modern' | 'midnight-terminal' | 'ocean-breeze' | 'forest-night' | 'sunset-glow';
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden';
 export type WebSocketState = 'connecting' | 'connected' | 'disconnected' | 'error';
 

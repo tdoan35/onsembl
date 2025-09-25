@@ -23,6 +23,7 @@ const themeOptions: { value: Theme; label: string; icon: React.ComponentType<{ c
 ];
 
 const colorThemeOptions: { value: ColorTheme; label: string; description: string }[] = [
+  { value: 'modern', label: 'Modern', description: 'Clean and minimalist design' },
   { value: 'midnight-terminal', label: 'Midnight Terminal', description: 'Aqua and amber terminal vibes' },
   { value: 'ocean-breeze', label: 'Ocean Breeze', description: 'Cool blues and teals' },
   { value: 'forest-night', label: 'Forest Night', description: 'Earthy greens and browns' },
