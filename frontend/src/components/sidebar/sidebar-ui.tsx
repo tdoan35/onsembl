@@ -290,7 +290,7 @@ export const SidebarLink = ({
         )}
         style={{ originX: 0 }}
       >
-        <span className="inline-block pr-2 group-hover/sidebar:translate-x-1 transition-transform duration-150">
+        <span className="inline-block px-2 group-hover/sidebar:translate-x-1 transition-transform duration-150">
           {link.label}
         </span>
       </motion.span>

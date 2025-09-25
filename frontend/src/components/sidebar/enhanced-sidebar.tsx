@@ -241,7 +241,6 @@ export function EnhancedSidebar() {
                             icon: (
                               <div className="flex items-center gap-2">
                                 <AgentStatusIndicator status={agent.status} />
-                                <IconUser className="h-4 w-4" />
                               </div>
                             ),
                             isActive:
