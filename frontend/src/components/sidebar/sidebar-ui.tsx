@@ -87,24 +87,48 @@ export const Sidebar = ({
   pinned?: boolean;
   setPinned?: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
+  const props = {
+    ...(open !== undefined && { open }),
+    ...(setOpen !== undefined && { setOpen }),
+    ...(animate !== undefined && { animate }),
+    ...(pinned !== undefined && { pinned }),
+    ...(setPinned !== undefined && { setPinned }),
+  };
+
   return (
-    <SidebarProvider
-      open={open}
-      setOpen={setOpen}
-      animate={animate}
-      pinned={pinned}
-      setPinned={setPinned}
-    >
+    <SidebarProvider {...props}>
       {children}
     </SidebarProvider>
   );
 };
 
 export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
+  const { className, children, ...restProps } = props;
+
+  const mobileProps = {
+    className,
+    ...Object.fromEntries(
+      Object.entries(restProps).filter(([key]) =>
+        !key.startsWith('initial') &&
+        !key.startsWith('animate') &&
+        !key.startsWith('exit') &&
+        !key.startsWith('variants') &&
+        !key.startsWith('transition') &&
+        !key.startsWith('whileHover') &&
+        !key.startsWith('whileTap') &&
+        !key.startsWith('onAnimationComplete') &&
+        key !== 'layout' &&
+        key !== 'layoutId'
+      )
+    ),
+  };
+
   return (
     <>
       <DesktopSidebar {...props} />
-      <MobileSidebar {...(props as React.ComponentProps<'div'>)} />
+      <MobileSidebar {...mobileProps}>
+        {children as React.ReactNode}
+      </MobileSidebar>
     </>
   );
 };
@@ -121,8 +145,8 @@ export const DesktopSidebar = ({
         className={cn(
           'h-screen px-2 pt-14 pb-4 hidden md:flex md:flex-col flex-shrink-0 fixed left-0 top-0 z-40',
           open
-            ? 'bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-r border-neutral-200/20 dark:border-neutral-700/20'
-            : 'bg-transparent backdrop-blur-none border-r border-transparent',
+            ? 'bg-background/80 backdrop-blur-md'
+            : 'bg-transparent backdrop-blur-none',
           className,
         )}
         initial={{ width: open ? '250px' : '69px' }}
@@ -172,12 +196,12 @@ export const MobileSidebar = ({
                 ease: 'easeInOut',
               }}
               className={cn(
-                'fixed h-full w-full inset-0 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md p-10 z-40 flex flex-col justify-between',
+                'fixed h-full w-full inset-0 bg-background/90 backdrop-blur-md p-10 z-40 flex flex-col justify-between',
                 className,
               )}
             >
               <div
-                className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200"
+                className="absolute right-10 top-10 z-50 text-foreground"
                 onClick={() => setOpen(!open)}
               >
                 <IconX />
@@ -245,7 +269,7 @@ export const SidebarLink = ({
           }}
           className={cn(
             'text-sm whitespace-nowrap overflow-hidden relative z-10',
-            'text-neutral-700 dark:text-neutral-200',
+            'text-muted-foreground',
           )}
           style={{ originX: 0 }}
         >
@@ -264,7 +288,7 @@ export const SidebarLink = ({
       className={cn(
         'flex items-center gap-2 group/sidebar py-2 relative rounded-xl transition-colors',
         'mx-1 px-3',
-        !link.isActive && 'hover:bg-neutral-50 dark:hover:bg-neutral-900',
+        !link.isActive && 'hover:bg-accent',
         className,
       )}
       {...props}
@@ -274,7 +298,7 @@ export const SidebarLink = ({
         <>
           {/* Background for expanded state */}
           <motion.div
-            className="absolute inset-y-0 rounded-xl bg-neutral-100 dark:bg-neutral-800"
+            className="absolute inset-y-0 rounded-xl bg-accent"
             initial={false}
             animate={{
               opacity: open ? 1 : 0,
@@ -289,7 +313,7 @@ export const SidebarLink = ({
           />
           {/* Outline for collapsed state */}
           <motion.div
-            className="absolute inset-y-0 rounded-xl border-2 border-neutral-300 dark:border-neutral-600"
+            className="absolute inset-y-0 rounded-xl border-2 border-border"
             initial={false}
             animate={{
               opacity: open ? 0 : 1,
@@ -329,8 +353,8 @@ export const SidebarLink = ({
         className={cn(
           'text-sm whitespace-nowrap overflow-hidden relative z-10',
           link.isActive
-            ? 'text-neutral-900 dark:text-white'
-            : 'text-neutral-700 dark:text-neutral-200',
+            ? 'text-accent-foreground'
+            : 'text-muted-foreground',
         )}
         style={{ originX: 0 }}
       >

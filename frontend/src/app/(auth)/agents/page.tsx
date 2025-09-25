@@ -108,7 +108,7 @@ export default function ActiveAgentsPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="border-b">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center space-x-4">
             <div>
@@ -122,16 +122,16 @@ export default function ActiveAgentsPage() {
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={handleRefresh}
               disabled={isRefreshing}
+              title="Refresh agents"
             >
-              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-              Refresh
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             </Button>
 
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button size="sm" variant="primary">
+              <Plus className="h-4 w-4" />
               Add Agent
             </Button>
           </div>
@@ -223,7 +223,7 @@ export default function ActiveAgentsPage() {
         </div>
 
         {/* Right Panel - Real-time Terminal */}
-        <div className="w-1/2 flex flex-col bg-background">
+        <div className="w-1/2 flex flex-col">
           {/* Terminal Header */}
           <div className="p-4 border-b">
             <div className="flex items-center justify-between">

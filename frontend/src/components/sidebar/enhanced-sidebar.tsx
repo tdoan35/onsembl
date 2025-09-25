@@ -185,7 +185,7 @@ export function EnhancedSidebar() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className={cn(
-                    'pl-10 h-10 transition-all duration-200 text-sm bg-white/5 border-white/10 text-zinc-300 placeholder:text-zinc-500 focus:ring-white/20 focus:border-white/20',
+                    'pl-10 h-10 transition-all duration-200 text-sm bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-ring focus:border-ring',
                     sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
                   )}
                 />
@@ -291,7 +291,7 @@ export function EnhancedSidebar() {
             {/* User Profile Section */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="flex items-center gap-2 px-3 py-2 mx-1 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer transition-colors">
+                <div className="flex items-center gap-2 px-3 py-2 mx-1 rounded-xl hover:bg-accent cursor-pointer transition-colors">
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src={user?.metadata?.['avatar_url']} />
                     <AvatarFallback>

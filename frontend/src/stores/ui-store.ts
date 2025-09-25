@@ -130,7 +130,7 @@ export const useUIStore = create<UIStore>()(
     (set, get) => ({
       // Initial state
       theme: 'system',
-      colorTheme: 'midnight-terminal',
+      colorTheme: 'modern',
       systemTheme: 'light',
       sidebarState: 'expanded',
       isFullscreen: false,
