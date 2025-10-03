@@ -113,9 +113,6 @@ export default function ActiveAgentsPage() {
           <div className="flex items-center space-x-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Active Agents</h1>
-              <p className="text-sm text-muted-foreground">
-                {activeAgentsCount} of {agents.length} agents online
-              </p>
             </div>
           </div>
 
