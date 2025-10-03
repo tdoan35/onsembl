@@ -65,7 +65,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
       {/* Navigation Bar */}
       <Navbar
-        className="h-12 bg-zinc-950 border-b border-border"
+        className="h-12 bg-background"
         onLogout={handleLogout}
         showProjectTitle={true}
       />
@@ -85,8 +85,8 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
         />
 
         {/* Main Content Area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <main className="flex h-full w-full flex-1 flex-col pt-6 px-6">
+        <div className="flex flex-1 flex-col overflow-hidden bg-background p-2">
+          <main className="flex h-full w-full flex-1 flex-col bg-background border border-border rounded-lg">
             {children}
           </main>
         </div>

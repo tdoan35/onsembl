@@ -35,7 +35,6 @@ export function PublicLayout({ children }: PublicLayoutProps) {
             </Link>
 
             <nav className="hidden md:flex items-center gap-8 text-sm text-zinc-300">
-              <a href="#features" className="hover:text-zinc-100 transition-colors">Platform</a>
               <a href="#features" className="hover:text-zinc-100 transition-colors">Features</a>
               <a href="#pricing" className="hover:text-zinc-100 transition-colors">Pricing</a>
               <a href="/docs" className="hover:text-zinc-100 transition-colors">Docs</a>
