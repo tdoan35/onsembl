@@ -71,8 +71,12 @@
     "url": "git+https://github.com/onsembl/onsembl-ai.git"
   },
   "dependencies": {
+    "@next/swc-win32-x64-msvc": "^16.0.0",
     "dotenv": "^17.2.2",
     "ioredis": "^5.7.0",
     "lru-cache": "^11.2.1"
+  },
+  "overrides": {
+    "fast-jwt": "^4.0.0"
   }
 }
