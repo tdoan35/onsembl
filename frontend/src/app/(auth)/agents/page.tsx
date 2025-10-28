@@ -1,19 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Filter, RefreshCw, Plus } from 'lucide-react';
+import { RefreshCw, Plus } from 'lucide-react';
 import AgentCard from '@/components/agents/agent-card';
 import TerminalViewer from '@/components/terminal/terminal-viewer';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentStore } from '@/stores/agent-store';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
@@ -22,7 +15,6 @@ export default function ActiveAgentsPage() {
   const { agents, addAgent, refreshAgents } = useAgentStore();
   const { addNotification } = useUIStore();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -94,16 +86,29 @@ export default function ActiveAgentsPage() {
     }
   };
 
-  // Filter agents based on search and status
+  // Filter agents based on status tab
   const filteredAgents = agents.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agent.type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || agent.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    switch (statusFilter) {
+      case 'all':
+        return true;
+      case 'active':
+        return agent.status === 'online';
+      case 'idle':
+        return agent.status === 'connecting';
+      case 'offline':
+        return agent.status === 'offline' || agent.status === 'error';
+      default:
+        return true;
+    }
   });
 
-  // Get active agents count
-  const activeAgentsCount = agents.filter(agent => agent.status === 'online').length;
+  // Get agent counts for tabs
+  const agentCounts = {
+    all: agents.length,
+    active: agents.filter(a => a.status === 'online').length,
+    idle: agents.filter(a => a.status === 'connecting').length,
+    offline: agents.filter(a => a.status === 'offline' || a.status === 'error').length,
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -139,68 +144,43 @@ export default function ActiveAgentsPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel - Active Agents */}
         <div className="w-1/2 border-r bg-muted/10 flex flex-col">
-          {/* Search and Filter Bar */}
-          <div className="p-4 border-b bg-background/50">
-            <div className="flex space-x-2 mb-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Search agents..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="offline">Offline</SelectItem>
-                  <SelectItem value="connecting">Connecting</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Status Summary */}
-            <div className="flex space-x-2">
-              <Badge variant="outline" className="text-green-600">
-                {agents.filter(a => a.status === 'online').length} Online
-              </Badge>
-              <Badge variant="outline" className="text-gray-500">
-                {agents.filter(a => a.status === 'offline').length} Offline
-              </Badge>
-              <Badge variant="outline" className="text-yellow-600">
-                {agents.filter(a => a.status === 'connecting').length} Connecting
-              </Badge>
-              {agents.filter(a => a.status === 'error').length > 0 && (
-                <Badge variant="outline" className="text-red-600">
-                  {agents.filter(a => a.status === 'error').length} Error
-                </Badge>
-              )}
-            </div>
+          {/* Tab Filter */}
+          <div className="p-4 bg-background/50">
+            <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="all" className="text-xs sm:text-sm">
+                  All
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                    {agentCounts.all}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="active" className="text-xs sm:text-sm">
+                  Active
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                    {agentCounts.active}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="idle" className="text-xs sm:text-sm">
+                  Idle
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                    {agentCounts.idle}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="offline" className="text-xs sm:text-sm">
+                  Offline
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                    {agentCounts.offline}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {/* Agents List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 pt-1 space-y-4 scrollbar-hover-only">
             {filteredAgents.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-                <p className="text-sm">No agents found</p>
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchTerm('')}
-                    className="mt-2"
-                  >
-                    Clear search
-                  </Button>
-                )}
+                <p className="text-sm">No agents found in this category</p>
               </div>
             ) : (
               filteredAgents.map((agent) => (

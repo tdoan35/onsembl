@@ -10,11 +10,14 @@ import {
   RotateCcw,
   Cpu,
   HardDrive,
-  Clock
+  Clock,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -30,42 +33,58 @@ import { cn } from '@/lib/utils';
 interface AgentCardProps {
   agent: Agent;
   compact?: boolean;
+  onToggleExpand?: () => void;
 }
 
 const statusConfig: Record<AgentStatus, {
   color: string;
+  dotColor: string;
   variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
   icon: any;
 }> = {
   online: {
     color: 'text-success',
+    dotColor: 'bg-green-500',
     variant: 'success',
     icon: Activity
   },
   offline: {
     color: 'text-gray-500',
+    dotColor: 'bg-gray-400',
     variant: 'secondary',
     icon: Square
   },
   error: {
     color: 'text-destructive',
+    dotColor: 'bg-red-500',
     variant: 'destructive',
     icon: AlertCircle
   },
   connecting: {
     color: 'text-secondary',
+    dotColor: 'bg-yellow-500',
     variant: 'warning',
     icon: RotateCcw
   },
 };
 
-export default function AgentCard({ agent, compact = false }: AgentCardProps) {
+// Agent type colors for avatar backgrounds
+const agentTypeColors: Record<string, string> = {
+  claude: 'bg-purple-500',
+  gemini: 'bg-blue-500',
+  codex: 'bg-green-500',
+};
+
+export default function AgentCard({ agent, compact = false, onToggleExpand }: AgentCardProps) {
+  const [isExpanded, setIsExpanded] = useState(!compact);
   const { updateAgentStatus, removeAgent } = useAgentStore();
   const { addNotification, setLoading } = useUIStore();
   const [lastPingTime, setLastPingTime] = useState<string>('');
 
   const statusInfo = statusConfig[agent.status];
   const StatusIcon = statusInfo.icon;
+  const avatarBgColor = agentTypeColors[agent.type] || 'bg-gray-500';
+  const agentInitial = agent.name.charAt(0).toUpperCase();
 
   // Format last ping time
   useEffect(() => {
@@ -172,51 +191,49 @@ export default function AgentCard({ agent, compact = false }: AgentCardProps) {
     return `${mb.toFixed(1)} MB`;
   };
 
-  if (compact) {
-    return (
-      <Card className="w-full">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <StatusIcon className={cn("h-5 w-5", statusInfo.color)} />
-              <div>
-                <h3 className="font-medium">{agent.name}</h3>
-                <p className="text-sm text-muted-foreground capitalize">{agent.type}</p>
-              </div>
-            </div>
-            <Badge variant={statusInfo.variant} className="capitalize">
-              {agent.status}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleToggleExpand = () => {
+    setIsExpanded(!isExpanded);
+    if (onToggleExpand) {
+      onToggleExpand();
+    }
+  };
 
   return (
     <Card className="w-full hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
+      {/* Header - Always visible */}
+      <CardContent className="p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 flex-1">
             <div className="relative">
-              <StatusIcon className={cn("h-8 w-8", statusInfo.color)} />
-              {agent.status === 'connecting' && (
-                <div className="absolute inset-0 animate-spin">
-                  <RotateCcw className="h-8 w-8 text-secondary" />
-                </div>
-              )}
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className={cn(avatarBgColor, "text-white font-semibold")}>
+                  {agentInitial}
+                </AvatarFallback>
+              </Avatar>
+              <div className={cn(
+                "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background",
+                statusInfo.dotColor,
+                agent.status === 'connecting' && "animate-pulse"
+              )} />
             </div>
-            <div>
-              <CardTitle className="text-lg">{agent.name}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)} • v{agent.version}
-              </p>
+            <div className="flex-1">
+              <h3 className="font-medium">{agent.name}</h3>
+              <p className="text-sm text-muted-foreground capitalize">{agent.type} • v{agent.version}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <Badge variant={statusInfo.variant} className="capitalize">
               {agent.status}
             </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleToggleExpand}
+              className="h-8 w-8"
+              title={isExpanded ? "Collapse details" : "Expand details"}
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -264,94 +281,97 @@ export default function AgentCard({ agent, compact = false }: AgentCardProps) {
             </Dialog>
           </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Status Information */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-muted-foreground">Last Ping</p>
-            <p className="font-medium">{lastPingTime || 'Never'}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Capabilities</p>
-            <p className="font-medium">{agent.capabilities.length} features</p>
-          </div>
-        </div>
-
-        {/* Error Display */}
-        {agent.error && (
-          <div className="p-3 border border-destructive/20 bg-destructive/10 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+        {/* Expanded Content - Only visible when expanded */}
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t space-y-4">
+            {/* Status Information */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-sm font-medium text-destructive">Error</p>
-                <p className="text-sm text-destructive/80">{agent.error}</p>
+                <p className="text-muted-foreground">Last Ping</p>
+                <p className="font-medium">{lastPingTime || 'Never'}</p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Metrics */}
-        {agent.metrics && agent.status === 'online' && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Performance Metrics</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Clock className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Uptime</span>
-                </div>
-                <p className="text-sm font-medium">
-                  {formatUptime(agent.metrics.uptime)}
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <HardDrive className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Memory</span>
-                </div>
-                <p className="text-sm font-medium">
-                  {formatBytes(agent.metrics.memoryUsage)}
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Cpu className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">CPU</span>
-                </div>
-                <p className="text-sm font-medium">
-                  {agent.metrics.cpuUsage.toFixed(1)}%
-                </p>
+              <div>
+                <p className="text-muted-foreground">Capabilities</p>
+                <p className="font-medium">{agent.capabilities.length} features</p>
               </div>
             </div>
 
-            {/* Commands executed */}
-            <div className="pt-2 border-t">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Commands Executed</span>
-                <span className="text-sm font-medium">{agent.metrics.commandsExecuted}</span>
+            {/* Error Display */}
+            {agent.error && (
+              <div className="p-3 border border-destructive/20 bg-destructive/10 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-destructive">Error</p>
+                    <p className="text-sm text-destructive/80">{agent.error}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Capabilities */}
-        {agent.capabilities.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Capabilities</h4>
-            <div className="flex flex-wrap gap-1">
-              {agent.capabilities.slice(0, 6).map((capability) => (
-                <Badge key={capability} variant="outline" className="text-xs">
-                  {capability}
-                </Badge>
-              ))}
-              {agent.capabilities.length > 6 && (
-                <Badge variant="outline" className="text-xs">
-                  +{agent.capabilities.length - 6} more
-                </Badge>
-              )}
-            </div>
+            {/* Metrics */}
+            {agent.metrics && agent.status === 'online' && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">Performance Metrics</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center space-x-1 mb-1">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Uptime</span>
+                    </div>
+                    <p className="text-sm font-medium">
+                      {formatUptime(agent.metrics.uptime)}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center space-x-1 mb-1">
+                      <HardDrive className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Memory</span>
+                    </div>
+                    <p className="text-sm font-medium">
+                      {formatBytes(agent.metrics.memoryUsage)}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center space-x-1 mb-1">
+                      <Cpu className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">CPU</span>
+                    </div>
+                    <p className="text-sm font-medium">
+                      {agent.metrics.cpuUsage.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                {/* Commands executed */}
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Commands Executed</span>
+                    <span className="text-sm font-medium">{agent.metrics.commandsExecuted}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Capabilities */}
+            {agent.capabilities.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Capabilities</h4>
+                <div className="flex flex-wrap gap-1">
+                  {agent.capabilities.slice(0, 6).map((capability) => (
+                    <Badge key={capability} variant="outline" className="text-xs">
+                      {capability}
+                    </Badge>
+                  ))}
+                  {agent.capabilities.length > 6 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{agent.capabilities.length - 6} more
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
