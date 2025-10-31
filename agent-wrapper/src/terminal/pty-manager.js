@@ -1,6 +1,25 @@
-import * as pty from 'node-pty';
 import EventEmitter from 'events';
 import { Transform } from 'stream';
+
+// Cache for node-pty module
+let ptyModule = null;
+let ptyAvailable = null;
+
+// Check if node-pty is available
+async function checkPtyAvailable() {
+  if (ptyAvailable !== null) {
+    return ptyAvailable;
+  }
+
+  try {
+    ptyModule = await import('node-pty');
+    ptyAvailable = true;
+    return true;
+  } catch (error) {
+    ptyAvailable = false;
+    return false;
+  }
+}
 
 export class PTYManager extends EventEmitter {
   constructor(logger) {
@@ -14,7 +33,19 @@ export class PTYManager extends EventEmitter {
     };
   }
 
-  spawn(command, args = [], options = {}) {
+  async spawn(command, args = [], options = {}) {
+    // Check if node-pty is available
+    const available = await checkPtyAvailable();
+    if (!available) {
+      const error = new Error(
+        'node-pty is not available. Interactive mode requires node-pty to be installed. ' +
+        'Please install it with: npm install node-pty'
+      );
+      error.code = 'NODE_PTY_NOT_AVAILABLE';
+      this.logger.error('node-pty not available', { error: error.message });
+      throw error;
+    }
+
     // Extract env from options to handle separately
     const { env: optionEnv, ...otherOptions } = options;
 
@@ -36,7 +67,7 @@ export class PTYManager extends EventEmitter {
     });
 
     try {
-      this.ptyProcess = pty.spawn(command, args, ptyOptions);
+      this.ptyProcess = ptyModule.spawn(command, args, ptyOptions);
       this.isInteractive = true;
 
       this.ptyProcess.onData((data) => {
@@ -122,3 +153,6 @@ export class PTYManager extends EventEmitter {
     return multiplexer;
   }
 }
+
+// Export the availability check function
+export { checkPtyAvailable };

@@ -230,6 +230,7 @@ export class AgentModel {
         name: validated.name,
         type: validated.type as any,
         status: this.toDbStatus(validated.status as AgentStatus) as any,
+        user_id: validated.user_id, // Include user_id for RLS policies
         metadata: (validated.metadata as Record<string, any>) || {},
         created_at: new Date().toISOString() as any,
         updated_at: new Date().toISOString() as any,

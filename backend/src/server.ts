@@ -12,6 +12,7 @@ import websocket from '@fastify/websocket';
 import fastifyJWT from '@fastify/jwt';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUI from '@fastify/swagger-ui';
+import Redis from 'ioredis';
 import { config } from './config/index';
 import { registerAuthDecorators } from './middleware/auth';
 import { registerRequestIdMiddleware } from './middleware/request-id';
@@ -32,6 +33,7 @@ import { EnvironmentDetector } from './database/environment-detector';
 import { HealthCheckService } from './database/health-check.service';
 import { DatabaseErrorMessages } from './database/error-messages';
 import { HealthChecker } from './lib/health-checker';
+import { supabaseAdmin } from './lib/supabase.js';
 
 // API Routes
 import { registerAuthRoutes } from './api/auth';
@@ -121,12 +123,38 @@ export async function createServer(): Promise<FastifyInstance> {
     server.log.warn('Running without database - data will not be persisted');
   }
 
+  // Initialize Redis connection for BullMQ
+  let redisConnection = null;
+  if (config.REDIS_URL) {
+    try {
+      redisConnection = new Redis(config.REDIS_URL, {
+        maxRetriesPerRequest: null, // Required for BullMQ
+        enableReadyCheck: false,
+      });
+
+      redisConnection.on('connect', () => {
+        server.log.info('Redis connection established');
+      });
+
+      redisConnection.on('error', (error) => {
+        server.log.error({ error }, 'Redis connection error');
+      });
+    } catch (error) {
+      server.log.error({ error }, 'Failed to create Redis connection');
+    }
+  } else {
+    server.log.warn('REDIS_URL not configured - command queueing will not work');
+  }
+
   // Initialize services with dependencies
   // For now, create mock services if Supabase is not available
   if (supabaseClient) {
+    // Use service role client for AgentService to bypass RLS policies
+    server.log.info('Initializing AgentService with service role client to bypass RLS');
+
     services = {
-      agentService: new AgentService(supabaseClient as any, server),
-      commandService: new CommandService(supabaseClient as any, server, null),
+      agentService: new AgentService(supabaseAdmin as any, server),
+      commandService: new CommandService(supabaseClient as any, server, redisConnection),
       authService: new AuthService(server, supabaseClient as any),
       auditService: new AuditService(server, {}, supabaseClient as any),
       healthService: healthService,
@@ -293,6 +321,12 @@ export async function createServer(): Promise<FastifyInstance> {
   const gracefulShutdown = async (signal: string) => {
     server.log.info(`Received ${signal}, shutting down gracefully`);
     try {
+      // Close Redis connection if it exists
+      if (redisConnection) {
+        server.log.info('Closing Redis connection');
+        await redisConnection.quit();
+      }
+
       await server.close();
       server.log.info('Server closed successfully');
       process.exit(0);

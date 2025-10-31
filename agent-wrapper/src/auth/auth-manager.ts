@@ -28,7 +28,7 @@ export class AuthManager {
   private credentialStore: CredentialStore;
 
   constructor(options: AuthManagerOptions = {}) {
-    const serverUrl = options.serverUrl || process.env['ONSEMBL_SERVER_URL'] || 'http://localhost:3010';
+    const serverUrl = options.serverUrl || process.env['ONSEMBL_SERVER_URL'] || 'http://localhost:3001';
 
     this.cliAuth = new CLIAuth(serverUrl, options.clientId);
     this.credentialStore = options.credentialStore || createCredentialStore();

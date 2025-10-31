@@ -119,10 +119,10 @@ export class WebSocketClient extends EventEmitter {
     this.onCommand = options.onCommand;
     this.onError = options.onError;
 
-    // Initialize AuthManager if user authentication is available
-    if (options.config.userId) {
-      this.authManager = new AuthManager();
-    }
+    // Always initialize AuthManager to check for stored credentials
+    this.authManager = new AuthManager({
+      serverUrl: options.config.serverUrl
+    });
 
     // Initialize circuit breaker with sensible defaults
     this.circuitBreaker = new ConnectionCircuitBreaker(
@@ -627,37 +627,17 @@ export class WebSocketClient extends EventEmitter {
   }
 
   private async buildAuthToken(): Promise<string | null> {
-    // If we have an AuthManager, use real user authentication
-    if (this.authManager) {
-      try {
-        return await this.authManager.getAccessToken();
-      } catch (error) {
-        console.error('Failed to get user access token:', error);
-        // Fall back to old behavior if authentication fails
-      }
-    }
-
-    // Legacy fallback for backward compatibility
-    const provided = this.config.apiKey || null;
-    if (provided && provided.split('.').length === 3) {
-      return provided; // Looks like a JWT already
-    }
-
-    // Generate a development JWT compatible with backend fastify-jwt
-    const secret = process.env['JWT_SECRET'] || 'supersecretkey';
+    // Use stored CLI tokens for authentication
     try {
-      const token = jwt.sign(
-        {
-          sub: this.agentId,
-          role: 'agent',
-          iss: 'onsembl-agent-wrapper',
-        },
-        secret,
-        { expiresIn: '1h' }
-      );
+      const token = await this.authManager!.getAccessToken();
       return token;
-    } catch {
-      return provided; // Fallback to provided token if signing fails
+    } catch (error) {
+      // Not authenticated - throw clear error with instructions
+      const errorMessage = error instanceof Error ? error.message : 'Authentication required';
+      throw new Error(
+        `Authentication required. Please run: onsembl-agent auth login\n` +
+        `Details: ${errorMessage}`
+      );
     }
   }
 

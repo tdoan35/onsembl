@@ -207,6 +207,13 @@ export class AgentWebSocketHandler extends EventEmitter {
         return;
       }
 
+      // Log successful authentication with userId
+      this.server.log.info({
+        agentId,
+        userId: authContext.userId,
+        connectionId: connection.connectionId
+      }, 'Agent authentication successful - userId extracted from token');
+
       // Resolve or create agent in database so we have a UUID id
       // 1) Try to fetch by UUID id first
       let resolvedAgentId: string | null = null;
@@ -233,8 +240,15 @@ export class AgentWebSocketHandler extends EventEmitter {
               capabilities: capabilities || {},
             },
             status: 'offline',
+            user_id: authContext.userId, // Associate agent with authenticated user
           } as any);
           resolvedAgentId = created.id;
+
+          this.server.log.info({
+            agentId: resolvedAgentId,
+            userId: authContext.userId,
+            agentName: agentId
+          }, 'New agent registered with user association');
         }
       }
 

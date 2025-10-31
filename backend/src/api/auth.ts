@@ -651,7 +651,7 @@ export async function registerAuthRoutes(
       user_code: userCode,
       expires_at: expiresAt,
       scopes: scope.split(' '),
-      user_id: '', // Will be set when user authorizes
+      user_id: null, // Will be set when user authorizes
       is_revoked: false
     });
 
@@ -674,6 +674,127 @@ export async function registerAuthRoutes(
       verification_uri_complete: verificationUriComplete,
       expires_in: expiresIn,
       interval: 5 // Poll every 5 seconds
+    });
+  });
+
+  // POST /api/auth/device/confirm - User confirms device authorization
+  server.post('/api/auth/device/confirm', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['user_code'],
+        properties: {
+          user_code: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' }
+          }
+        },
+        400: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' }
+          }
+        }
+      },
+      tags: ['cli-auth'],
+      summary: 'Confirm device authorization',
+      description: 'User confirms and authorizes a device using the user code'
+    },
+    preHandler: authenticateSupabase
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = (request as any).user;
+    if (!user) {
+      return reply.code(401).send({
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      });
+    }
+
+    const { user_code } = request.body as { user_code: string };
+
+    // Find the device authorization by user code
+    const { data: tokenData, error: findError } = await supabaseAdmin
+      .from('cli_tokens')
+      .select('*')
+      .eq('user_code', user_code)
+      .eq('is_revoked', false)
+      .single();
+
+    if (findError || !tokenData) {
+      return reply.code(400).send({
+        error: 'INVALID_CODE',
+        message: 'Invalid or expired user code'
+      });
+    }
+
+    // Check if expired
+    if (new Date() > new Date(tokenData.expires_at!)) {
+      return reply.code(400).send({
+        error: 'EXPIRED_CODE',
+        message: 'User code has expired'
+      });
+    }
+
+    // Check if already authorized
+    if (tokenData.user_id && tokenData.access_token) {
+      return reply.code(400).send({
+        error: 'ALREADY_AUTHORIZED',
+        message: 'This device has already been authorized'
+      });
+    }
+
+    // Generate tokens for CLI
+    const accessToken = server.jwt.sign(
+      { sub: user.id, scope: tokenData.scopes.join(' '), type: 'cli' },
+      { expiresIn: '1h' }
+    );
+    const refreshToken = server.jwt.sign(
+      { sub: user.id, type: 'cli_refresh' },
+      { expiresIn: '30d' }
+    );
+
+    // Update the device authorization with user info and tokens
+    const accessExpiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+
+    const { error: updateError } = await supabaseAdmin
+      .from('cli_tokens')
+      .update({
+        user_id: user.id,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        refresh_expires_at: refreshExpiresAt,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', tokenData.id);
+
+    if (updateError) {
+      request.log.error({ error: updateError }, 'Failed to authorize device');
+      return reply.code(500).send({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to authorize device'
+      });
+    }
+
+    // Log authorization event
+    await audit.log({
+      user_id: user.id,
+      event_type: 'cli_device_authorized',
+      event_data: { user_code, device_code: tokenData.device_code },
+      ip_address: request.ip,
+      user_agent: request.headers['user-agent']
+    });
+
+    return reply.send({
+      success: true,
+      message: 'Device authorized successfully'
     });
   });
 

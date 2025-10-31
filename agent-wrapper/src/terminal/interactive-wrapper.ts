@@ -3,7 +3,7 @@
 import { EventEmitter } from 'events';
 import { Config } from '../config.js';
 import { WebSocketClient, CommandMessage } from '../websocket-client.js';
-import { PTYManager } from './pty-manager.js';
+import { PTYManager, checkPtyAvailable } from './pty-manager.js';
 import { ModeDetector } from './mode-detector.js';
 import { OutputMultiplexer } from './output-multiplexer.js';
 import { InputMultiplexer } from './input-multiplexer.js';
@@ -85,7 +85,18 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
       // Initialize components based on mode
       if (this.mode === 'interactive') {
-        await this.initializeInteractiveMode();
+        // Check if node-pty is available for interactive mode
+        const ptyAvailable = await checkPtyAvailable();
+        if (!ptyAvailable) {
+          this.logger.warn(
+            'node-pty is not available - falling back to headless mode. ' +
+            'To enable interactive mode, install node-pty: npm install node-pty'
+          );
+          this.mode = 'headless';
+          await this.initializeHeadlessMode();
+        } else {
+          await this.initializeInteractiveMode();
+        }
       } else {
         await this.initializeHeadlessMode();
       }

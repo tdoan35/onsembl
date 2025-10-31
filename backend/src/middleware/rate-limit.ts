@@ -285,10 +285,17 @@ export function createRateLimiter(options: RateLimitOptions) {
  * Global rate limiter - applies to all routes
  */
 export function globalRateLimiter(fastify: FastifyInstance) {
+  // In development, add localhost to allow list
+  const isDev = process.env['NODE_ENV'] === 'development';
+  const envAllowList = process.env['RATE_LIMIT_ALLOW_LIST']?.split(',').filter(Boolean) || [];
+  const allowList = isDev
+    ? [...envAllowList, '127.0.0.1', '::1', 'localhost']
+    : envAllowList.length > 0 ? envAllowList : undefined;
+
   const limiter = createRateLimiter({
-    max: parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10),
+    max: parseInt(process.env['RATE_LIMIT_MAX'] || (isDev ? '1000' : '100'), 10),
     window: parseInt(process.env['RATE_LIMIT_WINDOW'] || '900000', 10), // 15 minutes
-    allowList: process.env['RATE_LIMIT_ALLOW_LIST']?.split(','),
+    allowList,
     message: 'Too many requests, please try again later.',
   });
 

@@ -181,7 +181,9 @@ class FileCredentialStore implements CredentialStore {
 
   private encrypt(text: string, key: string): string {
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipher('aes-256-cbc', key);
+    // Derive a proper 32-byte key from the hex string
+    const keyBuffer = crypto.createHash('sha256').update(key).digest();
+    const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     return iv.toString('hex') + ':' + encrypted;
@@ -191,7 +193,9 @@ class FileCredentialStore implements CredentialStore {
     const parts = encryptedData.split(':');
     const iv = Buffer.from(parts[0] || '', 'hex');
     const encrypted = parts[1] || '';
-    const decipher = crypto.createDecipher('aes-256-cbc', key);
+    // Derive a proper 32-byte key from the hex string
+    const keyBuffer = crypto.createHash('sha256').update(key).digest();
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;

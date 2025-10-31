@@ -16,6 +16,7 @@ import { CodexAgent } from './agents/codex.js';
 import { MockAgent } from './agents/mock.js';
 import { OutputChunk } from './stream-capture.js';
 import { InteractiveAgentWrapper, InteractiveOptions } from './terminal/interactive-wrapper.js';
+import { checkPtyAvailable } from './terminal/pty-manager.js';
 import AuthManager from './auth/auth-manager.js';
 import APIClient from './api/client.js';
 
@@ -412,8 +413,28 @@ function createCLI(): Command {
           showStatusBar: options.statusBar,
         });
 
+        // Check authentication before starting
+        const authManager = new AuthManager({
+          serverUrl: config.serverUrl
+        });
+
+        if (!(await authManager.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl-agent auth login');
+          process.exit(1);
+        }
+
         // Use InteractiveAgentWrapper if interactive mode is requested
         if (options.interactive || (!options.headless && process.stdin.isTTY)) {
+          // Check if node-pty is available for interactive mode
+          if (options.interactive) {
+            const ptyAvailable = await checkPtyAvailable();
+            if (!ptyAvailable) {
+              console.warn('⚠️  Warning: node-pty is not available. Interactive mode will fall back to headless mode.');
+              console.warn('   To enable full interactive mode, install node-pty with: npm install node-pty');
+              console.warn('');
+            }
+          }
+
           const interactiveOptions: InteractiveOptions = {
             interactive: options.interactive,
             headless: options.headless,
@@ -476,6 +497,17 @@ function createCLI(): Command {
 
         // Then start with default config
         const config = loadConfig();
+
+        // Check authentication before restarting
+        const authManager = new AuthManager({
+          serverUrl: config.serverUrl
+        });
+
+        if (!(await authManager.isAuthenticated())) {
+          console.error('Not authenticated. Please run: onsembl-agent auth login');
+          process.exit(1);
+        }
+
         const wrapper = new AgentWrapper(config);
         await wrapper.start();
 
@@ -876,10 +908,8 @@ function createCLI(): Command {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Check if this file is being run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const cli = createCLI();
-  cli.parse(process.argv);
-}
+// Always execute CLI when file is run (bin entry point)
+const cli = createCLI();
+cli.parse(process.argv);
 
 export { AgentWrapper, createCLI };

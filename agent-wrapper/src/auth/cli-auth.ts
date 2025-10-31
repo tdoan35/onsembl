@@ -48,7 +48,7 @@ export class CLIAuth {
   private baseUrl: string;
   private clientId: string;
 
-  constructor(baseUrl: string = 'http://localhost:3010', clientId: string = 'onsembl-cli') {
+  constructor(baseUrl: string = 'http://localhost:3001', clientId: string = 'onsembl-cli') {
     this.baseUrl = baseUrl;
     this.clientId = clientId;
   }

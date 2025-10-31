@@ -5,6 +5,7 @@
 
 import { startServer } from './server.js';
 import { config } from './config/index.js';
+import { pathToFileURL } from 'url';
 
 /**
  * Application entry point
@@ -45,6 +46,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // Start the application
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Handle both Windows and Unix paths by normalizing to file:// URLs
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
