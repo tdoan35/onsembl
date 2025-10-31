@@ -59,7 +59,7 @@ const HeroSection = () => {
               Get Started
             </Button>
 
-            <a href="#features">
+            {/* <a href="#features">
               <Button
                 variant="outline"
                 size="default"
@@ -67,7 +67,7 @@ const HeroSection = () => {
               >
                 Tour the platform
               </Button>
-            </a>
+            </a> */}
           </div>
         </div>
 

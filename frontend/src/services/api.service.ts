@@ -201,7 +201,7 @@ export class ApiClient {
   /**
    * Make HTTP request
    */
-  private async request<T>(endpoint: string, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+  public async request<T>(endpoint: string, config: RequestConfig = {}): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint, config.params);
     const requestId = this.generateRequestId();
 

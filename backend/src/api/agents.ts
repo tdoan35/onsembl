@@ -7,6 +7,66 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Services } from '../server';
 import { authenticateSupabase } from '../middleware/auth.js';
+import { AgentRow, AgentMetadata } from '../models/agent.js';
+
+// ============================================================================
+// Response Transformation Layer
+// ============================================================================
+
+/**
+ * API response interface matching frontend expectations
+ */
+export interface AgentApiResponse {
+  agent_id: string;
+  name: string;
+  agent_type: string;
+  status: string;
+  version: string;
+  capabilities: string[];
+  last_heartbeat: string | null;
+  last_metrics: {
+    commandsExecuted: number;
+    uptime: number;
+    memoryUsage: number;
+    cpuUsage: number;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Transform database agent row to API response format
+ * Maps field names and structures data for frontend consumption
+ */
+function transformAgentForApi(dbAgent: AgentRow): AgentApiResponse {
+  // Extract and structure metrics from metadata
+  const metadata = dbAgent.metadata as AgentMetadata | null;
+  let lastMetrics = null;
+
+  if (metadata) {
+    const perfMetrics = metadata.performance_metrics;
+
+    lastMetrics = {
+      commandsExecuted: perfMetrics?.commands_executed || 0,
+      uptime: perfMetrics?.uptime || 0,
+      memoryUsage: metadata.memory_usage || 0,
+      cpuUsage: 0, // Not currently tracked in metadata, default to 0
+    };
+  }
+
+  return {
+    agent_id: dbAgent.id,
+    name: dbAgent.name,
+    agent_type: dbAgent.type.toUpperCase(),
+    status: dbAgent.status.toUpperCase(),
+    version: dbAgent.version,
+    capabilities: dbAgent.capabilities || [],
+    last_heartbeat: dbAgent.last_ping,
+    last_metrics: lastMetrics,
+    created_at: dbAgent.created_at,
+    updated_at: dbAgent.updated_at,
+  };
+}
 
 // Request/Response schemas
 const createAgentSchema = z.object({
@@ -58,14 +118,23 @@ export async function registerAgentRoutes(
               items: {
                 type: 'object',
                 properties: {
-                  id: { type: 'string', format: 'uuid' },
+                  agent_id: { type: 'string', format: 'uuid' },
                   name: { type: 'string' },
-                  type: { type: 'string', enum: ['claude', 'gemini', 'codex', 'custom'] },
-                  status: { type: 'string', enum: ['online', 'offline', 'executing', 'error', 'maintenance'] },
+                  agent_type: { type: 'string' },
+                  status: { type: 'string' },
                   version: { type: 'string' },
                   capabilities: { type: 'array', items: { type: 'string' } },
-                  last_ping: { type: 'string', format: 'date-time', nullable: true },
-                  metadata: { type: 'object', nullable: true },
+                  last_heartbeat: { type: 'string', format: 'date-time', nullable: true },
+                  last_metrics: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      commandsExecuted: { type: 'number' },
+                      uptime: { type: 'number' },
+                      memoryUsage: { type: 'number' },
+                      cpuUsage: { type: 'number' }
+                    }
+                  },
                   created_at: { type: 'string', format: 'date-time' },
                   updated_at: { type: 'string', format: 'date-time' }
                 }
@@ -108,6 +177,9 @@ export async function registerAgentRoutes(
         offset
       });
 
+      // Transform agents to API response format
+      const transformedAgents = (agents || []).map(transformAgentForApi);
+
       // Log audit event
       await auditService.logEvent(
         'AGENTS_LISTED' as any,
@@ -118,8 +190,8 @@ export async function registerAgentRoutes(
       );
 
       return reply.code(200).send({
-        agents: agents || [],
-        total: agents?.length || 0,
+        agents: transformedAgents,
+        total: transformedAgents.length,
         limit,
         offset
       });
@@ -139,14 +211,23 @@ export async function registerAgentRoutes(
         200: {
           type: 'object',
           properties: {
-            id: { type: 'string', format: 'uuid' },
+            agent_id: { type: 'string', format: 'uuid' },
             name: { type: 'string' },
-            type: { type: 'string', enum: ['claude', 'gemini', 'codex', 'custom'] },
-            status: { type: 'string', enum: ['online', 'offline', 'executing', 'error', 'maintenance'] },
+            agent_type: { type: 'string' },
+            status: { type: 'string' },
             version: { type: 'string' },
             capabilities: { type: 'array', items: { type: 'string' } },
-            last_ping: { type: 'string', format: 'date-time', nullable: true },
-            metadata: { type: 'object', nullable: true },
+            last_heartbeat: { type: 'string', format: 'date-time', nullable: true },
+            last_metrics: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                commandsExecuted: { type: 'number' },
+                uptime: { type: 'number' },
+                memoryUsage: { type: 'number' },
+                cpuUsage: { type: 'number' }
+              }
+            },
             created_at: { type: 'string', format: 'date-time' },
             updated_at: { type: 'string', format: 'date-time' }
           }
@@ -181,6 +262,9 @@ export async function registerAgentRoutes(
         });
       }
 
+      // Transform agent to API response format
+      const transformedAgent = transformAgentForApi(agent);
+
       // Log audit event
       await auditService.logAgentEvent(
         'AGENT_RETRIEVED' as any,
@@ -189,7 +273,7 @@ export async function registerAgentRoutes(
         request
       );
 
-      return reply.code(200).send(agent);
+      return reply.code(200).send(transformedAgent);
     } catch (error) {
       request.log.error({ error }, 'Failed to get agent');
       return reply.code(500).send({
@@ -206,14 +290,23 @@ export async function registerAgentRoutes(
         201: {
           type: 'object',
           properties: {
-            id: { type: 'string', format: 'uuid' },
+            agent_id: { type: 'string', format: 'uuid' },
             name: { type: 'string' },
-            type: { type: 'string', enum: ['claude', 'gemini', 'codex', 'custom'] },
-            status: { type: 'string', enum: ['online', 'offline', 'executing', 'error', 'maintenance'] },
+            agent_type: { type: 'string' },
+            status: { type: 'string' },
             version: { type: 'string' },
             capabilities: { type: 'array', items: { type: 'string' } },
-            last_ping: { type: 'string', format: 'date-time', nullable: true },
-            metadata: { type: 'object', nullable: true },
+            last_heartbeat: { type: 'string', format: 'date-time', nullable: true },
+            last_metrics: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                commandsExecuted: { type: 'number' },
+                uptime: { type: 'number' },
+                memoryUsage: { type: 'number' },
+                cpuUsage: { type: 'number' }
+              }
+            },
             created_at: { type: 'string', format: 'date-time' },
             updated_at: { type: 'string', format: 'date-time' }
           }
@@ -246,6 +339,9 @@ export async function registerAgentRoutes(
         status: 'offline' // New agents start offline
       } as any, user.id);
 
+      // Transform agent to API response format
+      const transformedAgent = transformAgentForApi(agent);
+
       // Log audit event
       await auditService.logAgentEvent(
         'AGENT_CREATED' as any,
@@ -254,7 +350,7 @@ export async function registerAgentRoutes(
         request
       );
 
-      return reply.code(201).send(agent);
+      return reply.code(201).send(transformedAgent);
     } catch (error) {
       request.log.error({ error }, 'Failed to create agent');
       return reply.code(400).send({
@@ -272,14 +368,23 @@ export async function registerAgentRoutes(
         200: {
           type: 'object',
           properties: {
-            id: { type: 'string', format: 'uuid' },
+            agent_id: { type: 'string', format: 'uuid' },
             name: { type: 'string' },
-            type: { type: 'string', enum: ['claude', 'gemini', 'codex', 'custom'] },
-            status: { type: 'string', enum: ['online', 'offline', 'executing', 'error', 'maintenance'] },
+            agent_type: { type: 'string' },
+            status: { type: 'string' },
             version: { type: 'string' },
             capabilities: { type: 'array', items: { type: 'string' } },
-            last_ping: { type: 'string', format: 'date-time', nullable: true },
-            metadata: { type: 'object', nullable: true },
+            last_heartbeat: { type: 'string', format: 'date-time', nullable: true },
+            last_metrics: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                commandsExecuted: { type: 'number' },
+                uptime: { type: 'number' },
+                memoryUsage: { type: 'number' },
+                cpuUsage: { type: 'number' }
+              }
+            },
             created_at: { type: 'string', format: 'date-time' },
             updated_at: { type: 'string', format: 'date-time' }
           }
@@ -322,6 +427,9 @@ export async function registerAgentRoutes(
         });
       }
 
+      // Transform agent to API response format
+      const transformedAgent = transformAgentForApi(agent);
+
       // Log audit event
       await auditService.logAgentEvent(
         'AGENT_UPDATED' as any,
@@ -330,7 +438,7 @@ export async function registerAgentRoutes(
         request
       );
 
-      return reply.code(200).send(agent);
+      return reply.code(200).send(transformedAgent);
     } catch (error) {
       request.log.error({ error }, 'Failed to update agent');
       return reply.code(400).send({

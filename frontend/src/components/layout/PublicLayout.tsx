@@ -36,9 +36,9 @@ export function PublicLayout({ children }: PublicLayoutProps) {
 
             <nav className="hidden md:flex items-center gap-8 text-sm text-zinc-300">
               <a href="#features" className="hover:text-zinc-100 transition-colors">Features</a>
-              <a href="#pricing" className="hover:text-zinc-100 transition-colors">Pricing</a>
-              <a href="/docs" className="hover:text-zinc-100 transition-colors">Docs</a>
-              <a href="/changelog" className="hover:text-zinc-100 transition-colors">Changelog</a>
+              {/* <a href="#pricing" className="hover:text-zinc-100 transition-colors">Pricing</a> */}
+              <a href="https://github.com/tdoan35/onsembl" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-100 transition-colors">GitHub</a>
+              {/* <a href="/changelog" className="hover:text-zinc-100 transition-colors">Changelog</a> */}
             </nav>
 
             <div className="flex items-center gap-3">

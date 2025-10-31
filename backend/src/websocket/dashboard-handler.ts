@@ -584,8 +584,36 @@ export class DashboardWebSocketHandler extends EventEmitter {
    */
   private async sendInitialData(connection: DashboardConnection): Promise<void> {
     try {
-      // Send agent statuses
-      const agents = await this.services.agentService.listAgents();
+      // Fetch all agents for the user
+      const agents = await this.services.agentService.listAgents({
+        user_id: connection.userId
+      });
+
+      // Send dashboard:connected event with initial agent list
+      const agentList = agents.map(agent => ({
+        agentId: agent.id,
+        name: agent.name,
+        type: agent.type?.toUpperCase() || 'UNKNOWN',
+        status: agent.status?.toUpperCase() || 'OFFLINE',
+        version: agent.version || 'unknown',
+        capabilities: agent.capabilities || [],
+        lastHeartbeat: agent.last_ping,
+      }));
+
+      // Send as a custom message (not in MessageType enum)
+      const dashboardConnectedMessage = {
+        type: 'dashboard:connected',
+        id: this.generateMessageId(),
+        timestamp: Date.now(),
+        payload: {
+          agents: agentList,
+          timestamp: Date.now()
+        }
+      };
+
+      connection.socket.socket.send(JSON.stringify(dashboardConnectedMessage));
+
+      // Send individual agent statuses for subscribed agents
       agents.forEach(agent => {
         if (connection.subscriptions.agents.has(agent.id)) {
           this.sendMessage(connection.socket, MessageType.AGENT_STATUS, {
@@ -613,6 +641,11 @@ export class DashboardWebSocketHandler extends EventEmitter {
           });
         }
       });
+
+      this.server.log.info({
+        userId: connection.userId,
+        agentCount: agents.length
+      }, 'Sent initial agent list to dashboard');
 
     } catch (error) {
       this.server.log.error({ error, connectionId: connection.connectionId }, 'Failed to send initial data');

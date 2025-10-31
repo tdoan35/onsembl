@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { EventEmitter } from 'events';
 import type { WebSocketMessage } from '@onsembl/agent-protocol/websocket';
 import { DatabaseAdapter } from '../database/adapter.js';
+import { config } from '../config/index.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'websocket-auth-service' });
@@ -157,6 +158,8 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   async validateToken(token: string): Promise<AuthContext | null> {
     try {
       // First try to verify with local JWT secret
+      logger.debug({ jwtSecret: this.jwtSecret?.substring(0, 10) + '...' }, 'Attempting JWT verification');
+
       const decoded = jwt.verify(token, this.jwtSecret, {
         complete: true
       }) as any;
@@ -164,8 +167,11 @@ export class EnhancedWebSocketAuth extends EventEmitter {
       const payload = decoded.payload as JWTPayload;
       const tokenId = payload.jti || this.generateTokenId(token);
 
+      logger.debug({ userId: payload.sub, email: payload.email }, 'JWT verification successful');
+
       // Check blacklist
       if (this.isTokenBlacklisted(tokenId)) {
+        logger.warn({ tokenId, userId: payload.sub }, 'Token is blacklisted');
         this.emitSecurityEvent({
           type: 'token_blacklisted',
           tokenId,
@@ -177,6 +183,7 @@ export class EnhancedWebSocketAuth extends EventEmitter {
 
       // Check token expiration
       if (payload.exp && payload.exp < Date.now() / 1000) {
+        logger.warn({ tokenId, userId: payload.sub, exp: payload.exp }, 'Token is expired');
         this.emitSecurityEvent({
           type: 'token_expired',
           tokenId,
@@ -213,9 +220,11 @@ export class EnhancedWebSocketAuth extends EventEmitter {
         timestamp: new Date()
       });
 
+      logger.info({ userId: payload.sub }, 'Token validated successfully');
       return authContext;
 
     } catch (localError) {
+      logger.warn({ error: localError instanceof Error ? localError.message : localError }, 'Local JWT verification failed, trying Supabase');
       // If local verification fails and Supabase is configured, try Supabase
       if (this.supabase) {
         try {
@@ -782,11 +791,11 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   }
 }
 
-// Export singleton instance
+// Export singleton instance using config module (ensures env vars are loaded)
 export const enhancedAuth = new EnhancedWebSocketAuth({
-  jwtSecret: process.env['JWT_SECRET'],
-  supabaseUrl: process.env['SUPABASE_URL'],
-  supabaseAnonKey: process.env['SUPABASE_ANON_KEY']
+  jwtSecret: config.JWT_SECRET,
+  supabaseUrl: config.SUPABASE_URL,
+  supabaseAnonKey: config.SUPABASE_ANON_KEY
 });
 
 // Cleanup on process exit

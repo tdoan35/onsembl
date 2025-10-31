@@ -143,13 +143,13 @@ export class AgentService extends EventEmitter {
   }
 
   /**
-   * Get an agent by its unique name
+   * Get an agent by its unique name (user-scoped)
    */
-  async getAgentByName(name: string) {
+  async getAgentByName(userId: string, name: string) {
     try {
-      return await this.agentModel.findByName(name);
+      return await this.agentModel.findByName(userId, name);
     } catch (error) {
-      this.fastify.log.error({ error, name }, 'Failed to get agent by name');
+      this.fastify.log.error({ error, userId, name }, 'Failed to get agent by name');
       throw error;
     }
   }
@@ -877,10 +877,15 @@ export class AgentService extends EventEmitter {
   async handleHeartbeatWithMetrics(
     agentId: string,
     metrics?: {
+      cpuUsage?: number;
+      memoryUsage?: number;
+      uptime?: number;
+      commandsProcessed?: number;
+      averageResponseTime?: number;
+      // Legacy snake_case support
       cpu_usage?: number;
       memory_usage?: number;
       active_commands?: number;
-      uptime?: number;
     },
     userId?: string
   ) {
@@ -888,13 +893,31 @@ export class AgentService extends EventEmitter {
       await this.agentModel.updateLastPing(agentId);
 
       if (metrics) {
+        // Structure metrics according to new schema (support both camelCase and snake_case)
+        const structuredMetrics = {
+          commandsExecuted: metrics.commandsProcessed ?? metrics.active_commands ?? 0,
+          uptime: metrics.uptime ?? 0,
+          memoryUsage: metrics.memoryUsage ?? metrics.memory_usage ?? 0,
+          cpuUsage: metrics.cpuUsage ?? metrics.cpu_usage ?? 0,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        // Get existing metadata and merge structured metrics
+        const agent = await this.agentModel.findById(agentId);
+        const existingMetadata = (agent.metadata as any) || {};
+
         await this.agentModel.update(agentId, {
           metadata: {
-            metrics: {
-              ...metrics,
-              lastUpdated: new Date().toISOString(),
-            },
+            ...existingMetadata,
+            metrics: structuredMetrics,
             lastHeartbeat: new Date().toISOString(),
+            // Keep legacy fields for backward compatibility
+            memory_usage: structuredMetrics.memoryUsage,
+            performance_metrics: {
+              commands_executed: structuredMetrics.commandsExecuted,
+              uptime: structuredMetrics.uptime,
+              average_response_time: metrics.averageResponseTime ?? 0,
+            },
           },
         });
       }

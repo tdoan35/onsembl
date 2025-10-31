@@ -3,17 +3,27 @@
  * Connects agent store to WebSocket events
  */
 
-import { useAgentStore } from './agent-store'
+import { useAgentStore, AgentType } from './agent-store'
 import { webSocketService } from '../services/websocket.service'
 import { MessageType } from '@onsembl/agent-protocol'
 
 // Setup WebSocket event listeners for agent store
 export function setupAgentWebSocketIntegration(): void {
-  // Handle agent status updates
+  // Handle agent status updates (enriched by backend)
   webSocketService.on(MessageType.AGENT_STATUS, (payload: any) => {
-    const { agentId, status, timestamp, metrics } = payload
+    const {
+      agentId,
+      status,
+      timestamp,
+      metrics,
+      // Enriched fields from backend (Phase 2)
+      name,
+      type,
+      version,
+      capabilities
+    } = payload
 
-    // Map WebSocket status to store status
+    // Map WebSocket status (uppercase) to store status (lowercase)
     let agentStatus: 'online' | 'offline' | 'error' | 'connecting'
     switch (status) {
       case 'ONLINE':
@@ -35,16 +45,25 @@ export function setupAgentWebSocketIntegration(): void {
         agentStatus = 'offline'
     }
 
-    // Update agent in store
     const store = useAgentStore.getState()
     const existingAgent = store.getAgentById(agentId)
 
     if (existingAgent) {
-      store.updateAgent(agentId, {
+      // Update existing agent with enriched data
+      const updates: any = {
         status: agentStatus,
-        lastPing: new Date(timestamp).toISOString()
-      })
+        lastPing: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString()
+      }
 
+      // Update enriched fields if provided by backend
+      if (name) updates.name = name
+      if (type) updates.type = type.toLowerCase() as AgentType
+      if (version) updates.version = version
+      if (capabilities) updates.capabilities = capabilities
+
+      store.updateAgent(agentId, updates)
+
+      // Update metrics if provided
       if (metrics) {
         store.updateAgentMetrics(agentId, {
           commandsExecuted: metrics.commandsExecuted || 0,
@@ -54,17 +73,28 @@ export function setupAgentWebSocketIntegration(): void {
         })
       }
     } else {
-      // New agent connected
-      store.addAgent({
+      // New agent connected - use enriched data from backend
+      const newAgent: any = {
         id: agentId,
-        name: payload.name || `Agent ${agentId.substring(0, 8)}`,
-        type: payload.type || 'claude',
+        name: name || `Agent ${agentId.substring(0, 8)}`,
+        type: (type?.toLowerCase() || 'claude') as AgentType,
         status: agentStatus,
-        version: payload.version || 'unknown',
-        capabilities: payload.capabilities || [],
-        lastPing: new Date(timestamp).toISOString(),
-        metrics: metrics || undefined
-      })
+        version: version || 'unknown',
+        capabilities: capabilities || [],
+        lastPing: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString()
+      }
+
+      // Only add metrics if they exist (optional property)
+      if (metrics) {
+        newAgent.metrics = {
+          commandsExecuted: metrics.commandsExecuted || 0,
+          uptime: metrics.uptime || 0,
+          memoryUsage: metrics.memoryUsage || 0,
+          cpuUsage: metrics.cpuUsage || 0
+        }
+      }
+
+      store.addAgent(newAgent)
     }
   })
 
@@ -126,19 +156,31 @@ export function setupAgentWebSocketIntegration(): void {
     const { agents } = payload
     const store = useAgentStore.getState()
 
-    // Clear and repopulate agents
+    console.log('Dashboard connected, received agents:', agents)
+
+    // Clear existing agents
     store.clearAgents()
 
     if (agents && Array.isArray(agents)) {
       agents.forEach((agent: any) => {
+        // Map uppercase status from backend to lowercase
+        let status: 'online' | 'offline' | 'error' | 'connecting' = 'offline'
+
+        const backendStatus = agent.status?.toUpperCase()
+        if (backendStatus === 'ONLINE') status = 'online'
+        else if (backendStatus === 'OFFLINE') status = 'offline'
+        else if (backendStatus === 'ERROR') status = 'error'
+        else if (backendStatus === 'CONNECTING') status = 'connecting'
+
         store.addAgent({
           id: agent.agentId,
           name: agent.name || `Agent ${agent.agentId.substring(0, 8)}`,
-          type: agent.type?.toLowerCase() || 'claude',
-          status: agent.status === 'connected' ? 'online' : 'offline',
+          type: (agent.type?.toLowerCase() || 'claude') as AgentType,
+          status,
           version: agent.version || 'unknown',
           capabilities: agent.capabilities || [],
-          lastPing: new Date(agent.lastHeartbeat || Date.now()).toISOString()
+          lastPing: agent.lastHeartbeat || new Date().toISOString(),
+          metrics: agent.metrics // Backend now sends structured metrics
         })
       })
     }

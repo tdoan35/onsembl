@@ -15,6 +15,7 @@ import {
   MessageType,
   AgentConnectPayload,
   AgentHeartbeatPayload,
+  AgentDisconnectPayload,
   CommandAckPayload,
   CommandCompletePayload,
   TerminalOutputPayload,
@@ -223,21 +224,33 @@ export class AgentWebSocketHandler extends EventEmitter {
       } catch {
         // Not found by UUID, try by unique name (fallback to agentId as name)
         try {
-          const byName = await this.services.agentService.getAgentByName(agentId);
+          const byName = await this.services.agentService.getAgentByName(authContext.userId, agentId);
           resolvedAgentId = byName.id;
         } catch {
           // Still not found: register a new agent using agentId as the name
           const mappedType = (agentType || 'CUSTOM').toLowerCase() as any;
+
+          // Extract capabilities as string array from protocol format
+          let capabilitiesArray: string[] = ['basic']; // Always include basic
+          if (capabilities) {
+            if (capabilities.supportsInterrupt) {
+              capabilitiesArray.push('interrupt');
+            }
+            if (capabilities.supportsTrace) {
+              capabilitiesArray.push('trace');
+            }
+          }
+
           const created = await this.services.agentService.registerAgent({
             name: agentId,
             type: ['claude', 'gemini', 'codex', 'custom'].includes(mappedType)
               ? mappedType
               : 'custom',
             version: version || 'unknown',
-            capabilities: [],
+            capabilities: capabilitiesArray, // Store as string array in database
             metadata: {
               hostMachine,
-              capabilities: capabilities || {},
+              capabilities: capabilities || {}, // Also store protocol format in metadata
             },
             status: 'offline',
             user_id: authContext.userId, // Associate agent with authenticated user
@@ -247,7 +260,8 @@ export class AgentWebSocketHandler extends EventEmitter {
           this.server.log.info({
             agentId: resolvedAgentId,
             userId: authContext.userId,
-            agentName: agentId
+            agentName: agentId,
+            capabilities: capabilitiesArray
           }, 'New agent registered with user association');
         }
       }
@@ -594,6 +608,21 @@ export class AgentWebSocketHandler extends EventEmitter {
         agentId: connection.agentId
       }, 'Agent WebSocket connection closed');
 
+      // Broadcast AGENT_DISCONNECT event to dashboards
+      if (connection.agentId) {
+        const disconnectPayload: AgentDisconnectPayload = {
+          agentId: connection.agentId,
+          reason: 'Normal disconnection',
+          timestamp: Date.now()
+        };
+
+        this.dependencies.messageRouter.routeToDashboard(
+          MessageType.AGENT_DISCONNECT,
+          disconnectPayload,
+          8 // High priority
+        );
+      }
+
       // Unregister token from TokenManager
       this.dependencies.tokenManager.unregisterToken(connectionId);
 
@@ -713,6 +742,26 @@ export class AgentWebSocketHandler extends EventEmitter {
    */
   private generateMessageId(): string {
     return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Check if an agent is currently connected
+   */
+  public isAgentConnected(agentId: string): boolean {
+    return Array.from(this.connections.values()).some(conn => conn.agentId === agentId && conn.isAuthenticated);
+  }
+
+  /**
+   * Get agent metrics from active connection
+   */
+  public getAgentMetrics(agentId: string): any {
+    const connection = Array.from(this.connections.values()).find(conn => conn.agentId === agentId);
+    if (!connection) {
+      return null;
+    }
+
+    // Return connection metadata (metrics would be stored here during heartbeat)
+    return connection.metadata;
   }
 
   /**

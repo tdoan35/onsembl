@@ -32,6 +32,7 @@ export enum MessageType {
 
   // Server → Dashboard
   AGENT_STATUS = 'AGENT_STATUS',
+  AGENT_DISCONNECT = 'AGENT_DISCONNECT',
   COMMAND_STATUS = 'COMMAND_STATUS',
   TERMINAL_STREAM = 'TERMINAL_STREAM',
   TRACE_STREAM = 'TRACE_STREAM',
@@ -268,6 +269,12 @@ export interface AgentStatusPayload {
     startedAt: number;
   };
   queuedCommands?: number;
+}
+
+export interface AgentDisconnectPayload {
+  agentId: string;
+  reason?: string;
+  timestamp: number;
 }
 
 export interface CommandStatusPayload {

@@ -45,11 +45,31 @@ export type AgentRow = Database['public']['Tables']['agents']['Row'];
 
 // Agent metadata interface for type safety
 export interface AgentMetadata {
+  // Connection info
+  connection_id?: string;
+  host_machine?: string;
+
+  // Capabilities (protocol format)
+  capabilities?: {
+    maxTokens: number;
+    supportsInterrupt: boolean;
+    supportsTrace: boolean;
+  };
+
+  // Structured metrics (required for frontend)
+  metrics?: {
+    commandsExecuted: number;
+    uptime: number;
+    memoryUsage: number;
+    cpuUsage: number;
+    lastUpdated: string;
+  };
+
+  // Legacy fields (for backward compatibility)
   memory_usage?: number;
   version?: string;
-  capabilities?: string[];
-  connection_id?: string;
   last_error?: string;
+  error_count?: number;
   performance_metrics?: {
     commands_executed?: number;
     average_response_time?: number;
@@ -228,7 +248,7 @@ export class AgentModel {
 
       const insertData: Partial<AgentRow> & { metadata?: Record<string, any> } = {
         name: validated.name,
-        type: validated.type as any,
+        type: (validated.type as string).toLowerCase() as any, // Database enum is lowercase
         status: this.toDbStatus(validated.status as AgentStatus) as any,
         user_id: validated.user_id, // Include user_id for RLS policies
         metadata: (validated.metadata as Record<string, any>) || {},
@@ -240,6 +260,14 @@ export class AgentModel {
         insertData.last_ping = validated.last_ping as any;
       }
 
+      if (validated.capabilities) {
+        insertData.capabilities = validated.capabilities as any;
+      }
+
+      if (validated.version) {
+        insertData.version = validated.version as any;
+      }
+
       const { data, error } = await (this.supabase as any)
         .from('agents')
         .insert(insertData)
@@ -247,15 +275,24 @@ export class AgentModel {
         .single();
 
       if (error) {
-        throw new AgentError(`Failed to create agent: ${error.message}`, 'DATABASE_ERROR');
+        console.error('Supabase agent creation error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          insertData
+        });
+        throw new AgentError(`Failed to create agent: ${error.message} (code: ${error.code})`, 'DATABASE_ERROR');
       }
 
       return data;
     } catch (error) {
       if (error instanceof AgentError) throw error;
       if (error instanceof z.ZodError) {
+        console.error('Zod validation error creating agent:', error.issues);
         throw new AgentValidationError('Invalid agent data', error.issues);
       }
+      console.error('Unexpected error creating agent:', error);
       throw new AgentError(`Unexpected error creating agent: ${error}`, 'UNKNOWN_ERROR');
     }
   }
@@ -265,7 +302,7 @@ export class AgentModel {
    */
   async update(id: string, updates: AgentUpdate): Promise<AgentRow> {
     try {
-      const allowedKeys = new Set(['name', 'type', 'status', 'last_ping', 'metadata']);
+      const allowedKeys = new Set(['name', 'type', 'status', 'last_ping', 'metadata', 'capabilities', 'version']);
       const updateData: Record<string, any> = {};
 
       Object.entries(updates).forEach(([key, value]) => {
@@ -275,6 +312,8 @@ export class AgentModel {
 
         if (key === 'status') {
           updateData.status = this.toDbStatus(value as AgentStatus);
+        } else if (key === 'type' && typeof value === 'string') {
+          updateData.type = value.toLowerCase(); // Database enum is lowercase
         } else {
           updateData[key] = value;
         }

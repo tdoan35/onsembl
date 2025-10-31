@@ -85,7 +85,7 @@ export class SecurityEventLogger extends EventEmitter {
       name: 'Rate Limit Violations',
       description: 'Multiple rate limit violations',
       eventTypes: ['rate_limit_exceeded'],
-      threshold: 10,
+      threshold: 100, // Increased for development
       timeWindow: 60000, // 1 minute
       action: 'block'
     });
@@ -107,7 +107,7 @@ export class SecurityEventLogger extends EventEmitter {
       name: 'Session Invalidation Surge',
       description: 'Multiple sessions being invalidated',
       eventTypes: ['session_invalidated'],
-      threshold: 10,
+      threshold: 100, // Increased for development
       timeWindow: 300000, // 5 minutes
       action: 'alert'
     });

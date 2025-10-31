@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { fetchAgents } from '@/services/agent-api.service';
 
 export type AgentStatus = 'online' | 'offline' | 'error' | 'connecting';
 export type AgentType = 'claude' | 'gemini' | 'codex';
@@ -84,9 +85,18 @@ export const useAgentStore = create<AgentStore>()(
 
       updateAgentMetrics: (agentId, metrics) =>
         set((state) => ({
-          agents: state.agents.map((agent) =>
-            agent.id === agentId ? { ...agent, metrics: metrics || undefined } : agent
-          ),
+          agents: state.agents.map((agent) => {
+            if (agent.id === agentId) {
+              const updated: Agent = { ...agent };
+              if (metrics) {
+                updated.metrics = metrics;
+              } else {
+                delete updated.metrics;
+              }
+              return updated;
+            }
+            return agent;
+          }),
         })),
 
       selectAgent: (agentId) =>
@@ -103,22 +113,25 @@ export const useAgentStore = create<AgentStore>()(
       refreshAgents: async () => {
         try {
           set({ isLoading: true, error: null });
-          // Simulate API call - in real implementation this would fetch from backend
-          await new Promise(resolve => setTimeout(resolve, 1000));
 
-          // Update last ping times for all agents
-          set((state) => ({
-            agents: state.agents.map(agent => ({
-              ...agent,
-              lastPing: new Date().toISOString(),
-            })),
-            isLoading: false,
-          }));
-        } catch (error) {
+          // Fetch agents from real backend API
+          const agents = await fetchAgents();
+
           set({
-            error: error instanceof Error ? error.message : 'Failed to refresh agents',
+            agents,
             isLoading: false,
           });
+        } catch (error) {
+          const errorMessage = error instanceof Error
+            ? error.message
+            : 'Failed to refresh agents';
+
+          set({
+            error: errorMessage,
+            isLoading: false,
+          });
+
+          // Re-throw for component-level error handling
           throw error;
         }
       },

@@ -336,9 +336,14 @@ export function authRateLimiter(options?: Partial<RateLimitOptions>) {
  * WebSocket connection rate limiter
  */
 export function wsRateLimiter(options?: Partial<RateLimitOptions>) {
+  // In development, allow unlimited localhost connections
+  const isDev = process.env['NODE_ENV'] === 'development';
+  const allowList = isDev ? ['127.0.0.1', '::1', 'localhost'] : undefined;
+
   return createRateLimiter({
-    max: 10,
+    max: isDev ? 1000 : 10, // Much higher limit in development
     window: 60000, // 1 minute
+    allowList,
     message: 'Too many WebSocket connection attempts.',
     ...options,
   });

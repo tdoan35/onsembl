@@ -20,6 +20,7 @@ import { Database } from '../types/database';
 import { AuditLogModel, AuditEventType, AuditEntityType } from '../models/audit-log';
 import { EventEmitter } from 'events';
 import { config } from '../config';
+import { enhancedAuth } from './websocket-auth.js';
 
 // Authentication-related interfaces
 export interface AuthUser {
@@ -277,6 +278,7 @@ export class AuthService extends EventEmitter {
 
   /**
    * Validate token and return auth context for WebSocket handlers
+   * Supports both CLI JWT tokens and Supabase tokens
    * @param token JWT token to validate
    * @returns Auth context with user, expiry, and refresh token
    */
@@ -286,30 +288,34 @@ export class AuthService extends EventEmitter {
     refreshToken?: string;
   } | null> {
     try {
-      const validation = await this.verifyToken(token);
-      if (!validation.valid || !validation.user) {
+      this.fastify.log.debug({ tokenPrefix: token.substring(0, 20) + '...' }, 'AuthService.validateToken called');
+
+      // Use EnhancedWebSocketAuth to handle both CLI JWT and Supabase tokens
+      const authContext = await enhancedAuth.validateToken(token);
+
+      if (!authContext || !authContext.isAuthenticated) {
+        this.fastify.log.warn('Token validation failed - invalid or unauthenticated');
         return null;
       }
 
-      // Get session to find expiry time
-      const session = this.activeSessions.get(token);
-      if (!session) {
-        // If not in active sessions, decode token to get expiry
-        // This is a simplified approach - in production you'd decode the JWT
-        return {
-          userId: validation.user.id,
-          expiresAt: Math.floor(Date.now() / 1000) + 3600, // Default 1 hour
-          refreshToken: undefined
-        };
-      }
+      // Calculate expiry time (default 1 hour from last activity)
+      const expiresAt = authContext.lastActivity
+        ? Math.floor(authContext.lastActivity / 1000) + 3600
+        : Math.floor(Date.now() / 1000) + 3600;
+
+      this.fastify.log.info({
+        userId: authContext.userId,
+        email: authContext.email,
+        role: authContext.role
+      }, 'Token validated successfully via EnhancedWebSocketAuth');
 
       return {
-        userId: validation.user.id,
-        expiresAt: Math.floor(session.expiresAt / 1000),
-        refreshToken: undefined // We don't store refresh tokens in memory
+        userId: authContext.userId,
+        expiresAt: expiresAt,
+        refreshToken: undefined // Refresh tokens handled via separate endpoint
       };
     } catch (error) {
-      this.fastify.log.error({ error }, 'Token validation failed');
+      this.fastify.log.error({ error }, 'Token validation exception in AuthService');
       return null;
     }
   }

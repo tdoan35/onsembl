@@ -18,47 +18,16 @@ export default function ActiveAgentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Initialize agents if empty (for demo purposes)
+  // Load real agents from backend on mount
   useEffect(() => {
-    if (agents.length === 0) {
-      // Add sample agents
-      addAgent({
-        id: 'claude-1',
-        name: 'Claude Agent',
-        type: 'claude',
-        version: '3.5',
-        status: 'online',
-        capabilities: ['code-analysis', 'debugging', 'refactoring', 'documentation'],
-        metrics: {
-          uptime: 7245,
-          memoryUsage: 128 * 1024 * 1024,
-          cpuUsage: 23.5,
-          commandsExecuted: 142
-        },
-        lastPing: new Date(Date.now() - 30000).toISOString(),
+    refreshAgents().catch(error => {
+      addNotification({
+        title: 'Failed to Load Agents',
+        description: error.message || 'Could not fetch agents from backend',
+        type: 'error',
       });
-
-      addAgent({
-        id: 'gemini-1',
-        name: 'Gemini Agent',
-        type: 'gemini',
-        version: '2.0',
-        status: 'offline',
-        capabilities: ['code-generation', 'testing', 'optimization'],
-        lastPing: new Date(Date.now() - 300000).toISOString(),
-      });
-
-      addAgent({
-        id: 'codex-1',
-        name: 'Codex Agent',
-        type: 'codex',
-        version: '1.5',
-        status: 'connecting',
-        capabilities: ['autocomplete', 'translation', 'explanation'],
-        lastPing: new Date(Date.now() - 60000).toISOString(),
-      });
-    }
-  }, [agents, addAgent]);
+    });
+  }, [refreshAgents, addNotification]);
 
   // Handle agent selection
   const handleAgentSelect = (agentId: string) => {
