@@ -110,6 +110,7 @@ export class AgentService extends EventEmitter {
    * @returns Array of agents matching filters
    */
   async listAgents(filters?: {
+    user_id?: string;
     status?: string;
     type?: string;
     connected?: boolean;
@@ -117,7 +118,10 @@ export class AgentService extends EventEmitter {
     offset?: number;
   }) {
     try {
-      return await this.agentModel.findAll({
+      // Extract userId from filters, use empty string if not provided (will show all agents)
+      const userId = filters?.user_id || '';
+
+      return await this.agentModel.findAll(userId, {
         status: filters?.status as any,
         type: filters?.type as any,
         connected: filters?.connected,

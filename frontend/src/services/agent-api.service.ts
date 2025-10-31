@@ -53,12 +53,19 @@ export function transformApiAgent(apiAgent: AgentApiResponse): Agent {
     type = normalizedType;
   }
 
-  // Map uppercase status to lowercase with fallback
+  // Map status values with fallback
   let status: AgentStatus = 'offline';
   const normalizedStatus = apiAgent.status?.toLowerCase();
-  if (normalizedStatus === 'online' || normalizedStatus === 'offline' ||
-      normalizedStatus === 'error' || normalizedStatus === 'connecting') {
-    status = normalizedStatus;
+
+  // Map database status values to frontend status values
+  if (normalizedStatus === 'online' || normalizedStatus === 'connected') {
+    status = 'online';
+  } else if (normalizedStatus === 'offline' || normalizedStatus === 'disconnected') {
+    status = 'offline';
+  } else if (normalizedStatus === 'error') {
+    status = 'error';
+  } else if (normalizedStatus === 'connecting' || normalizedStatus === 'executing') {
+    status = 'connecting';
   }
 
   const agent: Agent = {
@@ -87,14 +94,14 @@ export function transformApiAgent(apiAgent: AgentApiResponse): Agent {
  */
 export async function fetchAgents(): Promise<Agent[]> {
   try {
-    const response = await apiClient.request<AgentApiResponse[]>('/api/v1/agents');
+    const response = await apiClient.request<{ agents: AgentApiResponse[]; total: number; limit: number; offset: number }>('/api/agents');
 
     if (!response.success || !response.data) {
       throw new Error('Failed to fetch agents: Invalid response');
     }
 
     // Transform each agent from API format to frontend format
-    return response.data.map(transformApiAgent);
+    return response.data.agents.map(transformApiAgent);
   } catch (error) {
     console.error('Error fetching agents:', error);
     throw error;
@@ -110,7 +117,7 @@ export async function fetchAgents(): Promise<Agent[]> {
  */
 export async function fetchAgent(agentId: string): Promise<Agent> {
   try {
-    const response = await apiClient.request<AgentApiResponse>(`/api/v1/agents/${agentId}`);
+    const response = await apiClient.request<AgentApiResponse>(`/api/agents/${agentId}`);
 
     if (!response.success || !response.data) {
       throw new Error(`Failed to fetch agent ${agentId}: Invalid response`);

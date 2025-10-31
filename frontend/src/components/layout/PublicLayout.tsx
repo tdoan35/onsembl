@@ -6,6 +6,7 @@ import { Menu } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/auth/AuthModal';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -13,12 +14,22 @@ interface PublicLayoutProps {
 
 export function PublicLayout({ children }: PublicLayoutProps) {
   const router = useRouter();
+  const { isAuthenticated, signOut } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
 
   const handleOpenAuthModal = (mode: 'signup' | 'login') => {
     setAuthMode(mode === 'login' ? 'signin' : 'signup');
     setIsAuthModalOpen(true);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/');
+  };
+
+  const handleDashboardClick = () => {
+    router.push('/dashboard');
   };
 
   return (
@@ -28,9 +39,9 @@ export function PublicLayout({ children }: PublicLayoutProps) {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="inline-flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center ring-1 ring-white/10 bg-zinc-800 rounded-full">
+              {/* <span className="inline-flex h-8 w-8 items-center justify-center ring-1 ring-white/10 bg-zinc-800 rounded-full">
                 🪄
-              </span>
+              </span> */}
               <span className="text-2xl tracking-tight">Onsembl</span>
             </Link>
 
@@ -42,22 +53,45 @@ export function PublicLayout({ children }: PublicLayoutProps) {
             </nav>
 
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenAuthModal('login')}
-                className="hidden sm:inline-flex"
-              >
-                Log in
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => handleOpenAuthModal('signup')}
-                className="hidden sm:inline-flex min-w-[140px]"
-              >
-                Get Started
-              </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="hidden sm:inline-flex"
+                  >
+                    Log out
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleDashboardClick}
+                    className="hidden sm:inline-flex"
+                  >
+                    Dashboard
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenAuthModal('login')}
+                    className="hidden sm:inline-flex"
+                  >
+                    Log in
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleOpenAuthModal('signup')}
+                    className="hidden sm:inline-flex min-w-[140px]"
+                  >
+                    Get Started
+                  </Button>
+                </>
+              )}
               <button className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-white/10 hover:bg-white/5">
                 <Menu className="h-5 w-5" />
               </button>

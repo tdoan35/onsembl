@@ -89,8 +89,11 @@ const websocketPlugin: FastifyPluginAsync<WebSocketPluginOptions> = async (
       }
 
       try {
-        // Verify JWT token
-        await req.jwtVerify()
+        // Verify JWT token manually since it comes from query param
+        const decoded = fastify.jwt.verify(token)
+
+        // Attach decoded token to request for handlers
+        ;(req as any).user = decoded
 
         // Handle dashboard connection
         await dashboardConnectionHandler(
@@ -101,6 +104,7 @@ const websocketPlugin: FastifyPluginAsync<WebSocketPluginOptions> = async (
           fastify.log
         )
       } catch (error) {
+        fastify.log.error({ error }, 'WebSocket dashboard auth failed')
         const errorMessage = createErrorMessage(
           'AUTH_FAILED',
           'Invalid authentication token',
@@ -130,8 +134,11 @@ const websocketPlugin: FastifyPluginAsync<WebSocketPluginOptions> = async (
       }
 
       try {
-        // Verify agent token
-        await req.jwtVerify()
+        // Verify agent token manually since it comes from query param
+        const decoded = fastify.jwt.verify(token)
+
+        // Attach decoded token to request for handlers
+        ;(req as any).user = decoded
 
         // Handle agent connection
         await agentConnectionHandler(
@@ -142,6 +149,7 @@ const websocketPlugin: FastifyPluginAsync<WebSocketPluginOptions> = async (
           fastify.log
         )
       } catch (error) {
+        fastify.log.error({ error, agentId }, 'WebSocket agent auth failed')
         const errorMessage = createErrorMessage(
           'AUTH_FAILED',
           'Invalid agent token',

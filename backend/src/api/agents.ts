@@ -57,8 +57,8 @@ function transformAgentForApi(dbAgent: AgentRow): AgentApiResponse {
   return {
     agent_id: dbAgent.id,
     name: dbAgent.name,
-    agent_type: dbAgent.type.toUpperCase(),
-    status: dbAgent.status.toUpperCase(),
+    agent_type: dbAgent.type,
+    status: dbAgent.status,
     version: dbAgent.version,
     capabilities: dbAgent.capabilities || [],
     last_heartbeat: dbAgent.last_ping,
