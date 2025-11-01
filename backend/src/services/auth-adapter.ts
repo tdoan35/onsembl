@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EventEmitter } from 'events';
-import { EnhancedWebSocketAuth, SecurityEvent, AuthContext as EnhancedAuthContext } from './websocket-auth.js';
+import { EnhancedWebSocketAuth, SecurityEvent, AuthContext as EnhancedAuthContext, getEnhancedAuth, initializeEnhancedAuth } from './websocket-auth.js';
 import { securityLogger } from './security-event-logger.js';
 import { DatabaseAdapter } from '../database/adapter.js';
 import pino from 'pino';
@@ -24,26 +24,18 @@ export class AuthAdapter extends EventEmitter {
   ) {
     super();
 
-    // Initialize enhanced auth service
-    this.enhancedAuth = new EnhancedWebSocketAuth({
-      // Pass Fastify instance to use @fastify/jwt for token verification
-      // This ensures tokens signed with server.jwt.sign() can be verified correctly
-      fastify: server,
-      // Align JWT secret with Fastify JWT config to validate wrapper tokens
-      jwtSecret: process.env['JWT_SECRET'] || serverConfig.JWT_SECRET || 'supersecretkey',
-      supabaseUrl: process.env['SUPABASE_URL'],
-      supabaseAnonKey: process.env['SUPABASE_ANON_KEY'],
-      db: db,
-      maxSessionsPerUser: 5,
-      tokenRotationInterval: 3600000, // 1 hour
-      suspiciousThreshold: 10,
-      blacklistTTL: 86400000, // 24 hours
-      rateLimit: {
-        windowMs: 60000,
-        maxRequests: 100,
-        blockDuration: 300000 // 5 minutes
-      }
-    });
+    // Use the singleton instance if it exists, otherwise initialize it
+    // This ensures we use the same instance that has Fastify JWT support
+    // The singleton will be initialized with Fastify JWT support in server.ts
+    try {
+      // Try to get the existing singleton
+      this.enhancedAuth = getEnhancedAuth();
+      logger.info('Using existing EnhancedWebSocketAuth singleton');
+    } catch {
+      // If singleton doesn't exist, initialize it with Fastify support
+      logger.info('Initializing EnhancedWebSocketAuth singleton with Fastify JWT');
+      this.enhancedAuth = initializeEnhancedAuth(server);
+    }
 
     // Wire up security event logging
     this.enhancedAuth.on('security-event', (event: SecurityEvent) => {

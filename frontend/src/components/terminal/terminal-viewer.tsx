@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
@@ -107,6 +107,250 @@ const lightTheme: TerminalTheme = {
   brightCyan: '#8fbcbb',
   brightWhite: '#eceff4',
 };
+
+// Simple Terminal Component
+interface SimpleTerminalProps {
+  agentId?: string;
+  onCommand?: (command: string) => void;
+  readOnly?: boolean;
+  height?: number;
+  onSwitchToXterm?: () => void;
+}
+
+function SimpleTerminal({
+  agentId,
+  onCommand,
+  readOnly = false,
+  height = 400,
+  onSwitchToXterm
+}: SimpleTerminalProps) {
+  const [currentInput, setCurrentInput] = useState('');
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { getActiveSessionOutput, addOutput, activeSessionId } = useTerminalStore();
+  const { addNotification } = useUIStore();
+
+  // Auto-scroll to bottom on new output
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [getActiveSessionOutput()]);
+
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && currentInput.trim()) {
+      // Add command to history
+      setCommandHistory(prev => [...prev, currentInput]);
+      setHistoryIndex(-1);
+
+      // Display command in output (immediate feedback)
+      if (activeSessionId) {
+        addOutput(activeSessionId, `$ ${currentInput}`, 'stdout', undefined, true); // Mark as command
+      }
+
+      // Send command to agent
+      if (onCommand) {
+        try {
+          await onCommand(currentInput);
+        } catch (error) {
+          console.error('[SimpleTerminal] Error executing command:', error);
+          addNotification({
+            title: 'Command Error',
+            description: 'Failed to execute command',
+            type: 'error',
+          });
+        }
+      }
+
+      // Clear input
+      setCurrentInput('');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      // Navigate command history up
+      if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      // Navigate command history down
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex]);
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setCurrentInput('');
+      }
+    }
+  };
+
+  const terminalLines = getActiveSessionOutput();
+
+  return (
+    <div
+      className="simple-terminal-container"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        backgroundColor: '#1a1b26',
+        color: '#a9b1d6',
+        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        fontSize: '14px',
+        lineHeight: '1.5'
+      }}
+    >
+      {/* Terminal Output Area */}
+      <div
+        ref={outputRef}
+        className="terminal-output"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '10px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all'
+        }}
+      >
+        {/* Debug/Testing Controls */}
+        {onSwitchToXterm && (
+          <div style={{ marginBottom: '10px' }}>
+            <button
+              onClick={onSwitchToXterm}
+              style={{
+                background: '#7aa2f7',
+                color: '#1a1b26',
+                border: 'none',
+                padding: '5px 10px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginBottom: '10px'
+              }}
+            >
+              Switch to xterm.js (Debug)
+            </button>
+          </div>
+        )}
+
+        {/* Welcome Message */}
+        {terminalLines.length === 0 && (
+          <div style={{ color: '#73daca' }}>
+            Welcome to Onsembl Agent Terminal
+            <br />
+            {agentId ? `Connected to: ${agentId}` : 'No agent selected'}
+            <br />
+            Type a command and press Enter...
+          </div>
+        )}
+
+        {/* Terminal Lines */}
+        {terminalLines.map((line, index) => {
+          return (
+            <div
+              key={index}
+              className="terminal-line"
+              style={{
+                color: line.type === 'stderr'
+                  ? '#f7768e' // Red for errors
+                  : line.isCommand
+                    ? '#7aa2f7' // Blue for commands
+                    : '#a9b1d6', // Default color
+                marginBottom: '2px'
+              }}
+            >
+              {/* Apply ANSI codes if present */}
+              {line.ansiCodes && line.ansiCodes.length > 0 ? (
+                <span dangerouslySetInnerHTML={{
+                  __html: line.content
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\x1b\[(\d+)m/g, (match, code) => {
+                      // Simple ANSI code to style mapping
+                      const styles: { [key: string]: string } = {
+                        '31': 'color: #f7768e', // Red
+                        '32': 'color: #73daca', // Green
+                        '33': 'color: #e0af68', // Yellow
+                        '34': 'color: #7aa2f7', // Blue
+                        '35': 'color: #bb9af7', // Magenta
+                        '36': 'color: #7dcfff', // Cyan
+                        '37': 'color: #a9b1d6', // White
+                        '0': '', // Reset
+                      };
+                      return styles[code] ? `<span style="${styles[code]}">` : '</span>';
+                    })
+                }} />
+              ) : (
+                line.content
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Terminal Input Area */}
+      {!readOnly && (
+        <div
+          className="terminal-input"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '10px',
+            borderTop: '1px solid #3b4261',
+            backgroundColor: '#16161e'
+          }}
+        >
+          <span style={{ color: '#7aa2f7', fontWeight: 'bold', marginRight: '8px' }}>
+            $
+          </span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={currentInput}
+            onChange={(e) => setCurrentInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type command and press Enter..."
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: '#a9b1d6',
+              fontFamily: 'inherit',
+              fontSize: 'inherit'
+            }}
+            autoFocus
+          />
+        </div>
+      )}
+
+      {/* Status Bar */}
+      <div
+        style={{
+          padding: '5px 10px',
+          backgroundColor: '#1a1b26',
+          borderTop: '1px solid #3b4261',
+          fontSize: '12px',
+          color: '#565f89',
+          display: 'flex',
+          justifyContent: 'space-between'
+        }}
+      >
+        <span>
+          {terminalLines.length} lines | {commandHistory.length} commands in history
+        </span>
+        {activeSessionId && (
+          <span>Session: {activeSessionId}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function TerminalViewer({
   agentId,
@@ -850,57 +1094,20 @@ export default function TerminalViewer({
       {/* Terminal Body */}
       <div className="flex-1 overflow-hidden relative" style={{ minHeight: `${height}px` }}>
         {useSimpleTerminal ? (
-          // Simple Terminal Implementation for Testing
-          <div
-            className="w-full h-full overflow-auto"
-            style={{
-              backgroundColor: '#1a1b26',
-              minHeight: `${height}px`,
-              padding: '10px',
-              color: '#a9b1d6',
-              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-              fontSize: '14px',
-              lineHeight: '1.5'
+          // Simple Terminal Implementation with Input
+          <SimpleTerminal
+            agentId={agentId}
+            onCommand={onCommand}
+            readOnly={readOnly}
+            height={height}
+            onSwitchToXterm={() => {
+              console.log('[Terminal] Switching to xterm.js...');
+              setTerminalKey(prev => prev + 1); // Force re-mount
+              setIsInitialized(false); // Reset initialized state
+              setIsInitializing(false); // Reset initializing flag
+              setUseSimpleTerminal(false);
             }}
-          >
-            <div style={{ marginBottom: '10px' }}>
-              <button
-                onClick={() => {
-                  console.log('[Terminal] Switching to xterm.js...');
-                  setTerminalKey(prev => prev + 1); // Force re-mount
-                  setIsInitialized(false); // Reset initialized state
-                  setIsInitializing(false); // Reset initializing flag
-                  setUseSimpleTerminal(false);
-                }}
-                style={{
-                  background: '#7aa2f7',
-                  color: '#1a1b26',
-                  border: 'none',
-                  padding: '5px 10px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  marginBottom: '10px'
-                }}
-              >
-                Switch to xterm.js
-              </button>
-            </div>
-            <div style={{ color: '#73daca', fontWeight: 'bold', marginBottom: '10px' }}>
-              === Simple Terminal (Testing) ===
-            </div>
-            {getActiveSessionOutput().map((line, index) => (
-              <div key={index} style={{
-                color: line.type === 'stderr' ? '#f7768e' : '#a9b1d6',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all'
-              }}>
-                {line.content}
-              </div>
-            ))}
-            <div style={{ color: '#7aa2f7', marginTop: '10px' }}>
-              {getActiveSessionOutput().length === 0 ? 'No output yet...' : `[${getActiveSessionOutput().length} lines]`}
-            </div>
-          </div>
+          />
         ) : (
           // xterm.js Terminal - use key to force remount
           <div key={`xterm-${terminalKey}`} style={{ position: 'relative', height: '100%' }}>

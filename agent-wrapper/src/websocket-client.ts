@@ -433,6 +433,30 @@ export class WebSocketClient extends EventEmitter {
         // Server heartbeat received
         break;
 
+      case MessageType.COMMAND_REQUEST:
+        // Handle command requests from dashboard
+        console.log('[WebSocket] Received COMMAND_REQUEST:', message);
+        try {
+          const commandPayload = message.payload as any;
+          const commandMessage: CommandMessage = {
+            type: 'command',
+            commandId: commandPayload.commandId || `cmd-${Date.now()}`,
+            agentId: this.agentId,
+            command: commandPayload.command,
+            args: commandPayload.args || [],
+            options: {
+              timeout: commandPayload.executionConstraints?.timeLimitMs,
+              workingDirectory: commandPayload.workingDirectory,
+              environment: commandPayload.env || {}
+            },
+            timestamp: new Date().toISOString()
+          };
+          await this.onCommand(commandMessage);
+        } catch (error) {
+          console.error('Failed to handle COMMAND_REQUEST:', error);
+        }
+        break;
+
       default:
         console.warn('Unknown message type:', (message as any).type);
     }

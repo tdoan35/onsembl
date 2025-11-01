@@ -82,6 +82,19 @@ export async function createServer(): Promise<FastifyInstance> {
     trustProxy: true,
   });
 
+  // Register JWT plugin early so it's available for all services
+  await server.register(fastifyJWT, {
+    secret: config.JWT_SECRET || 'supersecretkey',
+    sign: {
+      expiresIn: '24h',
+    },
+  });
+
+  // Initialize enhanced auth singleton with Fastify JWT support BEFORE creating services
+  // This ensures CLI tokens signed with @fastify/jwt can be verified correctly
+  initializeEnhancedAuth(server);
+  server.log.info('Enhanced auth initialized with Fastify JWT support');
+
   // Initialize database health check and validation
   const healthService = new HealthCheckService(server);
   await healthService.initialize();
@@ -186,19 +199,6 @@ export async function createServer(): Promise<FastifyInstance> {
 
   // Attach services to server instance for access in routes
   server.decorate('services', services);
-
-  // Register JWT plugin
-  await server.register(fastifyJWT, {
-    secret: config.JWT_SECRET || 'supersecretkey',
-    sign: {
-      expiresIn: '24h',
-    },
-  });
-
-  // Initialize enhanced auth singleton with Fastify JWT support
-  // This ensures CLI tokens signed with @fastify/jwt can be verified correctly
-  initializeEnhancedAuth(server);
-  server.log.info('Enhanced auth singleton initialized with Fastify JWT support');
 
   // Register Swagger documentation
   await server.register(fastifySwagger, {

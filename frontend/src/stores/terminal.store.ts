@@ -36,7 +36,7 @@ interface TerminalState {
   createSession: (commandId: string, agentId: string, command: string) => void
   endSession: (commandId: string, exitCode: number) => void
   setActiveSession: (sessionId: string | null) => void
-  addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[]) => void
+  addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean) => void
   clearSession: (commandId: string) => void
   clearAllSessions: () => void
 
@@ -111,8 +111,8 @@ export const useTerminalStore = create<TerminalState>()(
         set({ activeSessionId: sessionId, searchQuery: '', searchResults: [] })
       },
 
-      addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[]) => {
-        bufferManager.addOutput(commandId, content, type, ansiCodes)
+      addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean) => {
+        bufferManager.addOutput(commandId, content, type, ansiCodes, isCommand)
 
         // If this is the active session and scroll is not locked, trigger scroll
         const state = get()
@@ -195,9 +195,14 @@ webSocketService.on(MessageType.TERMINAL_OUTPUT, (payload: any) => {
   const { commandId, agentId, content, streamType, ansiCodes } = payload
   const store = useTerminalStore.getState()
 
+  // For agent terminal output, route to the monitoring session
+  // The agent sends its ID, and we route it to agent-session-{agentId}
+  const sessionId = commandId || `agent-session-${agentId}`
+
   console.log('[TerminalStore] TERMINAL_OUTPUT received:', {
     commandId,
     agentId,
+    sessionId,
     contentLength: content?.length,
     streamType,
     activeSessionId: store.activeSessionId,
@@ -206,17 +211,17 @@ webSocketService.on(MessageType.TERMINAL_OUTPUT, (payload: any) => {
 
   // Create session if it doesn't exist
   const sessions = store.sessions
-  if (!sessions.has(commandId)) {
+  if (!sessions.has(sessionId)) {
     // For agent monitoring sessions, use a descriptive name
-    const sessionName = commandId.startsWith('agent-session-')
+    const sessionName = sessionId.startsWith('agent-session-')
       ? `Monitoring ${agentId}`
       : 'Unknown command'
-    store.createSession(commandId, agentId, sessionName)
+    store.createSession(sessionId, agentId, sessionName)
   }
 
   // Add output to buffer
   store.addOutput(
-    commandId,
+    sessionId,
     content,
     streamType === 'STDERR' ? 'stderr' : 'stdout',
     ansiCodes
@@ -227,9 +232,14 @@ webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
   const { commandId, agentId, content, streamType, ansiCodes } = payload
   const store = useTerminalStore.getState()
 
+  // For agent terminal output, route to the monitoring session
+  // The agent sends its ID, and we route it to agent-session-{agentId}
+  const sessionId = commandId || `agent-session-${agentId}`
+
   console.log('[TerminalStore] TERMINAL_STREAM received:', {
     commandId,
     agentId,
+    sessionId,
     contentLength: Array.isArray(content) ? content.length : content?.length,
     streamType,
     activeSessionId: store.activeSessionId,
@@ -238,19 +248,19 @@ webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
 
   // Create session if it doesn't exist
   const sessions = store.sessions
-  if (!sessions.has(commandId)) {
+  if (!sessions.has(sessionId)) {
     // For agent monitoring sessions, use a descriptive name
-    const sessionName = commandId.startsWith('agent-session-')
+    const sessionName = sessionId.startsWith('agent-session-')
       ? `Monitoring ${agentId}`
       : 'Unknown command'
-    store.createSession(commandId, agentId, sessionName)
+    store.createSession(sessionId, agentId, sessionName)
   }
 
   // Handle batched output
   if (Array.isArray(content)) {
     content.forEach((line: string) => {
       store.addOutput(
-        commandId,
+        sessionId,
         line,
         streamType === 'STDERR' ? 'stderr' : 'stdout',
         ansiCodes
@@ -258,7 +268,7 @@ webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
     })
   } else {
     store.addOutput(
-      commandId,
+      sessionId,
       content,
       streamType === 'STDERR' ? 'stderr' : 'stdout',
       ansiCodes
@@ -266,7 +276,7 @@ webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
   }
 
   // Log buffer state after adding
-  const buffer = bufferManager.getBuffer(commandId)
+  const buffer = bufferManager.getBuffer(sessionId)
   console.log('[TerminalStore] Buffer state after add:', {
     commandId,
     bufferLineCount: buffer.getLines().length

@@ -8,6 +8,7 @@ export interface TerminalLine {
   timestamp: number
   type: 'stdout' | 'stderr'
   ansiCodes?: string[]
+  isCommand?: boolean  // Add flag to identify commands
 }
 
 export interface TerminalBufferOptions {
@@ -40,7 +41,8 @@ export class TerminalBuffer {
   addOutput(
     content: string,
     type: 'stdout' | 'stderr' = 'stdout',
-    ansiCodes?: string[]
+    ansiCodes?: string[],
+    isCommand?: boolean
   ): void {
     const lines = content.split('\n')
     const timestamp = Date.now()
@@ -54,7 +56,8 @@ export class TerminalBuffer {
         content: line,
         timestamp,
         type,
-        ansiCodes
+        ansiCodes,
+        isCommand
       }
 
       this.addLine(terminalLine)
@@ -252,10 +255,11 @@ export class TerminalBufferManager {
     commandId: string,
     content: string,
     type: 'stdout' | 'stderr' = 'stdout',
-    ansiCodes?: string[]
+    ansiCodes?: string[],
+    isCommand?: boolean
   ): void {
     const buffer = this.getBuffer(commandId)
-    buffer.addOutput(content, type, ansiCodes)
+    buffer.addOutput(content, type, ansiCodes, isCommand)
   }
 
   /**

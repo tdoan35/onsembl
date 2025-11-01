@@ -92,32 +92,51 @@ export const useWebSocketStore = create<WebSocketState>()(
         priority?: 'high' | 'normal' | 'low'
       ) => {
         try {
+          console.log('[WebSocketStore] sendCommand called with:', {
+            agentId,
+            command,
+            args,
+            env,
+            workingDirectory,
+            priority
+          })
+
+          // Check if connected
+          const state = get()
+          console.log('[WebSocketStore] Connection state:', {
+            dashboardState: state.dashboardState,
+            agentState: state.agentState
+          })
+
           // Generate unique command ID
           const commandId = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+          console.log('[WebSocketStore] Generated commandId:', commandId)
 
           // Map priority to number (0=high, 5=normal, 10=low)
           const priorityNum = priority === 'high' ? 0 : priority === 'low' ? 10 : 5
 
-          // Send command request through WebSocket
-          webSocketService.send('dashboard', MessageType.COMMAND_REQUEST, {
+          const payload = {
+            agentId,  // Add agentId at top level for backend routing
             commandId,
-            content: command,
+            command,  // Use 'command' not 'content'
+            args: args || [],
+            env: env || {},
+            workingDirectory,
             type: 'NATURAL',
             priority: priorityNum,
             executionConstraints: {
               timeLimitMs: 300000, // 5 minutes
               tokenBudget: undefined,
               maxRetries: 1
-            },
-            context: {
-              parameters: {
-                agentId,
-                args,
-                env,
-                workingDirectory
-              }
             }
-          })
+          }
+
+          console.log('[WebSocketStore] Sending COMMAND_REQUEST with payload:', payload)
+
+          // Send command request through WebSocket
+          webSocketService.send('dashboard', MessageType.COMMAND_REQUEST, payload)
+
+          console.log('[WebSocketStore] COMMAND_REQUEST sent successfully')
 
           set(state => ({
             messagesSent: state.messagesSent + 1,
@@ -126,6 +145,7 @@ export const useWebSocketStore = create<WebSocketState>()(
 
           return commandId
         } catch (error) {
+          console.error('[WebSocketStore] sendCommand error:', error)
           set({ lastError: error as Error })
           throw error
         }

@@ -31,7 +31,7 @@ export default function ActiveAgentsPage() {
   const { agents, addAgent, refreshAgents } = useAgentStore();
   const { addNotification } = useUIStore();
   const { createSession, setActiveSession, sessions, addOutput } = useTerminalStore();
-  const { sendCommand } = useWebSocketStore();
+  const { sendCommand, connect, dashboardState } = useWebSocketStore();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,8 +48,23 @@ export default function ActiveAgentsPage() {
     }
   });
 
-  // Load real agents from backend on mount
+  // Connect to WebSocket and load real agents from backend on mount
   useEffect(() => {
+    // Connect to dashboard WebSocket if not already connected
+    if (dashboardState === 'disconnected') {
+      console.log('[AgentsPage] Connecting to dashboard WebSocket...');
+      connect().then(() => {
+        console.log('[AgentsPage] WebSocket connected successfully');
+      }).catch(error => {
+        console.error('[AgentsPage] Failed to connect WebSocket:', error);
+        addNotification({
+          title: 'WebSocket Connection Failed',
+          description: 'Unable to connect to command service. Commands will not work.',
+          type: 'error',
+        });
+      });
+    }
+
     refreshAgents().catch(error => {
       addNotification({
         title: 'Failed to Load Agents',
@@ -57,7 +72,7 @@ export default function ActiveAgentsPage() {
         type: 'error',
       });
     });
-  }, [refreshAgents, addNotification]);
+  }, [refreshAgents, addNotification, connect, dashboardState]);
 
   // Manage terminal session when agent is selected/deselected
   useEffect(() => {
@@ -73,27 +88,18 @@ export default function ActiveAgentsPage() {
       return;
     }
 
-    // Create monitoring session ID using agent's name (not UUID)
-    // This matches what the agent-wrapper uses: agent-session-${agentId}
-    const sessionId = `agent-session-${agent.name}`;
+    // Create monitoring session ID using agent's actual ID
+    // The agent wrapper sends terminal output with the agent's full ID (e.g., "mock-mhfjh3z0-vkvw618fo")
+    const sessionId = `agent-session-${agent.id}`;
 
     // Create session if it doesn't exist
     if (!sessions.has(sessionId)) {
       createSession(
         sessionId,
-        agent.name, // Use agent name as the agentId for terminal output
-        `Monitoring ${agent.name}`
+        agent.id, // Use agent ID for terminal output routing
+        `Monitoring ${agent.name || agent.id}`
       );
-      console.log(`[Terminal] Created monitoring session for agent: ${agent.name} (UUID: ${selectedAgentId})`);
-
-      // ADD MOCK DATA FOR TESTING
-      console.log('[Terminal] Adding mock terminal output for testing...');
-      addOutput(sessionId, 'Welcome to Onsembl Agent Terminal', 'stdout');
-      addOutput(sessionId, `Agent ${agent.name} connected successfully.`, 'stdout');
-      addOutput(sessionId, 'C:\\Users\\Ty\\Desktop\\onsembl\\agent-wrapper>', 'stdout');
-      addOutput(sessionId, 'Ready for commands...', 'stdout');
-      addOutput(sessionId, '\x1b[32mSystem initialized\x1b[0m', 'stdout', ['\x1b[32m', '\x1b[0m']);
-      addOutput(sessionId, '\x1b[33mWarning: This is mock data for testing\x1b[0m', 'stderr', ['\x1b[33m', '\x1b[0m']);
+      console.log(`[Terminal] Created monitoring session for agent: ${agent.id} (name: ${agent.name})`);
     }
 
     // Set as active session
@@ -111,21 +117,37 @@ export default function ActiveAgentsPage() {
 
   // Handle command execution - wrapped in useCallback to prevent terminal re-initialization
   const handleCommandExecution = useCallback(async (command: string) => {
-    if (!selectedAgentId || !command.trim()) return;
+    console.log('[AgentsPage] handleCommandExecution called with command:', command);
+    console.log('[AgentsPage] selectedAgentId:', selectedAgentId);
+
+    if (!selectedAgentId || !command.trim()) {
+      console.log('[AgentsPage] No agent selected or empty command');
+      return;
+    }
 
     const agent = agents.find(a => a.id === selectedAgentId);
-    if (!agent) return;
+    if (!agent) {
+      console.log('[AgentsPage] Agent not found:', selectedAgentId);
+      return;
+    }
 
     try {
-      // Generate unique command ID
-      const commandId = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      // Use the monitoring session ID (don't create a new session)
+      const sessionId = `agent-session-${agent.id}`;
 
-      // Create dedicated session for this command using agent name
-      createSession(commandId, agent.name, command);
+      console.log(`[Terminal] Sending command to agent ${agent.id}:`, command);
+      console.log('[Terminal] WebSocket sendCommand params:', {
+        agentId: agent.id,
+        command,
+        args: [],
+        env: {},
+        workingDirectory: undefined,
+        priority: 'normal'
+      });
 
-      // Send command via WebSocket using agent name
-      await sendCommand(
-        agent.name, // Use agent name instead of UUID
+      // Send command via WebSocket using agent ID
+      const result = await sendCommand(
+        agent.id, // Use agent ID for proper routing
         command,
         [], // args
         {}, // env
@@ -133,16 +155,12 @@ export default function ActiveAgentsPage() {
         'normal' // priority
       );
 
-      // Switch to command session to see output
-      setActiveSession(commandId);
+      console.log('[Terminal] sendCommand result:', result);
 
-      addNotification({
-        title: 'Command Sent',
-        description: `Executing: ${command}`,
-        type: 'success',
-      });
+      // Stay on the same monitoring session to see all output
+      // The terminal output will be received via WebSocket and displayed in the current session
 
-      console.log(`[Terminal] Sent command to agent ${agent.name} (UUID: ${selectedAgentId}):`, command);
+      console.log(`[Terminal] Command sent successfully to ${agent.id}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       addNotification({
@@ -151,8 +169,9 @@ export default function ActiveAgentsPage() {
         type: 'error',
       });
       console.error('[Terminal] Failed to send command:', error);
+      console.error('[Terminal] Error details:', error);
     }
-  }, [selectedAgentId, agents, createSession, sendCommand, setActiveSession, addNotification]);
+  }, [selectedAgentId, agents, sendCommand, addNotification]);
 
   // Handle refresh
   const handleRefresh = async () => {
