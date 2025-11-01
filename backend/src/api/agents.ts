@@ -461,6 +461,12 @@ export async function registerAgentRoutes(
             error: { type: 'string' }
           }
         },
+        403: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' }
+          }
+        },
         404: {
           type: 'object',
           properties: {
@@ -470,14 +476,15 @@ export async function registerAgentRoutes(
       },
       tags: ['agents'],
       summary: 'Delete agent',
-      description: 'Remove an agent from the system'
+      description: 'Remove an agent from the system. Users can only delete their own agents.'
     },
     preHandler: authenticateSupabase
   }, async (request, reply) => {
     try {
       const { id } = request.params as z.infer<typeof agentIdParamsSchema>;
+      const userId = (request as any).userId;
 
-      const deleted = await agentService.deleteAgent(id);
+      const deleted = await agentService.deleteAgent(id, userId);
 
       if (!deleted) {
         return reply.code(404).send({
@@ -489,13 +496,28 @@ export async function registerAgentRoutes(
       await auditService.logAgentEvent(
         'AGENT_DELETED' as any,
         id,
-        {},
+        { userId },
         request
       );
 
       return reply.code(204).send();
     } catch (error) {
       request.log.error({ error }, 'Failed to delete agent');
+
+      // Handle authorization errors
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        return reply.code(403).send({
+          error: error.message
+        });
+      }
+
+      // Handle not found errors
+      if (error instanceof Error && error.message.includes('not found')) {
+        return reply.code(404).send({
+          error: 'Agent not found'
+        });
+      }
+
       return reply.code(500).send({
         error: error instanceof Error ? error.message : 'Failed to delete agent'
       });

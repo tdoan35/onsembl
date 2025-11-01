@@ -229,13 +229,24 @@ export class MessageRouter extends EventEmitter {
 
     // T029: Debug logging for terminal stream routing
     const dashboardId = commandId ? this.commandToDashboard.get(commandId) : undefined;
-    this.server.log.debug({
+    // Get count of dashboard connections from the connection pool (safely)
+    let dashboardCount = 0;
+    try {
+      const dashboardConnections = this.connectionPool?.getConnectionsByType?.('dashboard');
+      dashboardCount = dashboardConnections?.size || 0;
+    } catch (error) {
+      this.server.log.warn({ error }, 'Could not get dashboard connection count');
+    }
+
+    this.server.log.info({
       action: 'stream_terminal_output',
       commandId,
+      agentId: (payload as any).agentId,
       targetDashboard: dashboardId,
       hasCommandTracking: !!dashboardId,
-      contentLength: (payload as any).content?.length || 0
-    }, 'Streaming terminal output');
+      contentLength: (payload as any).content?.length || 0,
+      subscribedDashboards: dashboardCount
+    }, '[DEBUG] Streaming terminal output to dashboard');
 
     if (commandId && dashboardId) {
       // Route to specific dashboard that initiated the command

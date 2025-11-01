@@ -99,7 +99,7 @@ export function setupAgentWebSocketIntegration(): void {
   })
 
   // Handle agent connection
-  webSocketService.on('AGENT_CONNECT' as any, (payload: any) => {
+  webSocketService.on(MessageType.AGENT_CONNECT, (payload: any) => {
     const { agentId, agentType, version, capabilities } = payload
     const store = useAgentStore.getState()
 
@@ -115,10 +115,18 @@ export function setupAgentWebSocketIntegration(): void {
   })
 
   // Handle agent disconnection
-  webSocketService.on('AGENT_DISCONNECT' as any, (payload: any) => {
-    const { agentId } = payload
+  webSocketService.on(MessageType.AGENT_DISCONNECT, (payload: any) => {
+    const { agentId, reason, timestamp } = payload
     const store = useAgentStore.getState()
-    store.updateAgentStatus(agentId, 'offline')
+
+    console.log(`[Agent] Agent ${agentId} disconnected`, { reason, timestamp })
+
+    // Update agent status to offline and clear error state
+    store.updateAgent(agentId, {
+      status: 'offline',
+      lastPing: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+      error: undefined // Clear any error state on clean disconnect
+    })
   })
 
   // Handle agent error

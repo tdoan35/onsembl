@@ -35,7 +35,7 @@
   },
   "optionalDependencies": {
     "keytar": "^7.9.0",
-    "node-pty": "^0.10.1"
+    "node-pty": "^1.1.0-beta38"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.0",

@@ -37,20 +37,19 @@ export interface UseAuthReturn {
 }
 
 export function useAuth(): UseAuthReturn {
-  const [user, setUser] = useState<AuthUser | null>(
-    authService.getCurrentUser(),
-  );
-  const [session, setSession] = useState<AuthSession | null>(
-    authService.getCurrentSession(),
-  );
-  const [authState, setAuthState] = useState<AuthState>(
-    authService.getAuthState(),
-  );
-  const [error, setError] = useState<AuthError | null>(
-    authService.getLastError(),
-  );
+  // Initialize with null/loading to avoid SSR hydration mismatch
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [authState, setAuthState] = useState<AuthState>('loading');
+  const [error, setError] = useState<AuthError | null>(null);
 
   useEffect(() => {
+    // Set initial state from authService (runs only on client)
+    setUser(authService.getCurrentUser());
+    setSession(authService.getCurrentSession());
+    setAuthState(authService.getAuthState());
+    setError(authService.getLastError());
+
     // Subscribe to auth events
     const handleAuthEvent = (
       event: AuthEventType,
@@ -96,12 +95,6 @@ export function useAuth(): UseAuthReturn {
 
     authService.addEventListener('auth_state_change', handleAuthStateChange);
     authService.addEventListener('auth_error', handleAuthError);
-
-    // Set initial state
-    setUser(authService.getCurrentUser());
-    setSession(authService.getCurrentSession());
-    setAuthState(authService.getAuthState());
-    setError(authService.getLastError());
 
     // Cleanup
     return () => {
@@ -189,7 +182,7 @@ export function useAuth(): UseAuthReturn {
     session,
     authState,
     error,
-    isAuthenticated: authService.isAuthenticated(),
+    isAuthenticated: authState === 'authenticated' && !!session,
     isLoading: authState === 'loading',
     signIn,
     signUp,

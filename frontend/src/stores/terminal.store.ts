@@ -195,10 +195,23 @@ webSocketService.on(MessageType.TERMINAL_OUTPUT, (payload: any) => {
   const { commandId, agentId, content, streamType, ansiCodes } = payload
   const store = useTerminalStore.getState()
 
+  console.log('[TerminalStore] TERMINAL_OUTPUT received:', {
+    commandId,
+    agentId,
+    contentLength: content?.length,
+    streamType,
+    activeSessionId: store.activeSessionId,
+    sessions: Array.from(store.sessions.keys())
+  })
+
   // Create session if it doesn't exist
   const sessions = store.sessions
   if (!sessions.has(commandId)) {
-    store.createSession(commandId, agentId, 'Unknown command')
+    // For agent monitoring sessions, use a descriptive name
+    const sessionName = commandId.startsWith('agent-session-')
+      ? `Monitoring ${agentId}`
+      : 'Unknown command'
+    store.createSession(commandId, agentId, sessionName)
   }
 
   // Add output to buffer
@@ -213,6 +226,25 @@ webSocketService.on(MessageType.TERMINAL_OUTPUT, (payload: any) => {
 webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
   const { commandId, agentId, content, streamType, ansiCodes } = payload
   const store = useTerminalStore.getState()
+
+  console.log('[TerminalStore] TERMINAL_STREAM received:', {
+    commandId,
+    agentId,
+    contentLength: Array.isArray(content) ? content.length : content?.length,
+    streamType,
+    activeSessionId: store.activeSessionId,
+    sessions: Array.from(store.sessions.keys())
+  })
+
+  // Create session if it doesn't exist
+  const sessions = store.sessions
+  if (!sessions.has(commandId)) {
+    // For agent monitoring sessions, use a descriptive name
+    const sessionName = commandId.startsWith('agent-session-')
+      ? `Monitoring ${agentId}`
+      : 'Unknown command'
+    store.createSession(commandId, agentId, sessionName)
+  }
 
   // Handle batched output
   if (Array.isArray(content)) {
@@ -232,6 +264,13 @@ webSocketService.on(MessageType.TERMINAL_STREAM, (payload: any) => {
       ansiCodes
     )
   }
+
+  // Log buffer state after adding
+  const buffer = bufferManager.getBuffer(commandId)
+  console.log('[TerminalStore] Buffer state after add:', {
+    commandId,
+    bufferLineCount: buffer.getLines().length
+  })
 })
 
 webSocketService.on(MessageType.COMMAND_COMPLETE, (payload: any) => {

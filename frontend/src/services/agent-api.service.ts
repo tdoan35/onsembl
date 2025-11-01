@@ -129,3 +129,27 @@ export async function fetchAgent(agentId: string): Promise<Agent> {
     throw error;
   }
 }
+
+/**
+ * Delete an agent from the system
+ *
+ * Removes the agent and all associated data (commands, traces, logs).
+ * Users can only delete their own agents.
+ *
+ * @param agentId - Agent identifier
+ * @throws Error if agent not found, unauthorized, or API call fails
+ */
+export async function deleteAgent(agentId: string): Promise<void> {
+  try {
+    const response = await apiClient.request<null>(`/api/agents/${agentId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.success) {
+      throw new Error(`Failed to delete agent ${agentId}`);
+    }
+  } catch (error) {
+    console.error(`Error deleting agent ${agentId}:`, error);
+    throw error;
+  }
+}

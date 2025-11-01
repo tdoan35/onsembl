@@ -9,14 +9,17 @@ import { OutputMultiplexer } from './output-multiplexer.js';
 import { InputMultiplexer } from './input-multiplexer.js';
 import { StateManager } from './state-manager.js';
 import { ResizeHandler } from './resize-handler.js';
+import { AgentConfigManager } from '../agent-config-manager.js';
 import { pino } from 'pino';
 import stripAnsi from 'strip-ansi';
 
 export interface InteractiveOptions {
-  interactive?: boolean;
-  headless?: boolean;
-  noWebsocket?: boolean;
-  statusBar?: boolean;
+  interactive?: boolean | undefined;
+  headless?: boolean | undefined;
+  noWebsocket?: boolean | undefined;
+  statusBar?: boolean | undefined;
+  agentName?: string | undefined;
+  agentId?: string | undefined;
 }
 
 export class InteractiveAgentWrapper extends EventEmitter {
@@ -24,6 +27,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
   private options: InteractiveOptions;
   private logger: pino.Logger;
   private agentId: string;
+  private agentName?: string | undefined;
+  private sessionId: string;
   private mode: string = 'headless';
 
   // Core components
@@ -34,16 +39,20 @@ export class InteractiveAgentWrapper extends EventEmitter {
   private inputMultiplexer: InputMultiplexer | null = null;
   private stateManager: StateManager;
   private resizeHandler: ResizeHandler | null = null;
+  private agentConfigManager: AgentConfigManager;
 
   // State
   private isRunning: boolean = false;
   private isShuttingDown: boolean = false;
+  private inputBuffer: string = ''; // Buffer for detecting command sequences
 
   constructor(config: Config, options: InteractiveOptions = {}) {
     super();
     this.config = config;
     this.options = options;
-    this.agentId = `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // agentId will be set in start() after async config load
+    this.agentId = '';
+    this.sessionId = '';
 
     // Initialize logger
     this.logger = pino({
@@ -54,6 +63,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
     // Initialize core components
     this.modeDetector = new ModeDetector(this.logger);
     this.stateManager = new StateManager({ logger: this.logger });
+    this.agentConfigManager = new AgentConfigManager(this.logger);
 
     // Detect mode
     const modeInfo = this.modeDetector.detectMode(options);
@@ -66,10 +76,32 @@ export class InteractiveAgentWrapper extends EventEmitter {
       throw new Error('Agent wrapper is already running');
     }
 
+    // Load or create persistent agent identity
+    const options: {name?: string; agentId?: string} = {};
+    if (this.options.agentName) options.name = this.options.agentName;
+    if (this.options.agentId) options.agentId = this.options.agentId;
+
+    const { id, name, isNew } = await this.agentConfigManager.getOrCreateAgentId(
+      this.config.agentType,
+      Object.keys(options).length > 0 ? options : undefined
+    );
+
+    this.agentId = id;
+    this.agentName = name;
+    this.sessionId = `agent-session-${this.agentId}`;
+
+    if (isNew) {
+      this.logger.info(`Created new agent identity: ${id}${name ? ` (${name})` : ''}`);
+    } else {
+      this.logger.info(`Reconnecting as agent: ${id}${name ? ` (${name})` : ''}`);
+    }
+
     this.logger.info('Starting Interactive Agent Wrapper', {
       agentId: this.agentId,
+      agentName: name,
       agentType: this.config.agentType,
-      mode: this.mode
+      mode: this.mode,
+      isReconnection: !isNew
     });
 
     try {
@@ -178,19 +210,26 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
       // Send to WebSocket (if connected)
       if (this.wsClient?.connected) {
-        this.outputMultiplexer?.addDestination('websocket', (processedData: any) => {
-          const hasAnsi = data !== stripAnsi(data);
-          const ansiCodes = hasAnsi ? data : undefined;
-          this.wsClient?.sendOutput('terminal', 'stdout', processedData, ansiCodes);
-        }, { stripAnsi: true, format: 'json' });
+        // Strip ANSI codes for WebSocket transmission
+        const strippedData = stripAnsi(data);
+        // Check if original data had ANSI codes
+        const hasAnsi = data !== strippedData;
+        const ansiCodes = hasAnsi ? 'true' : undefined;
+
+        // Send terminal output to backend
+        this.wsClient.sendOutput(this.sessionId, 'stdout', strippedData, ansiCodes);
       }
     });
 
-    // Set up terminal input handling
+    // Set up terminal input handling with command detection
     this.inputMultiplexer.addSource('terminal', process.stdin, {
       priority: 10,
       canInterrupt: true,
       handler: (data: string) => {
+        // Check for exit command before passing to PTY
+        if (this.handleInputCommand(data)) {
+          return; // Command was handled, don't send to PTY
+        }
         this.ptyManager?.write(data);
       }
     });
@@ -206,6 +245,9 @@ export class InteractiveAgentWrapper extends EventEmitter {
       this.stateManager.updateState('agent.status', 'stopped');
       this.stop();
     });
+
+    // Display interactive mode help on startup
+    this.displayInteractiveHelp();
 
     // Status bar (optional)
     if (this.config.showStatusBar) {
@@ -245,7 +287,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
       // Send to WebSocket
       if (this.wsClient?.connected) {
-        this.wsClient.sendOutput('terminal', 'stdout', stripAnsi(data), undefined);
+        this.wsClient.sendOutput(this.sessionId, 'stdout', stripAnsi(data), undefined);
       }
     });
 
@@ -255,7 +297,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
       // Send to WebSocket
       if (this.wsClient?.connected) {
-        this.wsClient.sendOutput('terminal', 'stderr', stripAnsi(data), undefined);
+        this.wsClient.sendOutput(this.sessionId, 'stderr', stripAnsi(data), undefined);
       }
     });
 
@@ -276,6 +318,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.wsClient = new WebSocketClient({
       config: this.config,
       agentId: this.agentId,
+      agentName: this.agentName,
       onCommand: async (message: CommandMessage) => {
         await this.handleRemoteCommand(message);
       },
@@ -339,11 +382,75 @@ export class InteractiveAgentWrapper extends EventEmitter {
     }
   }
 
+  /**
+   * Handle special input commands that control the wrapper itself
+   * Returns true if the command was handled (don't pass to PTY)
+   */
+  private handleInputCommand(data: string): boolean {
+    // Add to input buffer
+    this.inputBuffer += data;
+
+    // Keep buffer size reasonable (max 50 chars)
+    if (this.inputBuffer.length > 50) {
+      this.inputBuffer = this.inputBuffer.slice(-50);
+    }
+
+    // Check for exit command: ~~exit followed by Enter
+    // Handle both \r (Windows) and \n (Unix) line endings
+    if (this.inputBuffer.endsWith('~~exit\r') || this.inputBuffer.endsWith('~~exit\n')) {
+      this.logger.info('Exit command detected, shutting down gracefully');
+
+      // Clear the line to remove the ~~exit text from terminal
+      process.stdout.write('\r\x1b[K');
+      process.stdout.write('Exiting interactive mode...\n');
+
+      // Clear buffer
+      this.inputBuffer = '';
+
+      // Trigger shutdown
+      this.stop().catch((error) => {
+        this.logger.error('Error during command-triggered shutdown', error);
+        process.exit(1);
+      });
+
+      return true; // Command handled
+    }
+
+    // Check for help command: ~~help
+    if (this.inputBuffer.endsWith('~~help\r') || this.inputBuffer.endsWith('~~help\n')) {
+      this.logger.info('Help command detected');
+
+      // Clear the line
+      process.stdout.write('\r\x1b[K');
+
+      // Display help
+      process.stdout.write('\n');
+      process.stdout.write('╔═══════════════════════════════════════════════════════╗\n');
+      process.stdout.write('║         Onsembl Agent Wrapper - Commands             ║\n');
+      process.stdout.write('╠═══════════════════════════════════════════════════════╣\n');
+      process.stdout.write('║  ~~exit   Exit interactive mode and stop the wrapper ║\n');
+      process.stdout.write('║  ~~help   Show this help message                     ║\n');
+      process.stdout.write('╚═══════════════════════════════════════════════════════╝\n');
+      process.stdout.write('\n');
+
+      // Clear buffer
+      this.inputBuffer = '';
+
+      return true; // Command handled
+    }
+
+    return false; // Not a command, pass through to PTY
+  }
+
   private getAgentCommand(): { command: string; args: string[]; env: any } {
+    const isWindows = process.platform === 'win32';
+
+    // On Windows, we need to use cmd.exe to run npm-installed commands
+    // On Unix, we can call the command directly
     const agentCommands: Record<string, { command: string; args: string[]; env: any }> = {
       claude: {
-        command: 'claude',
-        args: [],
+        command: isWindows ? 'cmd.exe' : 'claude',
+        args: isWindows ? ['/c', 'claude'] : [],
         env: {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
@@ -351,18 +458,20 @@ export class InteractiveAgentWrapper extends EventEmitter {
         }
       },
       gemini: {
-        command: 'gemini',
-        args: [],
+        command: isWindows ? 'cmd.exe' : 'gemini',
+        args: isWindows ? ['/c', 'gemini'] : [],
         env: { GEMINI_API_KEY: process.env['GEMINI_API_KEY'] }
       },
       codex: {
-        command: 'codex',
-        args: [],
+        command: isWindows ? 'cmd.exe' : 'codex',
+        args: isWindows ? ['/c', 'codex'] : [],
         env: { CODEX_API_KEY: process.env['CODEX_API_KEY'] }
       },
       mock: {
-        command: 'bash',
-        args: ['-c', 'while true; do echo "Mock agent running..."; sleep 5; done'],
+        command: isWindows ? 'cmd.exe' : 'bash',
+        args: isWindows
+          ? ['/k', 'echo Mock agent ready. Type commands or press Ctrl+C to exit.']
+          : ['-c', 'while true; do echo "Mock agent running..."; sleep 5; done'],
         env: {}
       }
     };
@@ -372,6 +481,16 @@ export class InteractiveAgentWrapper extends EventEmitter {
       throw new Error(`Unknown agent type: ${this.config.agentType}`);
     }
     return command;
+  }
+
+  private displayInteractiveHelp(): void {
+    // Display a brief help message on startup
+    process.stdout.write('\n');
+    process.stdout.write('═══════════════════════════════════════════════════════\n');
+    process.stdout.write('  Interactive Mode Enabled\n');
+    process.stdout.write('  Type ~~help for commands | Type ~~exit to quit\n');
+    process.stdout.write('═══════════════════════════════════════════════════════\n');
+    process.stdout.write('\n');
   }
 
   private initializeStatusBar(): void {
@@ -416,6 +535,9 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.stateManager.updateState('agent.status', 'stopping');
 
     try {
+      // Clear input buffer
+      this.inputBuffer = '';
+
       // Disable raw mode if enabled
       if (this.mode === 'interactive') {
         this.inputMultiplexer?.disableRawMode();

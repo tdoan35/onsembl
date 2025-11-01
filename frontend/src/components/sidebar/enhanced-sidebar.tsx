@@ -144,9 +144,12 @@ export function EnhancedSidebar() {
   }, [pathname, searchQuery]);
 
   const filteredAgents = useMemo(() => {
-    if (!searchQuery.trim()) return agents;
+    // Only show active or connecting agents (exclude offline)
+    const activeAgents = agents.filter(agent => agent.status !== 'offline');
 
-    return agents.filter(
+    if (!searchQuery.trim()) return activeAgents;
+
+    return activeAgents.filter(
       agent =>
         agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         agent.type.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -232,7 +235,7 @@ export function EnhancedSidebar() {
                         <div className="px-4 py-2 text-sm text-muted-foreground whitespace-nowrap">
                           {searchQuery
                             ? 'No agents match your search'
-                            : 'No agents connected'}
+                            : 'No active agents'}
                         </div>
                       )
                     : filteredAgents.map(agent => (

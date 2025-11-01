@@ -47,7 +47,8 @@ export const WebSocketMessageSchema = z.object({
 // ============================================================================
 
 export const AgentConnectPayloadSchema = z.object({
-  agentId: z.string().uuid(),
+  agentId: z.string().min(1), // Changed from uuid() to support custom ID formats
+  name: z.string().min(1).optional(), // Optional agent display name
   agentType: AgentTypeSchema,
   version: z.string().regex(/^\d+\.\d+\.\d+$/),
   hostMachine: z.string().min(1),
@@ -236,6 +237,12 @@ export const AgentStatusPayloadSchema = z.object({
   queuedCommands: z.number().min(0).optional(),
 });
 
+export const AgentDisconnectPayloadSchema = z.object({
+  agentId: z.string().uuid(),
+  reason: z.string().optional(),
+  timestamp: z.number().positive(),
+});
+
 export const CommandStatusPayloadSchema = z.object({
   commandId: z.string().uuid(),
   agentId: z.string().uuid(),
@@ -361,6 +368,7 @@ export const MessageValidationMap = {
   [MessageType.TOKEN_REFRESH]: TokenRefreshPayloadSchema,
   [MessageType.SERVER_HEARTBEAT]: ServerHeartbeatPayloadSchema,
   [MessageType.AGENT_STATUS]: AgentStatusPayloadSchema,
+  [MessageType.AGENT_DISCONNECT]: AgentDisconnectPayloadSchema,
   [MessageType.COMMAND_STATUS]: CommandStatusPayloadSchema,
   [MessageType.TERMINAL_STREAM]: TerminalStreamPayloadSchema,
   [MessageType.TRACE_STREAM]: TraceStreamPayloadSchema,

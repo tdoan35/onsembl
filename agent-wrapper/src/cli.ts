@@ -401,6 +401,8 @@ function createCLI(): Command {
     .option('--headless', 'Force headless mode (no terminal passthrough)')
     .option('--no-websocket', 'Disable WebSocket connection (local only)')
     .option('--status-bar', 'Show status bar in interactive mode')
+    .option('-n, --name <name>', 'Set a friendly name for this agent')
+    .option('--agent-id <id>', 'Use a specific agent ID (for multi-agent setups)')
     .action(async (options) => {
       try {
         const config = loadConfig({
@@ -440,6 +442,8 @@ function createCLI(): Command {
             headless: options.headless,
             noWebsocket: !options.websocket,
             statusBar: options.statusBar,
+            agentName: options.name,
+            agentId: options.agentId,
           };
 
           const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
@@ -897,6 +901,80 @@ function createCLI(): Command {
 
       } catch (error) {
         console.error('Failed to restart agent:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Whoami command - Show current agent identity
+  agentCommand
+    .command('whoami')
+    .description('Show current agent identity and configuration')
+    .action(async () => {
+      try {
+        const { AgentConfigManager } = await import('./agent-config-manager.js');
+        const configManager = new AgentConfigManager();
+
+        const agents = await configManager.listAgents();
+        const defaultAgentId = await configManager.getDefaultAgentId();
+
+        if (agents.length === 0) {
+          console.log('No agents configured yet.');
+          console.log('Run "onsembl-agent start" to create your first agent.');
+          return;
+        }
+
+        console.log('\nConfigured Agents:\n');
+
+        for (const agent of agents) {
+          const isDefault = agent.id === defaultAgentId;
+          const defaultMarker = isDefault ? ' (default)' : '';
+
+          console.log(`${isDefault ? '→' : ' '} ${agent.name || agent.id}${defaultMarker}`);
+          console.log(`   ID: ${agent.id}`);
+          console.log(`   Type: ${agent.type}`);
+          console.log(`   Created: ${new Date(agent.createdAt).toLocaleString()}`);
+          console.log(`   Last Used: ${new Date(agent.lastUsed).toLocaleString()}`);
+          console.log(`   Platform: ${agent.metadata.platform}`);
+          console.log(`   Host: ${agent.metadata.hostMachine}`);
+          console.log('');
+        }
+
+        console.log(`Config file: ${configManager.getConfigPath()}\n`);
+
+      } catch (error) {
+        console.error('Failed to get agent identity:', error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
+    });
+
+  // Rename command - Rename the current agent
+  agentCommand
+    .command('rename <name>')
+    .description('Rename the current default agent')
+    .option('--agent-id <id>', 'Rename a specific agent by ID')
+    .action(async (name, options) => {
+      try {
+        const { AgentConfigManager } = await import('./agent-config-manager.js');
+        const configManager = new AgentConfigManager();
+
+        let agentId = options.agentId;
+
+        if (!agentId) {
+          // Use default agent
+          agentId = await configManager.getDefaultAgentId();
+
+          if (!agentId) {
+            console.error('No default agent found.');
+            console.error('Run "onsembl-agent start" to create an agent first.');
+            process.exit(1);
+          }
+        }
+
+        await configManager.updateAgentName(agentId, name);
+        console.log(`✓ Renamed agent to: ${name}`);
+
+      } catch (error) {
+        console.error('Failed to rename agent:', error instanceof Error ? error.message : error);
         process.exit(1);
       }
     });

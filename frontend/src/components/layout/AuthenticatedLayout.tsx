@@ -14,7 +14,7 @@ interface AuthenticatedLayoutProps {
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut, isAuthenticated } = useAuth();
+  const { user, signOut, isAuthenticated, isLoading } = useAuth();
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     // Load expanded state from localStorage to match sidebar behavior
     if (typeof window !== 'undefined') {
@@ -50,15 +50,21 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     router.push('/');
   };
 
-  // Redirect to login if not authenticated
+  // Redirect to home if not authenticated (after loading completes)
   React.useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
+    if (!isLoading && !isAuthenticated) {
+      router.push('/');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
+  // Show nothing while loading auth state
+  if (isLoading) {
+    return null;
+  }
+
+  // Show nothing if not authenticated (will redirect)
   if (!isAuthenticated) {
-    return null; // or a loading spinner
+    return null;
   }
 
   return (

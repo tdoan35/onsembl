@@ -268,7 +268,15 @@ export class AgentService extends EventEmitter {
     }
   }
 
-  async deleteAgent(id: string) {
+  async deleteAgent(id: string, userId?: string) {
+    // Verify ownership if userId provided
+    if (userId) {
+      const agent = await this.agentModel.findById(id);
+      if (agent.user_id !== userId) {
+        throw new Error('Unauthorized: Cannot delete agent owned by another user');
+      }
+    }
+
     // Cancel any active commands
     const runningCommands = await this.commandModel.getRunningCommands(id);
     const queuedCommands = await this.commandModel.getQueuedCommands(id);
@@ -279,7 +287,7 @@ export class AgentService extends EventEmitter {
     }
 
     await this.agentModel.delete(id);
-    this.fastify.log.info({ agentId: id }, 'Agent deleted');
+    this.fastify.log.info({ agentId: id, userId }, 'Agent deleted successfully');
     return true;
   }
 

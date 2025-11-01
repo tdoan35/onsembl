@@ -1,0 +1,102 @@
+/* Terminal Fix CSS - Ensure xterm elements are visible */
+
+/* Ensure xterm container has proper dimensions */
+.xterm-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+/* Ensure xterm element itself is visible */
+.xterm {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  padding: 4px !important;
+  background-color: #1e1e1e !important;
+}
+
+/* Ensure xterm screen is visible */
+.xterm-screen {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+/* Ensure xterm viewport is visible */
+.xterm-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: transparent !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure text rows are visible */
+.xterm-rows {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* Force text visibility for DOM renderer */
+.xterm-rows > div {
+  white-space: pre !important;
+  color: #ffffff !important;
+}
+
+/* Force text visibility for all spans */
+.xterm-rows span {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Ensure canvas (if used) is visible */
+.xterm canvas {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* Force canvas text layer visibility */
+.xterm-text-layer {
+  z-index: 1 !important;
+  opacity: 1 !important;
+}
+
+/* Force selection layer visibility */
+.xterm-selection-layer {
+  z-index: 3 !important;
+}
+
+/* Debug: Make cursor visible */
+.xterm-cursor-layer {
+  z-index: 2 !important;
+}
+
+/* Force cursor to be visible */
+.xterm-cursor {
+  background-color: #00ff00 !important;
+  opacity: 1 !important;
+}
+
+/* Force all xterm text to be white */
+.xterm * {
+  color: #ffffff !important;
+}
+
+/* Override any inline styles that might hide text */
+.xterm [style*="color: rgb(0, 0, 0)"] {
+  color: #ffffff !important;
+}
+
+/* Ensure the helper textarea is not blocking view */
+.xterm-helper-textarea {
+  position: absolute !important;
+  left: -9999px !important;
+  top: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -10 !important;
+  opacity: 0 !important;
+}

@@ -1,4 +1,4 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest, FastifyInstance } from 'fastify';
 import { SocketStream } from '@fastify/websocket';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
@@ -79,6 +79,7 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   private readonly supabaseAnonKey: string;
   private supabase: any;
   private db: DatabaseAdapter | null = null;
+  private fastify: FastifyInstance | null = null;
 
   // Token blacklisting
   private tokenBlacklist: Map<string, BlacklistEntry> = new Map();
@@ -113,6 +114,7 @@ export class EnhancedWebSocketAuth extends EventEmitter {
     supabaseUrl?: string;
     supabaseAnonKey?: string;
     db?: DatabaseAdapter;
+    fastify?: FastifyInstance;
     maxSessionsPerUser?: number;
     tokenRotationInterval?: number;
     suspiciousThreshold?: number;
@@ -125,6 +127,7 @@ export class EnhancedWebSocketAuth extends EventEmitter {
     this.supabaseUrl = config.supabaseUrl || process.env['SUPABASE_URL'] || '';
     this.supabaseAnonKey = config.supabaseAnonKey || process.env['SUPABASE_ANON_KEY'] || '';
     this.db = config.db || null;
+    this.fastify = config.fastify || null;
 
     if (this.supabaseUrl && this.supabaseAnonKey) {
       this.supabase = createClient(this.supabaseUrl, this.supabaseAnonKey);
@@ -149,7 +152,10 @@ export class EnhancedWebSocketAuth extends EventEmitter {
     this.rateLimitCleanupInterval = setInterval(() => this.cleanupRateLimits(), 60000);
 
     // Log startup
-    logger.info('Enhanced WebSocketAuth service initialized');
+    logger.info({
+      useFastifyJWT: !!this.fastify,
+      jwtMethod: this.fastify ? '@fastify/jwt' : 'jsonwebtoken'
+    }, 'Enhanced WebSocketAuth service initialized');
   }
 
   /**
@@ -158,13 +164,26 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   async validateToken(token: string): Promise<AuthContext | null> {
     try {
       // First try to verify with local JWT secret
-      logger.debug({ jwtSecret: this.jwtSecret?.substring(0, 10) + '...' }, 'Attempting JWT verification');
+      logger.debug({
+        jwtSecret: this.jwtSecret?.substring(0, 10) + '...',
+        useFastifyJWT: !!this.fastify
+      }, 'Attempting JWT verification');
 
-      const decoded = jwt.verify(token, this.jwtSecret, {
-        complete: true
-      }) as any;
+      let payload: JWTPayload;
 
-      const payload = decoded.payload as JWTPayload;
+      if (this.fastify) {
+        // Use Fastify JWT (matches signing library used in device auth)
+        const decoded = await this.fastify.jwt.verify(token);
+        payload = decoded as JWTPayload;
+        logger.debug({ userId: payload.sub }, 'JWT verified with Fastify JWT');
+      } else {
+        // Fallback to plain jsonwebtoken
+        const decoded = jwt.verify(token, this.jwtSecret, {
+          complete: true
+        }) as any;
+        payload = decoded.payload as JWTPayload;
+        logger.debug({ userId: payload.sub }, 'JWT verified with plain jsonwebtoken');
+      }
       const tokenId = payload.jti || this.generateTokenId(token);
 
       logger.debug({ userId: payload.sub, email: payload.email }, 'JWT verification successful');
@@ -711,15 +730,26 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp' | 'jti'>): string {
     const jti = this.generateSessionId(); // Use session ID generator for JWT ID
 
-    return jwt.sign(
-      {
+    if (this.fastify) {
+      // Use Fastify JWT (matches signing library used in device auth)
+      return this.fastify.jwt.sign({
         ...payload,
-        jti,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
-      },
-      this.jwtSecret
-    );
+        jti
+      }, {
+        expiresIn: '1h'
+      });
+    } else {
+      // Fallback to plain jsonwebtoken
+      return jwt.sign(
+        {
+          ...payload,
+          jti,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
+        },
+        this.jwtSecret
+      );
+    }
   }
 
   /**
@@ -728,15 +758,26 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp' | 'jti'>): string {
     const jti = this.generateSessionId();
 
-    return jwt.sign(
-      {
+    if (this.fastify) {
+      // Use Fastify JWT (matches signing library used in device auth)
+      return this.fastify.jwt.sign({
         ...payload,
-        jti,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
-      },
-      this.jwtSecret
-    );
+        jti
+      }, {
+        expiresIn: '30d'
+      });
+    } else {
+      // Fallback to plain jsonwebtoken
+      return jwt.sign(
+        {
+          ...payload,
+          jti,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
+        },
+        this.jwtSecret
+      );
+    }
   }
 
   /**
@@ -764,7 +805,15 @@ export class EnhancedWebSocketAuth extends EventEmitter {
       }
 
       // For local JWT
-      const decoded = jwt.verify(refreshToken, this.jwtSecret) as JWTPayload;
+      let decoded: JWTPayload;
+
+      if (this.fastify) {
+        // Use Fastify JWT (matches signing library)
+        decoded = await this.fastify.jwt.verify(refreshToken) as JWTPayload;
+      } else {
+        // Fallback to plain jsonwebtoken
+        decoded = jwt.verify(refreshToken, this.jwtSecret) as JWTPayload;
+      }
 
       // Check if refresh token is blacklisted
       if (decoded.jti && this.isTokenBlacklisted(decoded.jti)) {
@@ -791,14 +840,51 @@ export class EnhancedWebSocketAuth extends EventEmitter {
   }
 }
 
-// Export singleton instance using config module (ensures env vars are loaded)
-export const enhancedAuth = new EnhancedWebSocketAuth({
-  jwtSecret: config.JWT_SECRET,
-  supabaseUrl: config.SUPABASE_URL,
-  supabaseAnonKey: config.SUPABASE_ANON_KEY
-});
+// Singleton instance - initialized lazily with Fastify instance for optimal JWT handling
+let enhancedAuthInstance: EnhancedWebSocketAuth | null = null;
 
-// Cleanup on process exit
-process.on('beforeExit', () => {
-  enhancedAuth.shutdown();
-});
+/**
+ * Initialize the enhanced auth singleton with Fastify instance
+ * This ensures tokens signed with @fastify/jwt can be verified correctly
+ */
+export function initializeEnhancedAuth(fastify: FastifyInstance): EnhancedWebSocketAuth {
+  if (!enhancedAuthInstance) {
+    enhancedAuthInstance = new EnhancedWebSocketAuth({
+      fastify,
+      jwtSecret: config.JWT_SECRET,
+      supabaseUrl: config.SUPABASE_URL,
+      supabaseAnonKey: config.SUPABASE_ANON_KEY
+    });
+
+    logger.info('Enhanced auth singleton initialized with Fastify JWT support');
+
+    // Cleanup on process exit
+    process.on('beforeExit', () => {
+      enhancedAuthInstance?.shutdown();
+    });
+  }
+
+  return enhancedAuthInstance;
+}
+
+/**
+ * Get the enhanced auth singleton
+ * @deprecated Use initializeEnhancedAuth() first to ensure Fastify JWT support
+ */
+export const getEnhancedAuth = (): EnhancedWebSocketAuth => {
+  if (!enhancedAuthInstance) {
+    // Fallback: create without Fastify instance (will use plain jsonwebtoken)
+    logger.warn('Enhanced auth accessed before initialization - using plain jsonwebtoken fallback');
+    enhancedAuthInstance = new EnhancedWebSocketAuth({
+      jwtSecret: config.JWT_SECRET,
+      supabaseUrl: config.SUPABASE_URL,
+      supabaseAnonKey: config.SUPABASE_ANON_KEY
+    });
+  }
+
+  return enhancedAuthInstance;
+};
+
+// Export singleton for backward compatibility
+// Note: This will not have Fastify JWT support unless initialized via initializeEnhancedAuth()
+export const enhancedAuth = getEnhancedAuth();

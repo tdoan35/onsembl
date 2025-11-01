@@ -6,7 +6,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { webSocketService, WebSocketConnectionState } from '../services/websocket.service'
-import { ConnectionState, ConnectionInfo } from '@onsembl/agent-protocol'
+import { ConnectionState, ConnectionInfo, MessageType } from '@onsembl/agent-protocol'
 
 interface WebSocketState {
   // Connection states
@@ -70,7 +70,7 @@ export const useWebSocketStore = create<WebSocketState>()(
           webSocketService.initializeDashboard({
             agents: { all: true },
             commands: { all: true },
-            terminal: { all: true }
+            terminals: { all: true }
           })
         } catch (error) {
           set({ lastError: error as Error })
@@ -92,22 +92,39 @@ export const useWebSocketStore = create<WebSocketState>()(
         priority?: 'high' | 'normal' | 'low'
       ) => {
         try {
+          // Generate unique command ID
+          const commandId = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+
+          // Map priority to number (0=high, 5=normal, 10=low)
+          const priorityNum = priority === 'high' ? 0 : priority === 'low' ? 10 : 5
+
           // Send command request through WebSocket
-          webSocketService.send('dashboard', 'COMMAND_REQUEST' as any, {
-            agentId,
-            commandType: 'EXECUTE',
-            command,
-            args,
-            env,
-            workingDirectory,
-            priority: priority || 'normal',
-            timeout: 300000 // 5 minutes
+          webSocketService.send('dashboard', MessageType.COMMAND_REQUEST, {
+            commandId,
+            content: command,
+            type: 'NATURAL',
+            priority: priorityNum,
+            executionConstraints: {
+              timeLimitMs: 300000, // 5 minutes
+              tokenBudget: undefined,
+              maxRetries: 1
+            },
+            context: {
+              parameters: {
+                agentId,
+                args,
+                env,
+                workingDirectory
+              }
+            }
           })
 
           set(state => ({
             messagesSent: state.messagesSent + 1,
             lastMessageTime: Date.now()
           }))
+
+          return commandId
         } catch (error) {
           set({ lastError: error as Error })
           throw error
@@ -116,7 +133,7 @@ export const useWebSocketStore = create<WebSocketState>()(
 
       interruptCommand: async (commandId: string, agentId: string) => {
         try {
-          webSocketService.send('dashboard', 'COMMAND_CANCEL' as any, {
+          webSocketService.send('dashboard', MessageType.COMMAND_CANCEL, {
             commandId,
             agentId
           })

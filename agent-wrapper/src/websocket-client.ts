@@ -91,6 +91,7 @@ export type OutgoingMessage = AgentStatusMessage | OutputMessage | CommandComple
 export interface WebSocketClientOptions {
   config: Config;
   agentId: string;
+  agentName?: string | undefined; // Optional agent display name
   onCommand: (message: CommandMessage) => Promise<void>;
   onError: (error: Error) => void;
 }
@@ -99,6 +100,7 @@ export class WebSocketClient extends EventEmitter {
   private ws: WebSocket | null = null;
   private config: Config;
   private agentId: string;
+  private agentName?: string | undefined;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatTimeout: NodeJS.Timeout | null = null;
   private isConnected = false;
@@ -116,6 +118,7 @@ export class WebSocketClient extends EventEmitter {
     super();
     this.config = options.config;
     this.agentId = options.agentId;
+    this.agentName = options.agentName;
     this.onCommand = options.onCommand;
     this.onError = options.onError;
 
@@ -460,6 +463,7 @@ export class WebSocketClient extends EventEmitter {
       timestamp: Date.now(),
       payload: {
         agentId: this.agentId,
+        name: this.agentName, // Include agent name from config
         agentType: this.mapAgentType(this.config.agentType),
         version: '1.0.0',
         hostMachine: os.hostname(),

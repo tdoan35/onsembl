@@ -12,7 +12,8 @@ import {
   HardDrive,
   Clock,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +27,20 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Agent, AgentStatus, useAgentStore } from '@/stores/agent-store';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
+import { deleteAgent } from '@/services/agent-api.service';
 
 interface AgentCardProps {
   agent: Agent;
@@ -80,6 +92,8 @@ export default function AgentCard({ agent, compact = false, onToggleExpand }: Ag
   const { updateAgentStatus, removeAgent } = useAgentStore();
   const { addNotification, setLoading } = useUIStore();
   const [lastPingTime, setLastPingTime] = useState<string>('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const statusInfo = statusConfig[agent.status];
   const StatusIcon = statusInfo.icon;
@@ -180,6 +194,28 @@ export default function AgentCard({ agent, compact = false, onToggleExpand }: Ag
     }
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAgent(agent.id);
+      removeAgent(agent.id);
+      addNotification({
+        title: 'Agent Deleted',
+        description: `${agent.name} has been removed`,
+        type: 'success',
+      });
+    } catch (error) {
+      addNotification({
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete agent',
+        type: 'error',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const formatUptime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -276,6 +312,17 @@ export default function AgentCard({ agent, compact = false, onToggleExpand }: Ag
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Restart Agent
                   </Button>
+                  {agent.status === 'offline' && (
+                    <Button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full justify-start text-destructive hover:text-destructive"
+                      variant="outline"
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Agent
+                    </Button>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -375,6 +422,28 @@ export default function AgentCard({ agent, compact = false, onToggleExpand }: Ag
           </div>
         )}
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Agent?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &quot;{agent.name}&quot; and all associated command history, traces, and logs. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Agent'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

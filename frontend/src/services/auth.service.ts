@@ -541,6 +541,8 @@ export class AuthService extends EventTarget {
   }
 
   private persistSession(): void {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
     if (!this.currentSession || !this.config.persistSession) return;
 
     try {
@@ -558,6 +560,9 @@ export class AuthService extends EventTarget {
   }
 
   private async restoreSession(): Promise<void> {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
+
     try {
       const sessionData = localStorage.getItem(this.config.storageKey);
       if (!sessionData) return;
@@ -593,6 +598,9 @@ export class AuthService extends EventTarget {
   }
 
   private clearPersistedSession(): void {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
+
     try {
       localStorage.removeItem(this.config.storageKey);
     } catch (error) {

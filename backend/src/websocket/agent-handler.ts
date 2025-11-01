@@ -190,7 +190,7 @@ export class AgentWebSocketHandler extends EventEmitter {
     connection: AgentConnection,
     message: TypedWebSocketMessage<MessageType.AGENT_CONNECT>
   ): Promise<void> {
-    const { agentId, agentType, version, hostMachine, capabilities } = message.payload;
+    const { agentId, name, agentType, version, hostMachine, capabilities } = message.payload;
 
     try {
       // Authenticate agent using WebSocketAuth
@@ -218,16 +218,58 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Resolve or create agent in database so we have a UUID id
       // 1) Try to fetch by UUID id first
       let resolvedAgentId: string | null = null;
+      let isReconnection = false;
+      let existingAgent: any = null;
+
       try {
-        const existing = await this.services.agentService.getAgent(agentId);
-        resolvedAgentId = existing.id;
+        existingAgent = await this.services.agentService.getAgent(agentId);
+        resolvedAgentId = existingAgent.id;
+        isReconnection = true;
+
+        // Update agent name if provided and different from current
+        if (name && name !== existingAgent.name) {
+          await this.services.agentService.updateAgent(resolvedAgentId, {
+            name: name
+          }, authContext.userId);
+          this.server.log.info({
+            agentId: resolvedAgentId,
+            oldName: existingAgent.name,
+            newName: name
+          }, 'Agent name updated on reconnection');
+        }
+
+        this.server.log.info({
+          agentId: resolvedAgentId,
+          userId: authContext.userId,
+          previousStatus: existingAgent.status
+        }, 'Agent reconnection detected - agent found by ID');
       } catch {
         // Not found by UUID, try by unique name (fallback to agentId as name)
         try {
-          const byName = await this.services.agentService.getAgentByName(authContext.userId, agentId);
-          resolvedAgentId = byName.id;
+          existingAgent = await this.services.agentService.getAgentByName(authContext.userId, agentId);
+          resolvedAgentId = existingAgent.id;
+          isReconnection = true;
+
+          // Update agent name if provided and different from current
+          if (name && name !== existingAgent.name) {
+            await this.services.agentService.updateAgent(resolvedAgentId, {
+              name: name
+            }, authContext.userId);
+            this.server.log.info({
+              agentId: resolvedAgentId,
+              oldName: existingAgent.name,
+              newName: name
+            }, 'Agent name updated on reconnection');
+          }
+
+          this.server.log.info({
+            agentId: resolvedAgentId,
+            userId: authContext.userId,
+            agentName: agentId,
+            previousStatus: existingAgent.status
+          }, 'Agent reconnection detected - agent found by name');
         } catch {
-          // Still not found: register a new agent using agentId as the name
+          // Still not found: register a new agent using provided name or agentId as fallback
           const mappedType = (agentType || 'CUSTOM').toLowerCase() as any;
 
           // Extract capabilities as string array from protocol format
@@ -242,7 +284,7 @@ export class AgentWebSocketHandler extends EventEmitter {
           }
 
           const created = await this.services.agentService.registerAgent({
-            name: agentId,
+            name: name || agentId, // Use provided name or fall back to agentId
             type: ['claude', 'gemini', 'codex', 'custom'].includes(mappedType)
               ? mappedType
               : 'custom',
@@ -256,11 +298,12 @@ export class AgentWebSocketHandler extends EventEmitter {
             user_id: authContext.userId, // Associate agent with authenticated user
           } as any);
           resolvedAgentId = created.id;
+          isReconnection = false;
 
           this.server.log.info({
             agentId: resolvedAgentId,
             userId: authContext.userId,
-            agentName: agentId,
+            agentName: name || agentId,
             capabilities: capabilitiesArray
           }, 'New agent registered with user association');
         }
@@ -495,6 +538,13 @@ export class AgentWebSocketHandler extends EventEmitter {
     const payload = message.payload;
 
     try {
+      this.server.log.info({
+        commandId: payload.commandId,
+        agentId: payload.agentId,
+        contentLength: payload.content?.length,
+        streamType: payload.streamType
+      }, '[DEBUG] Received terminal output from agent');
+
       // Process terminal output through stream manager
       await this.dependencies.terminalStreamManager.processOutput(payload);
 
@@ -507,6 +557,11 @@ export class AgentWebSocketHandler extends EventEmitter {
         ansiCodes: payload.ansiCodes,
         timestamp: Date.now()
       });
+
+      this.server.log.info({
+        commandId: payload.commandId,
+        agentId: payload.agentId
+      }, '[DEBUG] Streamed terminal output to dashboard');
 
       // Send acknowledgment
       this.sendMessage(connection.socket, MessageType.ACK, {
@@ -599,7 +654,7 @@ export class AgentWebSocketHandler extends EventEmitter {
   /**
    * Handle connection disconnection
    */
-  private handleDisconnection(connectionId: string): void {
+  private async handleDisconnection(connectionId: string): Promise<void> {
     const connection = this.connections.get(connectionId);
 
     if (connection) {
@@ -632,14 +687,36 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Remove from connection pool
       this.dependencies.connectionPool.removeConnection(connectionId);
 
-      // Update agent status
+      // Update agent status and cancel executing commands
       if (connection.agentId) {
-        this.services.agentService.updateAgent(connection.agentId, {
-          status: 'OFFLINE',
-          disconnectedAt: new Date()
-        }).catch(error => {
-          this.server.log.error({ error, agentId: connection.agentId }, 'Failed to update agent on disconnect');
-        });
+        try {
+          // Update agent status to OFFLINE
+          await this.services.agentService.updateAgent(connection.agentId, {
+            status: 'OFFLINE',
+            disconnectedAt: new Date()
+          });
+
+          // Cancel any executing commands
+          const runningCommands = await this.services.commandService.getRunningCommands(connection.agentId);
+          const queuedCommands = await this.services.commandService.getQueuedCommands(connection.agentId);
+          const activeCommands = [...(runningCommands || []), ...(queuedCommands || [])];
+
+          if (activeCommands.length > 0) {
+            this.server.log.info({
+              agentId: connection.agentId,
+              commandCount: activeCommands.length
+            }, 'Cancelling active commands due to agent disconnect');
+
+            for (const command of activeCommands) {
+              await this.services.commandService.updateCommandStatus(command.id, 'CANCELLED', {
+                error: 'Agent disconnected',
+                completedAt: new Date()
+              });
+            }
+          }
+        } catch (error) {
+          this.server.log.error({ error, agentId: connection.agentId }, 'Failed to handle agent disconnect cleanup');
+        }
       }
 
       // Remove from local store

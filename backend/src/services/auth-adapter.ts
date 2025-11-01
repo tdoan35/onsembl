@@ -26,6 +26,9 @@ export class AuthAdapter extends EventEmitter {
 
     // Initialize enhanced auth service
     this.enhancedAuth = new EnhancedWebSocketAuth({
+      // Pass Fastify instance to use @fastify/jwt for token verification
+      // This ensures tokens signed with server.jwt.sign() can be verified correctly
+      fastify: server,
       // Align JWT secret with Fastify JWT config to validate wrapper tokens
       jwtSecret: process.env['JWT_SECRET'] || serverConfig.JWT_SECRET || 'supersecretkey',
       supabaseUrl: process.env['SUPABASE_URL'],

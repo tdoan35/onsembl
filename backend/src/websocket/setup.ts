@@ -15,10 +15,12 @@ import { HeartbeatManager } from './heartbeat.js';
 import { MessageRouter } from './message-router.js';
 import { TerminalStreamManager } from './terminal-stream.js';
 import { TokenManager } from './token-manager.js';
+import { AgentHeartbeatMonitor, createAgentHeartbeatMonitor } from '../services/agent-heartbeat-monitor.js';
 
 export interface WebSocketDependencies {
   connectionPool: ConnectionPool;
   heartbeatManager: HeartbeatManager;
+  agentHeartbeatMonitor: AgentHeartbeatMonitor;
   messageRouter: MessageRouter;
   terminalStreamManager: TerminalStreamManager;
   tokenManager: TokenManager;
@@ -55,6 +57,9 @@ export async function setupWebSocketPlugin(
 
     // Stop heartbeat manager
     dependencies.heartbeatManager.stop();
+
+    // Stop agent heartbeat monitor
+    dependencies.agentHeartbeatMonitor.stop();
 
     // Close all connections
     dependencies.connectionPool.closeAll();
@@ -109,14 +114,23 @@ function initializeWebSocketDependencies(
     maxMissedPings: 3
   });
 
+  // Initialize agent heartbeat monitor (application-level heartbeat tracking)
+  const agentHeartbeatMonitor = createAgentHeartbeatMonitor(server, services.agentService, {
+    checkIntervalMs: 30000,      // Check every 30 seconds
+    heartbeatTimeoutMs: 90000,   // 90 seconds timeout (3x agent heartbeat interval)
+    enableLogging: false         // Disable debug logging by default
+  });
+
   // Start background services
   heartbeatManager.start();
+  agentHeartbeatMonitor.start();
   tokenManager.start();
   terminalStreamManager.start();
 
   return {
     connectionPool,
     heartbeatManager,
+    agentHeartbeatMonitor,
     messageRouter,
     terminalStreamManager,
     tokenManager

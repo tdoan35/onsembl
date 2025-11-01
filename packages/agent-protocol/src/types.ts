@@ -83,6 +83,7 @@ export type ReportStatus = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETE';
 
 export interface AgentConnectPayload {
   agentId: string;
+  name?: string; // Optional agent display name from config
   agentType: AgentType;
   version: string;
   hostMachine: string;
@@ -421,6 +422,7 @@ export function isDashboardMessage(type: MessageType): boolean {
 export function isServerToDashboardMessage(type: MessageType): boolean {
   return [
     MessageType.AGENT_STATUS,
+    MessageType.AGENT_DISCONNECT,
     MessageType.COMMAND_STATUS,
     MessageType.TERMINAL_STREAM,
     MessageType.TRACE_STREAM,
@@ -448,6 +450,7 @@ export type MessagePayloadMap = {
   [MessageType.TOKEN_REFRESH]: TokenRefreshPayload;
   [MessageType.SERVER_HEARTBEAT]: ServerHeartbeatPayload;
   [MessageType.AGENT_STATUS]: AgentStatusPayload;
+  [MessageType.AGENT_DISCONNECT]: AgentDisconnectPayload;
   [MessageType.COMMAND_STATUS]: CommandStatusPayload;
   [MessageType.TERMINAL_STREAM]: TerminalStreamPayload;
   [MessageType.TRACE_STREAM]: TraceStreamPayload;

@@ -26,6 +26,7 @@ import { AgentService } from './services/agent.service';
 import { CommandService } from './services/command.service';
 import { AuthService } from './services/auth-adapter.js';
 import { AuditService } from './services/audit.service';
+import { initializeEnhancedAuth } from './services/websocket-auth.js';
 
 // Database
 import { SupabaseValidator } from './database/supabase-validator';
@@ -193,6 +194,11 @@ export async function createServer(): Promise<FastifyInstance> {
       expiresIn: '24h',
     },
   });
+
+  // Initialize enhanced auth singleton with Fastify JWT support
+  // This ensures CLI tokens signed with @fastify/jwt can be verified correctly
+  initializeEnhancedAuth(server);
+  server.log.info('Enhanced auth singleton initialized with Fastify JWT support');
 
   // Register Swagger documentation
   await server.register(fastifySwagger, {
