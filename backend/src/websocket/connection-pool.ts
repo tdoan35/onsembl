@@ -8,6 +8,13 @@ import { SocketStream } from '@fastify/websocket';
 import { EventEmitter } from 'events';
 import { extractConnectionMetadata } from './setup.js';
 
+export interface DashboardSubscriptions {
+  agents: Set<string>;
+  commands: Set<string>;
+  traces: boolean;
+  terminals: boolean;
+}
+
 export interface ConnectionMetadata {
   type: 'agent' | 'dashboard';
   socket: SocketStream;
@@ -15,6 +22,7 @@ export interface ConnectionMetadata {
   isAuthenticated: boolean;
   agentId?: string;
   userId?: string;
+  subscriptions?: DashboardSubscriptions;
   connectedAt: number;
   lastActivity: number;
   lastPing?: number;
@@ -78,20 +86,22 @@ export class ConnectionPool extends EventEmitter {
     // Setup connection monitoring
     this.setupConnectionMonitoring(connectionId, connection);
 
-    this.server.log.debug({
-      connectionId,
-      type: connection.type,
-      total: this.connections.size
-    }, 'Connection added to pool');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // this.server.log.debug({
+    //   connectionId,
+    //   type: connection.type,
+    //   total: this.connections.size
+    // }, 'Connection added to pool');
 
     this.emit('connectionAdded', { connectionId, type: connection.type });
 
     // Check connection limits
     if (this.connections.size > this.config.maxConnections) {
-      this.server.log.warn({
-        current: this.connections.size,
-        max: this.config.maxConnections
-      }, 'Connection pool approaching limit');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.warn({
+      //   current: this.connections.size,
+      //   max: this.config.maxConnections
+      // }, 'Connection pool approaching limit');
     }
   }
 
@@ -101,14 +111,16 @@ export class ConnectionPool extends EventEmitter {
   updateConnection(connectionId: string, updates: Partial<ConnectionMetadata>): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
-      this.server.log.warn({ connectionId }, 'Attempted to update non-existent connection');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.warn({ connectionId }, 'Attempted to update non-existent connection');
       return;
     }
 
     Object.assign(connection, updates);
     connection.lastActivity = Date.now();
 
-    this.server.log.debug({ connectionId, updates }, 'Connection updated');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // this.server.log.debug({ connectionId, updates }, 'Connection updated');
     this.emit('connectionUpdated', { connectionId, updates });
   }
 
@@ -123,13 +135,14 @@ export class ConnectionPool extends EventEmitter {
 
     this.connections.delete(connectionId);
 
-    this.server.log.debug({
-      connectionId,
-      type: connection.type,
-      duration: Date.now() - connection.connectedAt,
-      messageCount: connection.messageCount,
-      bytesTransferred: connection.bytesTransferred
-    }, 'Connection removed from pool');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // this.server.log.debug({
+    //   connectionId,
+    //   type: connection.type,
+    //   duration: Date.now() - connection.connectedAt,
+    //   messageCount: connection.messageCount,
+    //   bytesTransferred: connection.bytesTransferred
+    // }, 'Connection removed from pool');
 
     this.emit('connectionRemoved', {
       connectionId,

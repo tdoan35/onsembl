@@ -31,7 +31,7 @@ export default function ActiveAgentsPage() {
   const { agents, addAgent, refreshAgents } = useAgentStore();
   const { addNotification } = useUIStore();
   const { createSession, setActiveSession, sessions, addOutput } = useTerminalStore();
-  const { sendCommand, connect, dashboardState } = useWebSocketStore();
+  const { sendCommand, dashboardState } = useWebSocketStore();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,23 +48,11 @@ export default function ActiveAgentsPage() {
     }
   });
 
-  // Connect to WebSocket and load real agents from backend on mount
-  useEffect(() => {
-    // Connect to dashboard WebSocket if not already connected
-    if (dashboardState === 'disconnected') {
-      console.log('[AgentsPage] Connecting to dashboard WebSocket...');
-      connect().then(() => {
-        console.log('[AgentsPage] WebSocket connected successfully');
-      }).catch(error => {
-        console.error('[AgentsPage] Failed to connect WebSocket:', error);
-        addNotification({
-          title: 'WebSocket Connection Failed',
-          description: 'Unable to connect to command service. Commands will not work.',
-          type: 'error',
-        });
-      });
-    }
+  // NOTE: WebSocket connection is managed by WebSocketProvider (websocket-provider.tsx)
+  // This page just consumes the connection state. No need to manage connection here.
 
+  // Load agents from backend on mount only
+  useEffect(() => {
     refreshAgents().catch(error => {
       addNotification({
         title: 'Failed to Load Agents',
@@ -72,7 +60,8 @@ export default function ActiveAgentsPage() {
         type: 'error',
       });
     });
-  }, [refreshAgents, addNotification, connect, dashboardState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Manage terminal session when agent is selected/deselected
   useEffect(() => {
@@ -117,32 +106,57 @@ export default function ActiveAgentsPage() {
 
   // Handle command execution - wrapped in useCallback to prevent terminal re-initialization
   const handleCommandExecution = useCallback(async (command: string) => {
-    console.log('[AgentsPage] handleCommandExecution called with command:', command);
-    console.log('[AgentsPage] selectedAgentId:', selectedAgentId);
+    console.log('[AgentsPage] ==================== COMMAND EXECUTION START ====================');
+    console.log('[AgentsPage] handleCommandExecution called with:', {
+      command,
+      commandLength: command.length,
+      selectedAgentId,
+      dashboardState,
+      timestamp: new Date().toISOString()
+    });
 
     if (!selectedAgentId || !command.trim()) {
-      console.log('[AgentsPage] No agent selected or empty command');
+      console.log('[AgentsPage] Aborting: No agent selected or empty command');
+      return;
+    }
+
+    // Check WebSocket connection state
+    if (dashboardState !== 'connected') {
+      console.log('[AgentsPage] Aborting: WebSocket not connected');
+      addNotification({
+        title: 'Not Connected',
+        description: 'WebSocket connection is not established. Please wait for connection.',
+        type: 'warning',
+      });
       return;
     }
 
     const agent = agents.find(a => a.id === selectedAgentId);
     if (!agent) {
-      console.log('[AgentsPage] Agent not found:', selectedAgentId);
+      console.log('[AgentsPage] Aborting: Agent not found:', selectedAgentId);
       return;
     }
+
+    console.log('[AgentsPage] Agent details:', {
+      id: agent.id,
+      name: agent.name,
+      type: agent.type,
+      status: agent.status
+    });
 
     try {
       // Use the monitoring session ID (don't create a new session)
       const sessionId = `agent-session-${agent.id}`;
 
-      console.log(`[Terminal] Sending command to agent ${agent.id}:`, command);
+      console.log(`[Terminal] Preparing to send command to agent ${agent.id}:`, command);
       console.log('[Terminal] WebSocket sendCommand params:', {
         agentId: agent.id,
         command,
         args: [],
         env: {},
         workingDirectory: undefined,
-        priority: 'normal'
+        priority: 'normal',
+        dashboardState
       });
 
       // Send command via WebSocket using agent ID
@@ -155,12 +169,13 @@ export default function ActiveAgentsPage() {
         'normal' // priority
       );
 
-      console.log('[Terminal] sendCommand result:', result);
+      console.log('[Terminal] sendCommand completed, result:', result);
 
       // Stay on the same monitoring session to see all output
       // The terminal output will be received via WebSocket and displayed in the current session
 
       console.log(`[Terminal] Command sent successfully to ${agent.id}`);
+      console.log('[AgentsPage] ==================== COMMAND EXECUTION END ====================');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       addNotification({
@@ -169,9 +184,14 @@ export default function ActiveAgentsPage() {
         type: 'error',
       });
       console.error('[Terminal] Failed to send command:', error);
-      console.error('[Terminal] Error details:', error);
+      console.error('[Terminal] Error details:', {
+        error,
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      console.log('[AgentsPage] ==================== COMMAND EXECUTION FAILED ====================');
     }
-  }, [selectedAgentId, agents, sendCommand, addNotification]);
+  }, [selectedAgentId, agents, sendCommand, addNotification, dashboardState]);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -321,6 +341,12 @@ export default function ActiveAgentsPage() {
                   }
                 </p>
               </div>
+              {/* Connection status indicator */}
+              {dashboardState !== 'connected' && (
+                <Badge variant={dashboardState === 'connecting' ? 'secondary' : 'destructive'}>
+                  {dashboardState === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                </Badge>
+              )}
             </div>
           </div>
 

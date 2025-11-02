@@ -129,7 +129,7 @@ export const useUIStore = create<UIStore>()(
   devtools(
     (set, get) => ({
       // Initial state
-      theme: 'system',
+      theme: 'dark',
       colorTheme: 'modern',
       systemTheme: 'light',
       sidebarState: 'expanded',

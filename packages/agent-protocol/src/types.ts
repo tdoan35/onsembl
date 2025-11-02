@@ -415,7 +415,11 @@ export function isDashboardMessage(type: MessageType): boolean {
   return [
     MessageType.DASHBOARD_INIT,
     MessageType.DASHBOARD_SUBSCRIBE,
-    MessageType.DASHBOARD_UNSUBSCRIBE
+    MessageType.DASHBOARD_UNSUBSCRIBE,
+    MessageType.COMMAND_REQUEST,
+    MessageType.COMMAND_CANCEL,
+    MessageType.AGENT_CONTROL,
+    MessageType.EMERGENCY_STOP
   ].includes(type);
 }
 

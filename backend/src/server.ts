@@ -83,8 +83,16 @@ export async function createServer(): Promise<FastifyInstance> {
   });
 
   // Register JWT plugin early so it's available for all services
+  const jwtSecret = config.JWT_SECRET || 'supersecretkey';
+  // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+  // server.log.info({
+  //   jwtSecret: jwtSecret.substring(0, 10) + '...',
+  //   jwtSecretLength: jwtSecret.length,
+  //   configSource: config.JWT_SECRET ? 'config' : 'default'
+  // }, 'Registering JWT plugin with secret');
+
   await server.register(fastifyJWT, {
-    secret: config.JWT_SECRET || 'supersecretkey',
+    secret: jwtSecret,
     sign: {
       expiresIn: '24h',
     },
@@ -93,7 +101,8 @@ export async function createServer(): Promise<FastifyInstance> {
   // Initialize enhanced auth singleton with Fastify JWT support BEFORE creating services
   // This ensures CLI tokens signed with @fastify/jwt can be verified correctly
   initializeEnhancedAuth(server);
-  server.log.info('Enhanced auth initialized with Fastify JWT support');
+  // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+  // server.log.info('Enhanced auth initialized with Fastify JWT support');
 
   // Initialize database health check and validation
   const healthService = new HealthCheckService(server);
@@ -107,14 +116,15 @@ export async function createServer(): Promise<FastifyInstance> {
   if (validation.valid && validation.configured) {
     supabaseClient = validator.getClient();
     const envInfo = EnvironmentDetector.detect();
-    server.log.info(
-      {
-        environment: envInfo.type,
-        url: envInfo.connectionUrl,
-        summary: EnvironmentDetector.getConnectionSummary()
-      },
-      'Database connection established'
-    );
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // server.log.info(
+    //   {
+    //     environment: envInfo.type,
+    //     url: envInfo.connectionUrl,
+    //     summary: EnvironmentDetector.getConnectionSummary()
+    //   },
+    //   'Database connection established'
+    // );
   } else {
     // Log warnings with helpful setup instructions
     if (!validation.configured) {
@@ -147,7 +157,8 @@ export async function createServer(): Promise<FastifyInstance> {
       });
 
       redisConnection.on('connect', () => {
-        server.log.info('Redis connection established');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // server.log.info('Redis connection established');
       });
 
       redisConnection.on('error', (error) => {
@@ -164,7 +175,8 @@ export async function createServer(): Promise<FastifyInstance> {
   // For now, create mock services if Supabase is not available
   if (supabaseClient) {
     // Use service role client for AgentService to bypass RLS policies
-    server.log.info('Initializing AgentService with service role client to bypass RLS');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // server.log.info('Initializing AgentService with service role client to bypass RLS');
 
     services = {
       agentService: new AgentService(supabaseAdmin as any, server),

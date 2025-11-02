@@ -133,12 +133,21 @@ function SimpleTerminal({
   const { getActiveSessionOutput, addOutput, activeSessionId } = useTerminalStore();
   const { addNotification } = useUIStore();
 
-  // Auto-scroll to bottom on new output
+  // Get terminal output (called on every render to get fresh data)
+  const terminalOutput = getActiveSessionOutput();
+
+  // Track output length in a ref to compare changes without causing re-renders
+  const prevOutputLengthRef = useRef(terminalOutput.length);
+
+  // Auto-scroll to bottom only when new output arrives (not on every render)
   useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    if (terminalOutput.length !== prevOutputLengthRef.current) {
+      prevOutputLengthRef.current = terminalOutput.length;
+      if (outputRef.current) {
+        outputRef.current.scrollTop = outputRef.current.scrollHeight;
+      }
     }
-  }, [getActiveSessionOutput()]);
+  });
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && currentInput.trim()) {
@@ -154,7 +163,14 @@ function SimpleTerminal({
       // Send command to agent
       if (onCommand) {
         try {
+          console.log('[SimpleTerminal] Executing command:', {
+            command: currentInput,
+            agentId,
+            hasCallback: !!onCommand,
+            timestamp: new Date().toISOString()
+          });
           await onCommand(currentInput);
+          console.log('[SimpleTerminal] Command sent successfully');
         } catch (error) {
           console.error('[SimpleTerminal] Error executing command:', error);
           addNotification({
@@ -163,6 +179,8 @@ function SimpleTerminal({
             type: 'error',
           });
         }
+      } else {
+        console.warn('[SimpleTerminal] No onCommand callback provided');
       }
 
       // Clear input
@@ -189,7 +207,7 @@ function SimpleTerminal({
     }
   };
 
-  const terminalLines = getActiveSessionOutput();
+  const terminalLines = terminalOutput;
 
   return (
     <div

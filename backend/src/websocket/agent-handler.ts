@@ -55,10 +55,11 @@ export class AgentWebSocketHandler extends EventEmitter {
     const connectionId = this.generateConnectionId();
     const metadata = extractConnectionMetadata(request);
 
-    this.server.log.info({
-      connectionId,
-      remoteAddress: metadata.remoteAddress
-    }, 'Agent WebSocket connection established');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // this.server.log.info({
+    //   connectionId,
+    //   remoteAddress: metadata.remoteAddress
+    // }, 'Agent WebSocket connection established');
 
     // Create connection record
     const agentConnection: AgentConnection = {
@@ -98,7 +99,8 @@ export class AgentWebSocketHandler extends EventEmitter {
     // Set authentication timeout
     setTimeout(() => {
       if (!agentConnection.isAuthenticated) {
-        this.server.log.warn({ connectionId }, 'Agent connection authentication timeout');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // this.server.log.warn({ connectionId }, 'Agent connection authentication timeout');
         this.sendError(connection, 'AUTH_TIMEOUT', 'Authentication timeout');
         connection.socket.close();
       }
@@ -125,10 +127,11 @@ export class AgentWebSocketHandler extends EventEmitter {
       }
 
       // Log message for debugging
-      this.server.log.debug({
-        connectionId: connection.connectionId,
-        type: message.type
-      }, 'Agent message received');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.debug({
+      //   connectionId: connection.connectionId,
+      //   type: message.type
+      // }, 'Agent message received');
 
       // Route message based on type
       switch (message.type) {
@@ -246,7 +249,7 @@ export class AgentWebSocketHandler extends EventEmitter {
       } catch {
         // Not found by UUID, try by unique name (fallback to agentId as name)
         try {
-          existingAgent = await this.services.agentService.getAgentByName(authContext.userId, agentId);
+          existingAgent = await this.services.agentService.getAgentByName(authContext.userId, name || agentId);
           resolvedAgentId = existingAgent.id;
           isReconnection = true;
 
@@ -373,16 +376,20 @@ export class AgentWebSocketHandler extends EventEmitter {
 
   /**
    * Handle agent heartbeat
+   * Using resolved UUID from connection
    */
   private async handleAgentHeartbeat(
     connection: AgentConnection,
     message: TypedWebSocketMessage<MessageType.AGENT_HEARTBEAT>
   ): Promise<void> {
-    const { agentId, healthMetrics } = message.payload;
+    const { healthMetrics } = message.payload;
 
     try {
+      // Use resolved UUID from connection, not string ID from message
+      const resolvedAgentId = connection.agentId;
+
       // Update agent heartbeat
-      await this.services.agentService.updateHeartbeat(agentId, healthMetrics);
+      await this.services.agentService.updateHeartbeat(resolvedAgentId, healthMetrics);
 
       // Update connection heartbeat
       connection.lastPing = Date.now();
@@ -395,7 +402,8 @@ export class AgentWebSocketHandler extends EventEmitter {
       });
 
     } catch (error) {
-      this.server.log.error({ error, agentId }, 'Failed to handle heartbeat');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.error({ error, agentId: connection.agentId }, 'Failed to handle heartbeat');
     }
   }
 
@@ -406,13 +414,16 @@ export class AgentWebSocketHandler extends EventEmitter {
     connection: AgentConnection,
     message: TypedWebSocketMessage<MessageType.AGENT_ERROR>
   ): Promise<void> {
-    const { agentId, errorType, message: errorMessage, recoverable, details, stack } = message.payload;
+    const { errorType, message: errorMessage, recoverable, details, stack } = message.payload;
 
     try {
+      // Use resolved UUID from connection
+      const resolvedAgentId = connection.agentId;
+
       // Log agent error
       this.services.auditService.logEvent({
         type: 'AGENT_ERROR',
-        agentId,
+        agentId: resolvedAgentId,
         details: {
           errorType,
           message: errorMessage,
@@ -424,7 +435,7 @@ export class AgentWebSocketHandler extends EventEmitter {
 
       // Update agent status if error is not recoverable
       if (!recoverable) {
-        await this.services.agentService.updateAgent(agentId, {
+        await this.services.agentService.updateAgent(resolvedAgentId, {
           status: 'ERROR',
           lastError: errorMessage
         });
@@ -437,15 +448,16 @@ export class AgentWebSocketHandler extends EventEmitter {
         errorReceived: true
       });
 
-      this.server.log.error({
-        agentId,
-        errorType,
-        message: errorMessage,
-        recoverable
-      }, 'Agent reported error');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.error({
+      //   agentId: resolvedAgentId,
+      //   errorType,
+      //   message: errorMessage,
+      //   recoverable
+      // }, 'Agent reported error');
 
     } catch (error) {
-      this.server.log.error({ error, agentId }, 'Failed to handle agent error');
+      this.server.log.error({ error, agentId: connection.agentId }, 'Failed to handle agent error');
     }
   }
 
@@ -456,9 +468,12 @@ export class AgentWebSocketHandler extends EventEmitter {
     connection: AgentConnection,
     message: TypedWebSocketMessage<MessageType.COMMAND_ACK>
   ): Promise<void> {
-    const { commandId, agentId, status, queuePosition } = message.payload;
+    const { commandId, status, queuePosition } = message.payload;
 
     try {
+      // Use resolved UUID from connection
+      const resolvedAgentId = connection.agentId;
+
       // Update command status
       await this.services.commandService.updateCommandStatus(commandId, status, {
         queuePosition,
@@ -468,7 +483,7 @@ export class AgentWebSocketHandler extends EventEmitter {
       // T017: Route to dashboard with proper command tracking
       this.dependencies.messageRouter.broadcastCommandStatus(commandId, {
         commandId,
-        agentId,
+        agentId: resolvedAgentId,
         status,
         queuePosition
       });
@@ -481,7 +496,8 @@ export class AgentWebSocketHandler extends EventEmitter {
         acknowledged: true
       });
 
-      this.server.log.debug({ commandId, status }, 'Command acknowledged');
+      // KEEP FOR COMMAND FORWARDING DEBUG
+      this.server.log.info({ commandId, status }, '[CMD-FWD] Command acknowledged by agent');
 
     } catch (error) {
       this.server.log.error({ error, commandId }, 'Failed to handle command acknowledgment');
@@ -518,10 +534,11 @@ export class AgentWebSocketHandler extends EventEmitter {
         completed: true
       });
 
+      // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.info({
         commandId: payload.commandId,
         status: payload.status
-      }, 'Command completed');
+      }, '[CMD-FWD] Command completed by agent');
 
     } catch (error) {
       this.server.log.error({ error, commandId: payload.commandId }, 'Failed to handle command completion');
@@ -538,30 +555,41 @@ export class AgentWebSocketHandler extends EventEmitter {
     const payload = message.payload;
 
     try {
+      // Use resolved UUID from connection instead of message payload
+      const resolvedAgentId = connection.agentId;
+
+      // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.info({
         commandId: payload.commandId,
-        agentId: payload.agentId,
+        agentId: resolvedAgentId,
         contentLength: payload.content?.length,
         streamType: payload.streamType
-      }, '[DEBUG] Received terminal output from agent');
+      }, '[CMD-FWD] Received terminal output from agent');
+
+      // Create corrected payload with resolved agent ID
+      const correctedPayload = {
+        ...payload,
+        agentId: resolvedAgentId
+      };
 
       // Process terminal output through stream manager
-      await this.dependencies.terminalStreamManager.processOutput(payload);
+      await this.dependencies.terminalStreamManager.processOutput(correctedPayload);
 
       // T017: Stream to dashboard with proper command tracking
       this.dependencies.messageRouter.streamTerminalOutput({
         commandId: payload.commandId,
-        agentId: payload.agentId,
+        agentId: resolvedAgentId,
         content: payload.content,
         streamType: payload.streamType,
         ansiCodes: payload.ansiCodes,
         timestamp: Date.now()
       });
 
+      // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.info({
         commandId: payload.commandId,
-        agentId: payload.agentId
-      }, '[DEBUG] Streamed terminal output to dashboard');
+        agentId: resolvedAgentId
+      }, '[CMD-FWD] Streamed terminal output to dashboard');
 
       // Send acknowledgment
       this.sendMessage(connection.socket, MessageType.ACK, {

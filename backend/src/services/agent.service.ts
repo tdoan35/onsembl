@@ -118,8 +118,8 @@ export class AgentService extends EventEmitter {
     offset?: number;
   }) {
     try {
-      // Extract userId from filters, use empty string if not provided (will show all agents)
-      const userId = filters?.user_id || '';
+      // Extract userId from filters, use null if not provided (service role query for all agents)
+      const userId = filters?.user_id || null;
 
       return await this.agentModel.findAll(userId, {
         status: filters?.status as any,

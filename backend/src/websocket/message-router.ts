@@ -87,17 +87,46 @@ export class MessageRouter extends EventEmitter {
       payload
     };
 
-    // T029: Debug logging for message routing
-    this.server.log.debug({
+    // KEEP FOR COMMAND FORWARDING DEBUG
+    this.server.log.info('==================== [CMD-FWD] ROUTE TO AGENT START ====================');
+    this.server.log.info({
       action: 'route_to_agent',
       agentId,
       messageType: type,
       messageId: message.id,
       priority,
-      payloadKeys: Object.keys(payload)
-    }, 'Routing message to specific agent');
+      payloadKeys: Object.keys(payload),
+      payload: type === MessageType.COMMAND_REQUEST ? payload : undefined
+    }, '[CMD-FWD] Routing message to specific agent');
 
-    return this.queueMessage({
+    // Check if agent is in connection pool
+    const connections = this.connectionPool.getAllConnections();
+    const agentConnection = connections.find(([id, conn]) => conn.metadata?.agentId === agentId);
+
+    if (!agentConnection) {
+      // KEEP FOR COMMAND FORWARDING DEBUG
+      this.server.log.error(`[CMD-FWD] Agent ${agentId} not found in connection pool. Available agents:`, {
+        availableAgents: connections
+          .filter(([id, conn]) => conn.metadata?.type === 'agent')
+          .map(([id, conn]) => ({
+            connectionId: id,
+            agentId: conn.metadata?.agentId,
+            type: conn.metadata?.type,
+            isAuthenticated: conn.isAuthenticated
+          }))
+      });
+      this.server.log.error('==================== [CMD-FWD] ROUTE TO AGENT FAILED ====================');
+      return false;
+    }
+
+    // KEEP FOR COMMAND FORWARDING DEBUG
+    this.server.log.info(`[CMD-FWD] Found agent connection for ${agentId}:`, {
+      connectionId: agentConnection[0],
+      isAuthenticated: agentConnection[1].isAuthenticated,
+      metadata: agentConnection[1].metadata
+    });
+
+    const queued = this.queueMessage({
       id: message.id,
       message,
       targetType: 'specific',
@@ -107,6 +136,12 @@ export class MessageRouter extends EventEmitter {
       createdAt: Date.now(),
       filter: (connectionId, metadata) => metadata.agentId === agentId
     });
+
+    // KEEP FOR COMMAND FORWARDING DEBUG
+    this.server.log.info(`[CMD-FWD] Message queued: ${queued}`);
+    this.server.log.info('==================== [CMD-FWD] ROUTE TO AGENT SUCCESS ====================');
+
+    return queued;
   }
 
   /**
@@ -197,15 +232,15 @@ export class MessageRouter extends EventEmitter {
    * Broadcast command status updates
    */
   broadcastCommandStatus(commandId: string, payload: CommandStatusPayload): void {
-    // T029: Debug logging for command status routing
+    // KEEP FOR COMMAND FORWARDING DEBUG
     const dashboardId = this.commandToDashboard.get(commandId);
-    this.server.log.debug({
+    this.server.log.info({
       action: 'broadcast_command_status',
       commandId,
       targetDashboard: dashboardId,
       status: payload.status,
       hasTracking: !!dashboardId
-    }, 'Broadcasting command status to dashboard');
+    }, '[CMD-FWD] Broadcasting command status to dashboard');
 
     this.routeToDashboard(
       MessageType.COMMAND_STATUS,
@@ -238,6 +273,7 @@ export class MessageRouter extends EventEmitter {
       this.server.log.warn({ error }, 'Could not get dashboard connection count');
     }
 
+    // KEEP FOR COMMAND FORWARDING DEBUG
     this.server.log.info({
       action: 'stream_terminal_output',
       commandId,
@@ -246,7 +282,7 @@ export class MessageRouter extends EventEmitter {
       hasCommandTracking: !!dashboardId,
       contentLength: (payload as any).content?.length || 0,
       subscribedDashboards: dashboardCount
-    }, '[DEBUG] Streaming terminal output to dashboard');
+    }, '[CMD-FWD] Streaming terminal output to dashboard');
 
     if (commandId && dashboardId) {
       // Route to specific dashboard that initiated the command
@@ -363,13 +399,14 @@ export class MessageRouter extends EventEmitter {
     this.routingStats.messagesQueued++;
     this.routingStats.queueSize = this.messageQueue.size;
 
-    this.server.log.debug({
+    // KEEP FOR COMMAND FORWARDING DEBUG
+    this.server.log.info({
       messageId: queuedMessage.id,
       type: queuedMessage.message.type,
       priority: queuedMessage.priority,
       targetType: queuedMessage.targetType,
       targetId: queuedMessage.targetId
-    }, 'Message queued for routing');
+    }, '[CMD-FWD] Message queued for routing');
 
     this.emit('messageQueued', queuedMessage);
     return true;
@@ -398,10 +435,11 @@ export class MessageRouter extends EventEmitter {
 
       // Skip if message has timed out
       if (now - queuedMessage.createdAt > this.config.messageTimeoutMs) {
-        this.server.log.warn({
-          messageId: queuedMessage.id,
-          age: now - queuedMessage.createdAt
-        }, 'Message timed out, dropping');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // this.server.log.warn({
+        //   messageId: queuedMessage.id,
+        //   age: now - queuedMessage.createdAt
+        // }, 'Message timed out, dropping');
 
         this.messageQueue.delete(queuedMessage.id);
         this.routingStats.messagesDropped++;
@@ -435,8 +473,8 @@ export class MessageRouter extends EventEmitter {
     let delivered = 0;
     let targetConnections: Map<string, any>;
 
-    // T029: Debug logging for message delivery
-    this.server.log.debug({
+    // KEEP FOR COMMAND FORWARDING DEBUG
+    this.server.log.info({
       action: 'deliver_message_start',
       messageId: queuedMessage.id,
       messageType: queuedMessage.message.type,
@@ -444,7 +482,7 @@ export class MessageRouter extends EventEmitter {
       targetId: queuedMessage.targetId,
       priority: queuedMessage.priority,
       queueAge: Date.now() - queuedMessage.createdAt
-    }, 'Starting message delivery');
+    }, '[CMD-FWD] Starting message delivery');
 
     // Get target connections based on type
     switch (queuedMessage.targetType) {
@@ -505,13 +543,14 @@ export class MessageRouter extends EventEmitter {
       this.routingStats.messagesSent++;
       this.updateAverageLatency(Date.now() - queuedMessage.createdAt);
 
-      this.server.log.debug({
+      // KEEP FOR COMMAND FORWARDING DEBUG
+      this.server.log.info({
         messageId: queuedMessage.id,
         type: queuedMessage.message.type,
         delivered,
         deliveryTime,
         queueAge: Date.now() - queuedMessage.createdAt
-      }, 'Message delivered successfully');
+      }, '[CMD-FWD] Message delivered successfully');
 
       this.emit('messageDelivered', {
         message: queuedMessage,
@@ -536,10 +575,13 @@ export class MessageRouter extends EventEmitter {
       this.messageQueue.delete(queuedMessage.id);
       this.routingStats.messagesFailed++;
 
+      // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.error({
         messageId: queuedMessage.id,
-        attempts: queuedMessage.attempts
-      }, 'Message delivery failed after max attempts');
+        attempts: queuedMessage.attempts,
+        messageType: queuedMessage.message.type,
+        targetType: queuedMessage.targetType
+      }, '[CMD-FWD] Message delivery failed after max attempts');
 
       this.emit('messageDeliveryFailed', queuedMessage);
     } else {
@@ -547,11 +589,13 @@ export class MessageRouter extends EventEmitter {
       const delay = Math.min(1000 * Math.pow(2, queuedMessage.attempts - 1), 30000);
       queuedMessage.scheduledAt = Date.now() + delay;
 
-      this.server.log.debug({
+      // KEEP FOR COMMAND FORWARDING DEBUG
+      this.server.log.info({
         messageId: queuedMessage.id,
         attempt: queuedMessage.attempts,
-        retryIn: delay
-      }, 'Scheduling message retry');
+        retryIn: delay,
+        messageType: queuedMessage.message.type
+      }, '[CMD-FWD] Scheduling message retry');
 
       this.emit('messageRetryScheduled', { message: queuedMessage, delay });
     }
@@ -603,36 +647,51 @@ export class MessageRouter extends EventEmitter {
    * Check if dashboard is subscribed to agent
    */
   private isDashboardSubscribedToAgent(connectionId: string, agentId: string): boolean {
-    // This would need to be implemented based on how subscriptions are stored
-    // For now, assume all dashboards are interested in all agents
-    return true;
+    const connection = this.connectionPool.getConnection(connectionId);
+    if (!connection || !connection.subscriptions) return false;
+
+    // Check if subscribed to all agents ('*') or specific agent ID
+    return connection.subscriptions.agents.has('*') || connection.subscriptions.agents.has(agentId);
   }
 
   /**
    * Check if dashboard is subscribed to command
    */
   private isDashboardSubscribedToCommand(connectionId: string, commandId: string): boolean {
+    const connection = this.connectionPool.getConnection(connectionId);
+    if (!connection || !connection.subscriptions) return false;
+
     // Check if this dashboard initiated the command
     const dashboardId = this.commandToDashboard.get(commandId);
-    return dashboardId === connectionId;
+    const isInitiator = dashboardId === connectionId;
+
+    // Check if subscribed to all commands ('*') or specific command ID, or is the initiator
+    const isSubscribed = connection.subscriptions.commands &&
+      (connection.subscriptions.commands.has('*') || connection.subscriptions.commands.has(commandId));
+
+    return isInitiator || isSubscribed;
   }
 
   /**
    * Check if dashboard is subscribed to terminals
    */
   private isDashboardSubscribedToTerminals(connectionId: string): boolean {
-    // This would need to be implemented based on how subscriptions are stored
-    // For now, assume all dashboards want terminal output
-    return true;
+    const connection = this.connectionPool.getConnection(connectionId);
+    if (!connection || !connection.subscriptions) return false;
+
+    // Check if terminals subscription is enabled (boolean flag)
+    return connection.subscriptions.terminals === true;
   }
 
   /**
    * Check if dashboard is subscribed to traces
    */
   private isDashboardSubscribedToTraces(connectionId: string): boolean {
-    // This would need to be implemented based on how subscriptions are stored
-    // For now, assume all dashboards want trace events
-    return true;
+    const connection = this.connectionPool.getConnection(connectionId);
+    if (!connection || !connection.subscriptions) return false;
+
+    // Check if traces subscription is enabled (boolean flag)
+    return connection.subscriptions.traces === true;
   }
 
   /**

@@ -10,6 +10,7 @@ import { EventEmitter } from 'events';
 import { Services } from '../server.js';
 import { WebSocketDependencies } from './setup.js';
 import { extractConnectionMetadata } from './setup.js';
+import { DashboardSubscriptions } from './connection-pool.js';
 import {
   WebSocketMessage,
   MessageType,
@@ -26,12 +27,7 @@ export interface DashboardConnection {
   socket: SocketStream;
   metadata: ReturnType<typeof extractConnectionMetadata>;
   isAuthenticated: boolean;
-  subscriptions: {
-    agents: Set<string>;
-    commands: Set<string>;
-    traces: boolean;
-    terminals: boolean;
-  };
+  subscriptions: DashboardSubscriptions;
   lastPing: number;
 }
 
@@ -54,10 +50,11 @@ export class DashboardWebSocketHandler extends EventEmitter {
     const connectionId = this.generateConnectionId();
     const metadata = extractConnectionMetadata(request);
 
-    this.server.log.info({
-      connectionId,
-      remoteAddress: metadata.remoteAddress
-    }, 'Dashboard WebSocket connection established');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // this.server.log.info({
+    //   connectionId,
+    //   remoteAddress: metadata.remoteAddress
+    // }, 'Dashboard WebSocket connection established');
 
     // Create connection record
     const dashboardConnection: DashboardConnection = {
@@ -80,7 +77,8 @@ export class DashboardWebSocketHandler extends EventEmitter {
       type: 'dashboard',
       socket: connection,
       metadata,
-      isAuthenticated: false
+      isAuthenticated: false,
+      subscriptions: dashboardConnection.subscriptions
     });
 
     // Setup message handlers
@@ -102,7 +100,8 @@ export class DashboardWebSocketHandler extends EventEmitter {
     // Set authentication timeout
     setTimeout(() => {
       if (!dashboardConnection.isAuthenticated) {
-        this.server.log.warn({ connectionId }, 'Dashboard connection authentication timeout');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // this.server.log.warn({ connectionId }, 'Dashboard connection authentication timeout');
         this.sendError(connection, 'AUTH_TIMEOUT', 'Authentication timeout');
         connection.socket.close();
       }
@@ -113,8 +112,9 @@ export class DashboardWebSocketHandler extends EventEmitter {
    * Handle incoming WebSocket messages
    */
   private async handleMessage(connection: DashboardConnection, rawMessage: any): Promise<void> {
+    let message: WebSocketMessage | undefined;
     try {
-      const message: WebSocketMessage = JSON.parse(rawMessage.toString());
+      message = JSON.parse(rawMessage.toString());
 
       // Validate message structure
       if (!this.validateMessage(message)) {
@@ -129,10 +129,11 @@ export class DashboardWebSocketHandler extends EventEmitter {
       }
 
       // Log message for debugging
-      this.server.log.debug({
-        connectionId: connection.connectionId,
-        type: message.type
-      }, 'Dashboard message received');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.debug({
+      //   connectionId: connection.connectionId,
+      //   type: message.type
+      // }, 'Dashboard message received');
 
       // Route message based on type
       switch (message.type) {
@@ -182,10 +183,18 @@ export class DashboardWebSocketHandler extends EventEmitter {
 
       // Note: ACK messages are not sent here anymore. Each handler should send appropriate response messages
 
-    } catch (error) {
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
       this.server.log.error({
-        error,
-        connectionId: connection.connectionId
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          ...(error.cause && { cause: error.cause })
+        },
+        rawError: err,
+        connectionId: connection.connectionId,
+        messageType: message?.type
       }, 'Error handling dashboard message');
       this.sendError(connection.socket, 'INTERNAL_ERROR', 'Failed to process message');
     }
@@ -235,24 +244,60 @@ export class DashboardWebSocketHandler extends EventEmitter {
 
       // Setup initial subscriptions if provided
       if (subscriptions) {
-        if (subscriptions.agents) {
-          subscriptions.agents.forEach(agentId => connection.subscriptions.agents.add(agentId));
+        // Handle agent subscriptions - empty array means "subscribe to all"
+        if (subscriptions.agents !== undefined) {
+          // Ensure agents is an array
+          const agentsArray = Array.isArray(subscriptions.agents)
+            ? subscriptions.agents
+            : [];
+
+          if (agentsArray.length === 0) {
+            // Empty array = subscribe to all agents
+            connection.subscriptions.agents.add('*');
+            this.server.log.info('Dashboard subscribed to all agents');
+          } else {
+            // Specific agent IDs
+            agentsArray.forEach(agentId => connection.subscriptions.agents.add(agentId));
+            this.server.log.info('Dashboard subscribed to specific agents:', agentsArray);
+          }
         }
-        if (subscriptions.commands) {
-          subscriptions.commands.forEach(commandId => connection.subscriptions.commands.add(commandId));
+
+        // Handle command subscriptions - empty array means "subscribe to all"
+        if (subscriptions.commands !== undefined) {
+          // Ensure commands is an array
+          const commandsArray = Array.isArray(subscriptions.commands)
+            ? subscriptions.commands
+            : [];
+
+          if (commandsArray.length === 0) {
+            // Empty array = subscribe to all commands
+            connection.subscriptions.commands.add('*');
+            this.server.log.info('Dashboard subscribed to all commands');
+          } else {
+            // Specific command IDs
+            commandsArray.forEach(commandId => connection.subscriptions.commands.add(commandId));
+            this.server.log.info('Dashboard subscribed to specific commands:', commandsArray);
+          }
         }
+
+        // Handle trace subscriptions - boolean flag
         if (subscriptions.traces !== undefined) {
-          connection.subscriptions.traces = subscriptions.traces;
+          connection.subscriptions.traces = Boolean(subscriptions.traces);
+          this.server.log.info('Dashboard trace subscription:', subscriptions.traces);
         }
+
+        // Handle terminal subscriptions - boolean flag
         if (subscriptions.terminals !== undefined) {
-          connection.subscriptions.terminals = subscriptions.terminals;
+          connection.subscriptions.terminals = Boolean(subscriptions.terminals);
+          this.server.log.info('Dashboard terminal subscription:', subscriptions.terminals);
         }
       }
 
-      // Update connection pool
+      // Update connection pool with auth info and subscriptions
       this.dependencies.connectionPool.updateConnection(connection.connectionId, {
         isAuthenticated: true,
-        userId
+        userId,
+        subscriptions: connection.subscriptions
       });
 
       // Start heartbeat monitoring
@@ -282,9 +327,20 @@ export class DashboardWebSocketHandler extends EventEmitter {
         connectionId: connection.connectionId
       }, 'Dashboard authenticated and connected');
 
-    } catch (error) {
-      this.server.log.error({ error, userId }, 'Failed to initialize dashboard');
-      this.sendError(connection.socket, 'INIT_FAILED', 'Dashboard initialization failed');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.server.log.error({
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          ...(error.cause && { cause: error.cause })
+        },
+        rawError: err,
+        userId,
+        connectionId: connection.connectionId
+      }, 'Failed to initialize dashboard');
+      this.sendError(connection.socket, 'INIT_FAILED', `Dashboard initialization failed: ${error.message}`);
       connection.socket.close();
     }
   }
@@ -345,16 +401,27 @@ export class DashboardWebSocketHandler extends EventEmitter {
         }
       });
 
-      this.server.log.debug({
-        connectionId: connection.connectionId,
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // this.server.log.debug({
+      //   connectionId: connection.connectionId,
+      //   type,
+      //   id,
+      //   all
+      // }, 'Dashboard subscription added');
+
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.server.log.error({
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        },
         type,
         id,
-        all
-      }, 'Dashboard subscription added');
-
-    } catch (error) {
-      this.server.log.error({ error, type, id }, 'Failed to handle dashboard subscription');
-      this.sendError(connection.socket, 'SUBSCRIPTION_FAILED', 'Failed to add subscription');
+        connectionId: connection.connectionId
+      }, 'Failed to handle dashboard subscription');
+      this.sendError(connection.socket, 'SUBSCRIPTION_FAILED', `Failed to add subscription: ${error.message}`);
     }
   }
 
@@ -414,9 +481,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
         all
       }, 'Dashboard subscription removed');
 
-    } catch (error) {
-      this.server.log.error({ error, type, id }, 'Failed to handle dashboard unsubscription');
-      this.sendError(connection.socket, 'UNSUBSCRIPTION_FAILED', 'Failed to remove subscription');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.server.log.error({
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        },
+        type,
+        id,
+        connectionId: connection.connectionId
+      }, 'Failed to handle dashboard unsubscription');
+      this.sendError(connection.socket, 'UNSUBSCRIPTION_FAILED', `Failed to remove subscription: ${error.message}`);
     }
   }
 
@@ -584,12 +661,29 @@ export class DashboardWebSocketHandler extends EventEmitter {
    */
   private async sendInitialData(connection: DashboardConnection): Promise<void> {
     try {
-      // Fetch all agents for the user
+      // Step 1: Fetch agents
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        userId: connection.userId,
+        step: 'fetch_agents'
+      }, 'sendInitialData: Fetching agents for user');
+
       const agents = await this.services.agentService.listAgents({
         user_id: connection.userId
       });
 
-      // Send dashboard:connected event with initial agent list
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        agentCount: agents.length,
+        step: 'fetch_agents_complete'
+      }, 'sendInitialData: Agents fetched successfully');
+
+      // Step 2: Build agent list
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        step: 'build_agent_list'
+      }, 'sendInitialData: Building agent list');
+
       const agentList = agents.map(agent => ({
         agentId: agent.id,
         name: agent.name,
@@ -600,7 +694,13 @@ export class DashboardWebSocketHandler extends EventEmitter {
         lastHeartbeat: agent.last_ping,
       }));
 
-      // Send as a custom message (not in MessageType enum)
+      // Step 3: Send dashboard:connected message
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        step: 'send_connected_message',
+        agentCount: agentList.length
+      }, 'sendInitialData: Sending dashboard:connected message');
+
       const dashboardConnectedMessage = {
         type: 'dashboard:connected',
         id: this.generateMessageId(),
@@ -613,7 +713,18 @@ export class DashboardWebSocketHandler extends EventEmitter {
 
       connection.socket.socket.send(JSON.stringify(dashboardConnectedMessage));
 
-      // Send individual agent statuses for subscribed agents
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        step: 'send_connected_message_complete'
+      }, 'sendInitialData: dashboard:connected message sent');
+
+      // Step 4: Send agent statuses
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        step: 'send_agent_statuses',
+        subscribedAgents: Array.from(connection.subscriptions.agents)
+      }, 'sendInitialData: Sending agent statuses');
+
       agents.forEach(agent => {
         if (connection.subscriptions.agents.has(agent.id)) {
           this.sendMessage(connection.socket, MessageType.AGENT_STATUS, {
@@ -627,8 +738,20 @@ export class DashboardWebSocketHandler extends EventEmitter {
         }
       });
 
-      // Send command statuses
+      // Step 5: Send command statuses
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        step: 'fetch_commands'
+      }, 'sendInitialData: Fetching active commands');
+
       const commands = await this.services.commandService.getActiveCommands();
+
+      this.server.log.debug({
+        connectionId: connection.connectionId,
+        commandCount: commands.length,
+        step: 'fetch_commands_complete'
+      }, 'sendInitialData: Active commands fetched');
+
       commands.forEach(command => {
         if (connection.subscriptions.commands.has(command.id)) {
           this.sendMessage(connection.socket, MessageType.COMMAND_STATUS, {
@@ -643,12 +766,24 @@ export class DashboardWebSocketHandler extends EventEmitter {
       });
 
       this.server.log.info({
+        connectionId: connection.connectionId,
         userId: connection.userId,
-        agentCount: agents.length
-      }, 'Sent initial agent list to dashboard');
+        agentCount: agents.length,
+        commandCount: commands.length
+      }, 'sendInitialData: Complete - Sent initial data to dashboard');
 
-    } catch (error) {
-      this.server.log.error({ error, connectionId: connection.connectionId }, 'Failed to send initial data');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.server.log.error({
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        },
+        connectionId: connection.connectionId,
+        userId: connection.userId
+      }, 'sendInitialData: Failed to send initial data');
+      throw error;  // Re-throw to be caught by parent handler
     }
   }
 
@@ -707,24 +842,54 @@ export class DashboardWebSocketHandler extends EventEmitter {
     connection: DashboardConnection,
     message: WebSocketMessage
   ): Promise<void> {
+    this.server.log.info('==================== COMMAND REQUEST START ====================');
+    this.server.log.info('Command request received:', {
+      connectionId: connection.connectionId,
+      isAuthenticated: connection.isAuthenticated,
+      messageId: message.id,
+      payload: message.payload,
+      timestamp: new Date().toISOString()
+    });
+
     if (!connection.isAuthenticated) {
+      this.server.log.error('Command rejected: Not authenticated');
       this.sendError(connection.socket, 'UNAUTHORIZED', 'Must be authenticated to send commands');
       return;
     }
 
     const { agentId, commandId, command, args } = message.payload;
 
+    this.server.log.info('Command details:', {
+      agentId,
+      commandId,
+      command,
+      commandType: typeof command,
+      commandLength: command?.length,
+      args,
+      hasArgs: !!args && args.length > 0
+    });
+
     // Track command for this dashboard
     this.dependencies.messageRouter.registerCommandForDashboard(commandId, connection.connectionId);
+    this.server.log.info('Command registered for dashboard tracking');
 
     // Add to dashboard's command subscriptions
     connection.subscriptions.commands.add(commandId);
+    this.server.log.info('Command added to dashboard subscriptions');
 
-    // Route command to agent
+    // Route command to agent with protocol-compliant payload
+    this.server.log.info('Attempting to route command to agent:', agentId);
     const routed = this.dependencies.messageRouter.sendCommandToAgent(agentId, {
       commandId,
-      command,
-      args,
+      content: command,           // Protocol-compliant field name
+      command,                    // Maintain backward compatibility
+      type: 'NATURAL',            // Command type from protocol
+      priority: 5,                // Normal priority (0=high, 5=normal, 10=low)
+      args: args || [],           // Ensure args is always an array
+      executionConstraints: {     // Protocol-compliant constraints
+        timeLimitMs: 300000,      // 5 minutes
+        maxRetries: 1
+      },
       dashboardId: connection.connectionId,
       userId: connection.userId
     });
@@ -743,9 +908,21 @@ export class DashboardWebSocketHandler extends EventEmitter {
         success: true,
         commandId
       });
+      this.server.log.info('==================== COMMAND REQUEST SUCCESS ====================');
     } else {
+      this.server.log.error('Failed to route command to agent:', {
+        agentId,
+        commandId,
+        possibleReasons: [
+          'Agent not connected',
+          'Agent not in connection pool',
+          'Message router failed',
+          'Agent ID mismatch'
+        ]
+      });
       this.sendError(connection.socket, 'ROUTING_FAILED', 'Failed to route command to agent');
       this.dependencies.messageRouter.cleanupCommand(commandId);
+      this.server.log.error('==================== COMMAND REQUEST FAILED ====================');
     }
   }
 

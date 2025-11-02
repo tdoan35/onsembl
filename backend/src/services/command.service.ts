@@ -184,6 +184,42 @@ export class CommandService extends EventEmitter {
   }
 
   /**
+   * Fetch commands that are currently active or waiting in the queue.
+   * Used by the dashboard to seed initial command state after websocket init.
+   */
+  async getActiveCommands(): Promise<Array<{
+    id: string;
+    agentId: string;
+    status: CommandStatus;
+    progress?: number | null;
+    startedAt?: Date | null;
+    completedAt?: Date | null;
+  }>> {
+    try {
+      const [running, queued] = await Promise.all([
+        this.commandModel.findAll({ status: 'RUNNING' as CommandStatus }),
+        this.commandModel.findAll({ status: 'QUEUED' as CommandStatus }),
+      ]);
+
+      const combine = [...running, ...queued];
+
+      return combine.map(command => ({
+        id: command.id,
+        agentId: command.agent_id,
+        status: command.status,
+        progress: typeof command.metadata === 'object' && command.metadata !== null
+          ? (command.metadata as Record<string, any>)?.progress ?? null
+          : null,
+        startedAt: command.started_at ? new Date(command.started_at) : null,
+        completedAt: command.completed_at ? new Date(command.completed_at) : null,
+      }));
+    } catch (error) {
+      this.fastify.log.error({ error }, 'Failed to fetch active commands for dashboard');
+      return [];
+    }
+  }
+
+  /**
    * Executes a command (moves from queue to processing)
    */
   async executeCommand(commandId: string): Promise<CommandRow> {

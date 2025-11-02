@@ -20,7 +20,7 @@ import { Database } from '../types/database';
 import { AuditLogModel, AuditEventType, AuditEntityType } from '../models/audit-log';
 import { EventEmitter } from 'events';
 import { config } from '../config';
-import { enhancedAuth } from './websocket-auth.js';
+import { getEnhancedAuth } from './websocket-auth.js';
 
 // Authentication-related interfaces
 export interface AuthUser {
@@ -291,7 +291,7 @@ export class AuthService extends EventEmitter {
       this.fastify.log.debug({ tokenPrefix: token.substring(0, 20) + '...' }, 'AuthService.validateToken called');
 
       // Use EnhancedWebSocketAuth to handle both CLI JWT and Supabase tokens
-      const authContext = await enhancedAuth.validateToken(token);
+      const authContext = await getEnhancedAuth().validateToken(token);
 
       if (!authContext || !authContext.isAuthenticated) {
         this.fastify.log.warn('Token validation failed - invalid or unauthenticated');

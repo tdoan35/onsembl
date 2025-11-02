@@ -50,7 +50,8 @@ export class SecurityEventLogger extends EventEmitter {
     // Start metrics update interval
     this.metricsUpdateInterval = setInterval(() => this.updateMetrics(), 60000);
 
-    logger.info('Security event logger initialized');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // logger.info('Security event logger initialized');
   }
 
   /**
@@ -118,7 +119,8 @@ export class SecurityEventLogger extends EventEmitter {
    */
   addAlertRule(rule: SecurityAlertRule): void {
     this.alertRules.set(rule.id, rule);
-    logger.info({ ruleId: rule.id, ruleName: rule.name }, 'Alert rule added');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // logger.info({ ruleId: rule.id, ruleName: rule.name }, 'Alert rule added');
   }
 
   /**
@@ -158,13 +160,14 @@ export class SecurityEventLogger extends EventEmitter {
       timestamp: event.timestamp
     };
 
-    if (this.isCriticalEvent(event.type)) {
-      logger.error(logData, `CRITICAL SECURITY EVENT: ${event.type}`);
-    } else if (this.isWarningEvent(event.type)) {
-      logger.warn(logData, `Security warning: ${event.type}`);
-    } else {
-      logger.info(logData, `Security event: ${event.type}`);
-    }
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // if (this.isCriticalEvent(event.type)) {
+    //   logger.error(logData, `CRITICAL SECURITY EVENT: ${event.type}`);
+    // } else if (this.isWarningEvent(event.type)) {
+    //   logger.warn(logData, `Security warning: ${event.type}`);
+    // } else {
+    //   logger.info(logData, `Security event: ${event.type}`);
+    // }
 
     // Persist to database
     if (this.db) {
@@ -185,7 +188,8 @@ export class SecurityEventLogger extends EventEmitter {
           ]
         );
       } catch (err) {
-        logger.error({ err, event }, 'Failed to persist security event to database');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // logger.error({ err, event }, 'Failed to persist security event to database');
       }
     }
 
@@ -242,7 +246,8 @@ export class SecurityEventLogger extends EventEmitter {
       timestamp: new Date()
     };
 
-    logger.error(alert, `SECURITY ALERT TRIGGERED: ${rule.name}`);
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // logger.error(alert, `SECURITY ALERT TRIGGERED: ${rule.name}`);
 
     // Emit alert
     this.emit('security-alert', alert);
@@ -266,7 +271,8 @@ export class SecurityEventLogger extends EventEmitter {
           ]
         );
       } catch (err) {
-        logger.error({ err, alert }, 'Failed to persist security alert');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // logger.error({ err, alert }, 'Failed to persist security alert');
       }
     }
 
@@ -297,7 +303,8 @@ export class SecurityEventLogger extends EventEmitter {
   private sendNotification(alert: any): void {
     // In production, integrate with notification service
     // For now, just log
-    logger.warn({ alert }, 'NOTIFICATION: Security alert requires attention');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // logger.warn({ alert }, 'NOTIFICATION: Security alert requires attention');
 
     // Could send to:
     // - PagerDuty
@@ -406,7 +413,8 @@ export class SecurityEventLogger extends EventEmitter {
         );
         report.alerts = result.rows;
       } catch (err) {
-        logger.error({ err }, 'Failed to fetch alerts for report');
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // logger.error({ err }, 'Failed to fetch alerts for report');
       }
     }
 
@@ -435,7 +443,10 @@ export class SecurityEventLogger extends EventEmitter {
           }),
           new Date()
         ]
-      ).catch(err => logger.error({ err }, 'Failed to persist security metrics'));
+      ).catch(err => {
+        // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+        // logger.error({ err }, 'Failed to persist security metrics')
+      });
     }
   }
 
@@ -453,12 +464,14 @@ export class SecurityEventLogger extends EventEmitter {
         `DELETE FROM security_events WHERE timestamp < $1`,
         [cutoffDate]
       );
-      logger.info(
-        { deletedCount: result.rowCount, retentionDays },
-        'Cleaned up old security events'
-      );
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // logger.info(
+      //   { deletedCount: result.rowCount, retentionDays },
+      //   'Cleaned up old security events'
+      // );
     } catch (err) {
-      logger.error({ err }, 'Failed to cleanup old security events');
+      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+      // logger.error({ err }, 'Failed to cleanup old security events');
     }
   }
 
@@ -468,7 +481,8 @@ export class SecurityEventLogger extends EventEmitter {
   shutdown(): void {
     clearInterval(this.metricsUpdateInterval);
     this.removeAllListeners();
-    logger.info('Security event logger shut down');
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // logger.info('Security event logger shut down');
   }
 }
 

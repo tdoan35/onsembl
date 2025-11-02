@@ -425,34 +425,31 @@ function createCLI(): Command {
           process.exit(1);
         }
 
-        // Use InteractiveAgentWrapper if interactive mode is requested
-        if (options.interactive || (!options.headless && process.stdin.isTTY)) {
-          // Check if node-pty is available for interactive mode
-          if (options.interactive) {
-            const ptyAvailable = await checkPtyAvailable();
-            if (!ptyAvailable) {
-              console.warn('⚠️  Warning: node-pty is not available. Interactive mode will fall back to headless mode.');
-              console.warn('   To enable full interactive mode, install node-pty with: npm install node-pty');
-              console.warn('');
-            }
+        // Always use InteractiveAgentWrapper to support command forwarding
+        // It will automatically fall back to headless mode if PTY is not available
+
+        // Check if node-pty is available for interactive mode
+        if (options.interactive && process.stdin.isTTY) {
+          const ptyAvailable = await checkPtyAvailable();
+          if (!ptyAvailable) {
+            console.warn('⚠️  Warning: node-pty is not available. Interactive mode will fall back to headless mode.');
+            console.warn('   To enable full interactive mode, install node-pty with: npm install node-pty');
+            console.warn('');
           }
-
-          const interactiveOptions: InteractiveOptions = {
-            interactive: options.interactive,
-            headless: options.headless,
-            noWebsocket: !options.websocket,
-            statusBar: options.statusBar,
-            agentName: options.name,
-            agentId: options.agentId,
-          };
-
-          const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
-          await wrapper.start();
-        } else {
-          // Use standard wrapper for headless mode
-          const wrapper = new AgentWrapper(config);
-          await wrapper.start();
         }
+
+        const interactiveOptions: InteractiveOptions = {
+          interactive: options.interactive || (!options.headless && process.stdin.isTTY),
+          headless: options.headless || !process.stdin.isTTY,
+          noWebsocket: !options.websocket,
+          statusBar: options.statusBar,
+          agentName: options.name,
+          agentId: options.agentId,
+        };
+
+        // Always use InteractiveAgentWrapper for command forwarding support
+        const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
+        await wrapper.start();
 
         // Keep process alive
         process.stdin.resume();
@@ -793,21 +790,17 @@ function createCLI(): Command {
           agentId: agent.id
         });
 
-        // Use InteractiveAgentWrapper if interactive mode is requested
-        if (options.interactive || (!options.headless && process.stdin.isTTY)) {
-          const interactiveOptions: InteractiveOptions = {
-            interactive: options.interactive,
-            headless: options.headless,
-            statusBar: true
-          };
+        // Always use InteractiveAgentWrapper to support command forwarding
+        const interactiveOptions: InteractiveOptions = {
+          interactive: options.interactive || (!options.headless && process.stdin.isTTY),
+          headless: options.headless || !process.stdin.isTTY,
+          statusBar: true,
+          agentName: agent.name,
+          agentId: agent.id
+        };
 
-          const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
-          await wrapper.start();
-        } else {
-          // Use standard wrapper for headless mode
-          const wrapper = new AgentWrapper(config);
-          await wrapper.start();
-        }
+        const wrapper = new InteractiveAgentWrapper(config, interactiveOptions);
+        await wrapper.start();
 
         // Keep process alive
         process.stdin.resume();

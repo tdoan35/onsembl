@@ -197,6 +197,12 @@ export class WebSocketService extends EventTarget {
       this.connections.delete(endpoint);
       this.setConnectionState(endpoint, 'disconnected');
 
+      // Reset dashboard initialization flag when disconnecting
+      if (endpoint === 'dashboard') {
+        this.dashboardInitialized = false;
+        this.lastInitConnectionId = null;
+      }
+
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close(1000, 'Normal closure');
       }
@@ -239,6 +245,9 @@ export class WebSocketService extends EventTarget {
     }
   }
 
+  private dashboardInitialized = false;
+  private lastInitConnectionId: string | null = null;
+
   /**
    * Initialize dashboard connection with subscriptions
    */
@@ -247,10 +256,24 @@ export class WebSocketService extends EventTarget {
       throw new Error('User ID is required for dashboard initialization');
     }
 
+    // Get current connection to check if we've already initialized it
+    const ws = this.connections.get('dashboard');
+    const currentConnectionId = ws?.toString(); // Use object reference as ID
+
+    // Prevent duplicate initialization for the same connection
+    if (this.dashboardInitialized && currentConnectionId === this.lastInitConnectionId) {
+      console.log('[WebSocketService] Dashboard already initialized for this connection, skipping');
+      return;
+    }
+
+    console.log('[WebSocketService] Sending DASHBOARD_INIT');
     this.send('dashboard', MessageType.DASHBOARD_INIT, {
       userId: this.userId,
       subscriptions
     });
+
+    this.dashboardInitialized = true;
+    this.lastInitConnectionId = currentConnectionId;
   }
 
   /**
@@ -847,8 +870,8 @@ export const defaultWebSocketConfig: WebSocketConfig = {
     maxDelay: 30000
   },
   heartbeat: {
-    interval: 30000, // 30 seconds
-    timeout: 10000   // 10 seconds
+    interval: 30000, // 30 seconds - client sends PING every 30s
+    timeout: 45000   // 45 seconds - must be > backend ping interval (30s) to avoid false timeouts
   }
 };
 

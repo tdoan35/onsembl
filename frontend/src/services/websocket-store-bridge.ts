@@ -23,6 +23,12 @@ import {
   CommandQueueUpdatePayload
 } from '@onsembl/agent-protocol';
 
+// Use globalThis to persist across HMR reloads
+declare global {
+  var __WEBSOCKET_BRIDGE_LISTENERS_SETUP__: boolean | undefined;
+  var __WEBSOCKET_BRIDGE_MESSAGE_HANDLERS_SETUP__: boolean | undefined;
+}
+
 export class WebSocketStoreBridge {
   private initialized = false;
   private subscriptions: Set<() => void> = new Set();
@@ -33,8 +39,20 @@ export class WebSocketStoreBridge {
   initialize(): void {
     if (this.initialized) return;
 
-    this.setupMessageHandlers();
-    this.setupConnectionHandlers();
+    // Only setup message handlers ONCE, ever (survives HMR)
+    if (!globalThis.__WEBSOCKET_BRIDGE_MESSAGE_HANDLERS_SETUP__) {
+      console.log('[WebSocketStoreBridge] Setting up message handlers (first time)');
+      this.setupMessageHandlers();
+      globalThis.__WEBSOCKET_BRIDGE_MESSAGE_HANDLERS_SETUP__ = true;
+    }
+
+    // Only setup connection handlers ONCE, ever (survives HMR)
+    if (!globalThis.__WEBSOCKET_BRIDGE_LISTENERS_SETUP__) {
+      console.log('[WebSocketStoreBridge] Setting up connection handlers (first time)');
+      this.setupConnectionHandlers();
+      globalThis.__WEBSOCKET_BRIDGE_LISTENERS_SETUP__ = true;
+    }
+
     this.initialized = true;
   }
 

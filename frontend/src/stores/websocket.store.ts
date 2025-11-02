@@ -66,12 +66,9 @@ export const useWebSocketStore = create<WebSocketState>()(
           // Connect to dashboard endpoint
           await webSocketService.connect('dashboard')
 
-          // Initialize dashboard with subscriptions
-          webSocketService.initializeDashboard({
-            agents: { all: true },
-            commands: { all: true },
-            terminals: { all: true }
-          })
+          // NOTE: Dashboard initialization (DASHBOARD_INIT message) is handled by
+          // websocket-store-bridge.ts when connection state changes to 'connected'.
+          // This prevents duplicate initialization messages.
         } catch (error) {
           set({ lastError: error as Error })
           throw error
@@ -92,21 +89,31 @@ export const useWebSocketStore = create<WebSocketState>()(
         priority?: 'high' | 'normal' | 'low'
       ) => {
         try {
+          console.log('[WebSocketStore] ==================== SEND COMMAND START ====================')
           console.log('[WebSocketStore] sendCommand called with:', {
             agentId,
             command,
+            commandType: typeof command,
+            commandLength: command?.length,
             args,
             env,
             workingDirectory,
-            priority
+            priority,
+            timestamp: new Date().toISOString()
           })
 
           // Check if connected
           const state = get()
           console.log('[WebSocketStore] Connection state:', {
             dashboardState: state.dashboardState,
-            agentState: state.agentState
+            agentState: state.agentState,
+            isConnected: state.dashboardState === 'connected'
           })
+
+          if (state.dashboardState !== 'connected') {
+            console.error('[WebSocketStore] Not connected to WebSocket! Cannot send command.')
+            throw new Error('WebSocket not connected')
+          }
 
           // Generate unique command ID
           const commandId = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
@@ -131,21 +138,30 @@ export const useWebSocketStore = create<WebSocketState>()(
             }
           }
 
-          console.log('[WebSocketStore] Sending COMMAND_REQUEST with payload:', payload)
+          console.log('[WebSocketStore] Sending COMMAND_REQUEST with payload:', JSON.stringify(payload, null, 2))
 
           // Send command request through WebSocket
           webSocketService.send('dashboard', MessageType.COMMAND_REQUEST, payload)
 
-          console.log('[WebSocketStore] COMMAND_REQUEST sent successfully')
+          console.log('[WebSocketStore] COMMAND_REQUEST sent successfully via WebSocket')
 
           set(state => ({
             messagesSent: state.messagesSent + 1,
             lastMessageTime: Date.now()
           }))
 
+          console.log('[WebSocketStore] State updated, returning commandId:', commandId)
+          console.log('[WebSocketStore] ==================== SEND COMMAND END ====================')
+
           return commandId
         } catch (error) {
+          console.error('[WebSocketStore] ==================== SEND COMMAND ERROR ====================')
           console.error('[WebSocketStore] sendCommand error:', error)
+          console.error('[WebSocketStore] Error details:', {
+            name: error instanceof Error ? error.name : 'Unknown',
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+          })
           set({ lastError: error as Error })
           throw error
         }
@@ -214,48 +230,59 @@ export const useWebSocketStore = create<WebSocketState>()(
   )
 )
 
-// Setup WebSocket event listeners
-webSocketService.onConnectionState('dashboard', (state, error) => {
-  useWebSocketStore.setState({
-    dashboardState: state,
-    lastError: error || null
+// Use globalThis to persist across HMR reloads and prevent duplicate listener registration
+declare global {
+  var __WEBSOCKET_STORE_LISTENERS_SETUP__: boolean | undefined;
+}
+
+// Setup WebSocket event listeners ONCE (survives HMR)
+if (!globalThis.__WEBSOCKET_STORE_LISTENERS_SETUP__) {
+  console.log('[WebSocketStore] Setting up WebSocket event listeners (first time)');
+
+  webSocketService.onConnectionState('dashboard', (state, error) => {
+    useWebSocketStore.setState({
+      dashboardState: state,
+      lastError: error || null
+    })
   })
-})
 
-webSocketService.onConnectionState('agent', (state, error) => {
-  useWebSocketStore.setState({
-    agentState: state,
-    lastError: error || null
+  webSocketService.onConnectionState('agent', (state, error) => {
+    useWebSocketStore.setState({
+      agentState: state,
+      lastError: error || null
+    })
   })
-})
 
-// Track message metrics
-webSocketService.addEventListener('message', () => {
-  useWebSocketStore.setState(state => ({
-    messagesReceived: state.messagesReceived + 1,
-    lastMessageTime: Date.now()
-  }))
-})
+  // Track message metrics
+  webSocketService.addEventListener('message', () => {
+    useWebSocketStore.setState(state => ({
+      messagesReceived: state.messagesReceived + 1,
+      lastMessageTime: Date.now()
+    }))
+  })
 
-// Handle connection info updates
-webSocketService.on('DASHBOARD_INIT' as any, (payload: any) => {
-  useWebSocketStore.setState({
-    connectionInfo: {
-      id: payload.connectionId,
-      state: 'connected',
-      connectedAt: Date.now(),
-      lastActivity: Date.now(),
-      reconnectAttempts: 0
+  // Handle connection info updates
+  webSocketService.on('DASHBOARD_INIT' as any, (payload: any) => {
+    useWebSocketStore.setState({
+      connectionInfo: {
+        id: payload.connectionId,
+        state: 'connected',
+        connectedAt: Date.now(),
+        lastActivity: Date.now(),
+        reconnectAttempts: 0
+      }
+    })
+  })
+
+  // Handle pong messages for latency tracking
+  webSocketService.on('PONG' as any, (payload: any) => {
+    if (payload.latency) {
+      useWebSocketStore.setState({ latency: payload.latency })
     }
   })
-})
 
-// Handle pong messages for latency tracking
-webSocketService.on('PONG' as any, (payload: any) => {
-  if (payload.latency) {
-    useWebSocketStore.setState({ latency: payload.latency })
-  }
-})
+  globalThis.__WEBSOCKET_STORE_LISTENERS_SETUP__ = true;
+}
 
 // Export actions for external use
 export const webSocketActions = {

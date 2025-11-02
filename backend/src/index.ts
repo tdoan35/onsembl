@@ -50,3 +50,4 @@ process.on('uncaughtException', (error) => {
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
+

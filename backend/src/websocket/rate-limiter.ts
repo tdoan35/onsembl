@@ -90,9 +90,10 @@ export class WebSocketRateLimiter {
     setInterval(() => this.cleanup(), 60000);
 
     // Log rate limiting mode
-    if (isDevelopment) {
-      console.log('[RateLimiter] Running in development mode with relaxed rate limits');
-    }
+    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+    // if (isDevelopment) {
+    //   console.log('[RateLimiter] Running in development mode with relaxed rate limits');
+    // }
   }
 
   /**

@@ -45,6 +45,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
   private isRunning: boolean = false;
   private isShuttingDown: boolean = false;
   private inputBuffer: string = ''; // Buffer for detecting command sequences
+  private currentCommandId?: string; // Track current command for output association
+  private childProcess?: any; // Reference to child process in headless mode
 
   constructor(config: Config, options: InteractiveOptions = {}) {
     super();
@@ -216,8 +218,12 @@ export class InteractiveAgentWrapper extends EventEmitter {
         const hasAnsi = data !== strippedData;
         const ansiCodes = hasAnsi ? 'true' : undefined;
 
+        // Use currentCommandId if we're responding to a remote command
+        // Otherwise use the sessionId for general output
+        const outputId = this.currentCommandId || this.sessionId;
+
         // Send terminal output to backend
-        this.wsClient.sendOutput(this.sessionId, 'stdout', strippedData, ansiCodes);
+        this.wsClient.sendOutput(outputId, 'stdout', strippedData, ansiCodes);
       }
     });
 
@@ -281,13 +287,18 @@ export class InteractiveAgentWrapper extends EventEmitter {
       stdio: 'pipe'
     });
 
+    // Store process reference for command forwarding
+    this.childProcess = childProcess;
+
     // Handle stdout
     childProcess.stdout?.on('data', (chunk: Buffer) => {
       const data = chunk.toString();
 
-      // Send to WebSocket
+      // Send to WebSocket with proper command ID
       if (this.wsClient?.connected) {
-        this.wsClient.sendOutput(this.sessionId, 'stdout', stripAnsi(data), undefined);
+        // Use currentCommandId if we're responding to a remote command
+        const outputId = this.currentCommandId || this.sessionId;
+        this.wsClient.sendOutput(outputId, 'stdout', stripAnsi(data), undefined);
       }
     });
 
@@ -295,9 +306,10 @@ export class InteractiveAgentWrapper extends EventEmitter {
     childProcess.stderr?.on('data', (chunk: Buffer) => {
       const data = chunk.toString();
 
-      // Send to WebSocket
+      // Send to WebSocket with proper command ID
       if (this.wsClient?.connected) {
-        this.wsClient.sendOutput(this.sessionId, 'stderr', stripAnsi(data), undefined);
+        const outputId = this.currentCommandId || this.sessionId;
+        this.wsClient.sendOutput(outputId, 'stderr', stripAnsi(data), undefined);
       }
     });
 
@@ -305,6 +317,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
     childProcess.on('exit', (code) => {
       this.logger.info('Child process exited', { code });
       this.stateManager.updateState('agent.status', 'stopped');
+      this.childProcess = undefined;
       this.stop();
     });
 
@@ -347,12 +360,30 @@ export class InteractiveAgentWrapper extends EventEmitter {
   }
 
   private async handleRemoteCommand(message: CommandMessage): Promise<void> {
-    this.logger.info('Received remote command', { command: message.command });
+    this.logger.info('==================== REMOTE COMMAND RECEIVED ====================');
+    this.logger.info('Received remote command', {
+      command: message.command,
+      commandId: message.commandId,
+      commandType: typeof message.command,
+      commandLength: message.command?.length,
+      fullMessage: message,
+      timestamp: new Date().toISOString()
+    });
+
+    // Store the current command ID for output association
+    this.currentCommandId = message.commandId;
+    this.logger.info('Set currentCommandId:', this.currentCommandId);
 
     // In interactive mode, check control state
     if (this.mode === 'interactive') {
       const state = this.stateManager.getState();
-    const controlMode = state?.controlMode;
+      const controlMode = state?.controlMode;
+
+      this.logger.info('Interactive mode state:', {
+        mode: this.mode,
+        controlMode,
+        state: state
+      });
 
       if (controlMode === 'local') {
         // Queue the command
@@ -361,7 +392,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
           data: message.command,
           priority: 5,
           timestamp: Date.now(),
-          id: (message as any).id || `cmd-${Date.now()}`
+          id: message.commandId || `cmd-${Date.now()}`
         });
 
         this.logger.info('Remote command queued (local control active)');
@@ -370,16 +401,55 @@ export class InteractiveAgentWrapper extends EventEmitter {
     }
 
     // Process the command
-    this.processRemoteCommand(message.command);
+    this.logger.info('Processing command immediately');
+    this.processRemoteCommand(message.command, message.commandId);
   }
 
-  private processRemoteCommand(command: string): void {
+  private processRemoteCommand(command: string, commandId?: string): void {
+    this.logger.info('==================== PROCESS REMOTE COMMAND ====================');
+    this.logger.info('Processing command:', {
+      command,
+      commandId,
+      hasCommand: !!command,
+      commandLength: command?.length,
+      hasPtyManager: !!this.ptyManager,
+      isPtyInteractive: this.ptyManager?.isInteractive,
+      hasChildProcess: !!this.childProcess,
+      mode: this.mode
+    });
+
     if (this.ptyManager?.isInteractive) {
-      this.ptyManager.write(command + '\n');
+      // Forward command to the actual agent CLI
+      const commandWithNewline = command.endsWith('\n') ? command : command + '\n';
+      this.logger.info('Writing to PTY:', {
+        originalCommand: command,
+        commandWithNewline,
+        willWrite: commandWithNewline
+      });
+
+      try {
+        this.ptyManager.write(commandWithNewline);
+        this.logger.info('✅ Command successfully forwarded to agent CLI', { command, commandId });
+      } catch (error) {
+        this.logger.error('❌ Failed to write to PTY:', error);
+      }
     } else {
-      // Handle in headless mode
-      this.logger.info('Processing remote command in headless mode', { command });
+      // Handle in headless mode - forward to child process stdin if available
+      this.logger.info('Processing remote command in headless mode', { command, commandId });
+      if (this.childProcess && this.childProcess.stdin) {
+        const commandWithNewline = command.endsWith('\n') ? command : command + '\n';
+        try {
+          this.childProcess.stdin.write(commandWithNewline);
+          this.logger.info('✅ Command written to child process stdin');
+        } catch (error) {
+          this.logger.error('❌ Failed to write to child process:', error);
+        }
+      } else {
+        this.logger.error('❌ No child process available to handle command');
+      }
     }
+
+    this.logger.info('==================== PROCESS REMOTE COMMAND END ====================');
   }
 
   /**

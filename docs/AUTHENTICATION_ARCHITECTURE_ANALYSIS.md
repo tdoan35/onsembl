@@ -415,6 +415,40 @@ async validateToken(token: string): Promise<{
 
 ---
 
+## Implementation Verification
+
+### Backend Authentication Services
+- `backend/src/api/auth.ts:720` issues CLI access/refresh tokens during `POST /api/auth/device/confirm`, storing `user_id` and scopes in `cli_tokens`, matching the proposed device flow contract.
+- `backend/src/api/auth.ts:801` serves the polling exchange with the persisted CLI tokens, while `backend/src/api/auth.ts:852` refreshes tokens and `backend/src/api/auth.ts:886` validates them, all through Fastify JWT using `type: 'cli'` payloads.
+- `backend/src/server.ts:94` registers `@fastify/jwt` and calls `initializeEnhancedAuth` so the WebSocket layer verifies exactly the tokens minted by the device flow.
+
+### CLI & Agent Wrapper Integration
+- `agent-wrapper/src/auth/cli-auth.ts:59` drives the OAuth device flow (authorise, poll, refresh, validate, revoke) against the new backend endpoints.
+- `agent-wrapper/src/auth/auth-manager.ts:26` validates issued tokens, persists `{access, refresh, user_id, scopes}`, refreshes them automatically, and exposes `getAccessToken()` for other subsystems.
+- `agent-wrapper/src/cli.ts:418` blocks `start`/`restart` workflows until `AuthManager` confirms an authenticated session, guiding operators to `onsembl-agent auth login`.
+- `agent-wrapper/src/websocket-client.ts:657` now injects the stored CLI token into the WebSocket `Authorization` header, surfacing actionable guidance if authentication is missing.
+
+### Frontend Device Confirmation
+- `frontend/src/app/auth/device/page.tsx:68` handles Supabase OAuth sign-in, and `frontend/src/app/auth/device/page.tsx:102` posts the user-entered code to `POST /api/auth/device/confirm` with the user’s Supabase access token, completing the device flow.
+
+### WebSocket Session Enforcement
+- `backend/src/services/websocket-auth.ts:167` verifies CLI JWTs with Fastify’s signer, enforces expiry/blacklist checks, and falls back to Supabase sessions when needed.
+- `backend/src/websocket/agent-handler.ts:200` requires a valid auth context, reuses the `userId` when reconnecting, and injects it into `registerAgent` for new agent records.
+- `backend/src/services/auth.service.ts:280` delegates token validation to the enhanced WebSocket auth singleton so all transports share the same verification path.
+
+### Database & RLS Alignment
+- `supabase/migrations/20250924051405_create_cli_tokens_table.sql:1` provisions the `cli_tokens` table with service-role policies and user-scoped RLS, forming the persistence layer for device flow state.
+- `supabase/migrations/20250922194156_agents_rls.sql:4` enforces `auth.uid()` ownership on `agents`, and `backend/src/websocket/agent-handler.ts:289` satisfies it by supplying `user_id` from the CLI token.
+- `supabase/migrations/20250922194157_commands_audit_rls.sql:4` extends the user ownership model to `commands` and `audit_logs`.
+- `backend/src/server.ts:176` instantiates `AgentService` with the service-role client (`supabaseAdmin`), allowing the backend to bridge RLS when acting on behalf of authenticated users.
+
+### Outstanding Gaps & Follow-ups
+- `backend/src/services/command.service.ts:121` still inserts commands without a `user_id`, and `backend/src/models/command.ts` lacks user-aware schema handling; once RLS is fully enforced this will block command creation unless the service role is used.
+- `supabase/migrations/20250924051405_create_cli_tokens_table.sql:10` retains `expires_at` as the device-code expiry; consider persisting the CLI access-token expiry or updating `last_used_at` on successful exchanges for richer auditing.
+- Audit the CLI logout flow once revocation endpoints are integrated with token blacklisting to ensure `EnhancedWebSocketAuth` honours revoked refresh tokens end-to-end.
+
+---
+
 ## Implementation Checklist
 
 ### Phase 1: Agent-Wrapper

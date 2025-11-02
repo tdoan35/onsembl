@@ -177,8 +177,42 @@ export async function registerAgentRoutes(
         offset
       });
 
+      // Check health of each 'online' agent and update stale agents to 'offline'
+      // This ensures the frontend always receives accurate real-time status
+      const now = Date.now();
+      const HEARTBEAT_TIMEOUT_MS = 90000; // 90 seconds
+
+      const healthCheckedAgents = await Promise.all(
+        (agents || []).map(async (agent) => {
+          // Only check agents that claim to be online
+          if (agent.status === 'online') {
+            const lastPingTime = agent.last_ping ? new Date(agent.last_ping).getTime() : 0;
+            const timeSinceLastPing = now - lastPingTime;
+
+            // If agent hasn't pinged in 90+ seconds, mark it offline
+            if (timeSinceLastPing >= HEARTBEAT_TIMEOUT_MS) {
+              request.log.warn({
+                agentId: agent.id,
+                agentName: agent.name,
+                lastPing: agent.last_ping,
+                timeSinceLastPing
+              }, 'Marking stale agent as offline');
+
+              // Update status in database
+              await agentService.updateAgentStatus(agent.id, 'offline');
+
+              // Return updated agent with offline status
+              return { ...agent, status: 'offline' as const };
+            }
+          }
+
+          // Return agent as-is if healthy or not online
+          return agent;
+        })
+      );
+
       // Transform agents to API response format
-      const transformedAgents = (agents || []).map(transformAgentForApi);
+      const transformedAgents = healthCheckedAgents.map(transformAgentForApi);
 
       // Log audit event
       await auditService.logEvent(

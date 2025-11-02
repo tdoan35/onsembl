@@ -12,16 +12,28 @@ export interface WebSocketProviderProps {
 export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const initialized = useRef(false);
   const previousToken = useRef<string | null>(null);
+  const retryCountRef = useRef(0);
   const { setWebSocketState } = useUIStore();
   const { session, user, loading: authLoading } = useAuth();
-  const [retryCount, setRetryCount] = useState(0);
+
+  // Extract primitive values to avoid unnecessary re-renders when objects are recreated
+  const accessToken = session?.access_token;
+  const userId = user?.id;
 
   useEffect(() => {
+    console.log('[WebSocketProvider] useEffect triggered', {
+      authLoading,
+      accessToken: accessToken ? `${accessToken.substring(0, 20)}...` : null,
+      userId,
+      initialized: initialized.current,
+      previousToken: previousToken.current ? `${previousToken.current.substring(0, 20)}...` : null
+    });
+
     // Wait for auth to be loaded
     if (authLoading) return;
 
     // Don't connect if not authenticated
-    if (!session || !user) {
+    if (!accessToken || !userId) {
       console.log('[WebSocketProvider] Not authenticated, skipping WebSocket connection');
       setWebSocketState('disconnected');
 
@@ -35,7 +47,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     }
 
     // Check if token has changed (refresh occurred)
-    const tokenChanged = previousToken.current && previousToken.current !== session.access_token;
+    const tokenChanged = previousToken.current && previousToken.current !== accessToken;
 
     if (tokenChanged) {
       console.log('[WebSocketProvider] Token refreshed, reconnecting with new token...');
@@ -56,25 +68,26 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         setWebSocketState('connecting');
         console.log('[WebSocketProvider] Attempting to connect to WebSocket...');
 
-        await webSocketStoreBridge.connect(session.access_token, user.id);
+        await webSocketStoreBridge.connect(accessToken, userId);
 
         console.log('[WebSocketProvider] WebSocket connected successfully');
         setWebSocketState('connected');
-        setRetryCount(0);
+        retryCountRef.current = 0;
 
         // Store the current token for comparison
-        previousToken.current = session.access_token;
+        previousToken.current = accessToken;
       } catch (error) {
         console.error('[WebSocketProvider] Failed to connect WebSocket:', error);
         setWebSocketState('error');
 
         // Retry connection after delay
-        if (retryCount < 3) {
+        if (retryCountRef.current < 3) {
+          const currentRetry = retryCountRef.current;
           setTimeout(() => {
-            console.log(`[WebSocketProvider] Retrying connection (attempt ${retryCount + 1}/3)...`);
-            setRetryCount(prev => prev + 1);
+            console.log(`[WebSocketProvider] Retrying connection (attempt ${currentRetry + 1}/3)...`);
+            retryCountRef.current = currentRetry + 1;
             connectWebSocket();
-          }, 2000 * Math.pow(2, retryCount)); // Exponential backoff
+          }, 2000 * Math.pow(2, currentRetry)); // Exponential backoff
         }
       }
     };
@@ -89,7 +102,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       webSocketStoreBridge.destroy();
       initialized.current = false;
     };
-  }, [setWebSocketState, retryCount, authLoading, session, user]);
+  }, [authLoading, accessToken, userId]);
 
   return <>{children}</>;
 }

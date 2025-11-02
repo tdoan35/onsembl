@@ -139,20 +139,31 @@ export class AgentModel {
 
   /**
    * Find all agents with optional filtering (user-scoped)
+   * @param userId - User ID to filter by, or null for service role queries (all users)
    */
-  async findAll(userId: string, filters?: {
+  async findAll(userId: string | null, filters?: {
     status?: AgentStatus | AgentStatus[];
     type?: AgentType | AgentType[];
     connected?: boolean;
   }) {
     try {
-      let query = this.supabase.from('agents').select('*').eq('user_id', userId);
+      let query = this.supabase.from('agents').select('*');
+
+      // Only filter by user_id if provided (non-null, non-empty)
+      // When null, this is a service role query that should fetch agents across all users
+      if (userId && userId.trim() !== '') {
+        query = query.eq('user_id', userId);
+      }
 
       if (filters?.status) {
         if (Array.isArray(filters.status)) {
-          query = query.in('status', filters.status);
+          // Convert all status values to database enum format
+          const dbStatuses = filters.status.map(s => this.toDbStatus(s as AgentStatus));
+          query = query.in('status', dbStatuses);
         } else {
-          query = query.eq('status', filters.status);
+          // Convert single status value to database enum format
+          const dbStatus = this.toDbStatus(filters.status as AgentStatus);
+          query = query.eq('status', dbStatus);
         }
       }
 
@@ -416,31 +427,35 @@ export class AgentModel {
   }
 
   /**
-   * Get all online agents
+   * Get all online agents (service role - bypasses RLS)
    */
   async getOnlineAgents(): Promise<AgentRow[]> {
-    return this.findAll({ status: 'online' });
+    // Use null for userId - service role query that fetches agents across all users
+    return this.findAll(null, { status: 'online' });
   }
 
   /**
-   * Get agents by type
+   * Get agents by type (service role - bypasses RLS)
    */
   async getAgentsByType(type: AgentType): Promise<AgentRow[]> {
-    return this.findAll({ type });
+    // Use null for userId - service role query that fetches agents across all users
+    return this.findAll(null, { type });
   }
 
   /**
-   * Get connected agents (those with recent heartbeat)
+   * Get connected agents (those with recent heartbeat) (service role - bypasses RLS)
    */
   async getConnectedAgents(): Promise<AgentRow[]> {
-    return this.findAll({ connected: true });
+    // Use null for userId - service role query that fetches agents across all users
+    return this.findAll(null, { connected: true });
   }
 
   /**
-   * Count agents by status
+   * Count agents by status (service role - bypasses RLS)
    */
   async countByStatus(): Promise<Record<AgentStatus, number>> {
     try {
+      // Service role client bypasses RLS, gets all agents across all users
       const { data, error } = await this.supabase
         .from('agents')
         .select('status')
@@ -589,25 +604,28 @@ export class AgentModel {
 
   /**
    * Get agents with stale heartbeats (for cleanup tasks)
+   * Service role client bypasses RLS - monitors all agents across all users
    */
   async getStaleAgents(thresholdMinutes: number = 5): Promise<AgentRow[]> {
     try {
       const cutoffTime = new Date(Date.now() - thresholdMinutes * 60 * 1000).toISOString();
 
+      // Service role client bypasses RLS policies
       const { data, error } = await this.supabase
         .from('agents')
         .select('*')
         .or(`last_ping.is.null,last_ping.lt.${cutoffTime}`)
-        .in('status', ['online', 'executing']);
+        .in('status', ['connected', 'busy']); // Use database enum values
 
       if (error) {
         throw new AgentError(`Failed to find stale agents: ${error.message}`, 'DATABASE_ERROR');
       }
 
-      return data;
+      return data || [];
     } catch (error) {
       if (error instanceof AgentError) throw error;
       throw new AgentError(`Unexpected error finding stale agents: ${error}`, 'UNKNOWN_ERROR');
     }
   }
 }
+

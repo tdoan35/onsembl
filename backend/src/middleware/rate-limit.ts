@@ -306,8 +306,9 @@ export function globalRateLimiter(fastify: FastifyInstance) {
  * API endpoint rate limiter - stricter limits
  */
 export function apiRateLimiter(options?: Partial<RateLimitOptions>) {
+  const isDev = process.env['NODE_ENV'] === 'development';
   return createRateLimiter({
-    max: 50,
+    max: isDev ? 10000 : 50, // Much higher limit in development
     window: 60000, // 1 minute
     ...options,
   });
@@ -317,8 +318,9 @@ export function apiRateLimiter(options?: Partial<RateLimitOptions>) {
  * Auth endpoint rate limiter - very strict
  */
 export function authRateLimiter(options?: Partial<RateLimitOptions>) {
+  const isDev = process.env['NODE_ENV'] === 'development';
   return createRateLimiter({
-    max: 5,
+    max: isDev ? 10000 : 5, // Much higher limit in development
     window: 900000, // 15 minutes
     keyGenerator: (request) => {
       // Use combination of IP and email/username if available
@@ -353,8 +355,9 @@ export function wsRateLimiter(options?: Partial<RateLimitOptions>) {
  * Command execution rate limiter - per agent
  */
 export function commandRateLimiter(options?: Partial<RateLimitOptions>) {
+  const isDev = process.env['NODE_ENV'] === 'development';
   return createRateLimiter({
-    max: 30,
+    max: isDev ? 10000 : 30, // Much higher limit in development
     window: 60000, // 1 minute
     keyGenerator: (request) => {
       // Use agent ID from params or body
@@ -444,7 +447,8 @@ export function registerRateLimitingMiddleware(fastify: FastifyInstance) {
     }
   });
 
-  fastify.log.info('Rate limiting middleware registered');
+  // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
+  // fastify.log.info('Rate limiting middleware registered');
 }
 
 // Export LRU cache for external use
