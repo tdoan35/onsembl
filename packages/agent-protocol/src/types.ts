@@ -397,7 +397,8 @@ export function isAgentMessage(type: MessageType): boolean {
     MessageType.COMMAND_COMPLETE,
     MessageType.TERMINAL_OUTPUT,
     MessageType.TRACE_EVENT,
-    MessageType.INVESTIGATION_REPORT
+    MessageType.INVESTIGATION_REPORT,
+    MessageType.PONG  // Allow agents to respond to PING with PONG
   ].includes(type);
 }
 
@@ -407,7 +408,8 @@ export function isServerToAgentMessage(type: MessageType): boolean {
     MessageType.COMMAND_CANCEL,
     MessageType.AGENT_CONTROL,
     MessageType.TOKEN_REFRESH,
-    MessageType.SERVER_HEARTBEAT
+    MessageType.SERVER_HEARTBEAT,
+    MessageType.PING  // Backend sends PING to agents for heartbeat
   ].includes(type);
 }
 

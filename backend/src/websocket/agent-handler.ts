@@ -55,11 +55,14 @@ export class AgentWebSocketHandler extends EventEmitter {
     const connectionId = this.generateConnectionId();
     const metadata = extractConnectionMetadata(request);
 
-    // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
-    // this.server.log.info({
-    //   connectionId,
-    //   remoteAddress: metadata.remoteAddress
-    // }, 'Agent WebSocket connection established');
+    // DIAGNOSTIC: Re-enable to debug agent connections
+    this.server.log.info({
+      connectionId,
+      remoteAddress: metadata.remoteAddress,
+      url: request.url,
+      hasToken: !!metadata.query?.token,
+      agentId: metadata.query?.agentId
+    }, '[AGENT-AUTH] Agent WebSocket connection established');
 
     // Create connection record
     const agentConnection: AgentConnection = {
@@ -81,17 +84,32 @@ export class AgentWebSocketHandler extends EventEmitter {
     });
 
     // Setup message handlers
+    this.server.log.info({
+      connectionId,
+      socketExists: !!connection.socket,
+      socketReadyState: connection.socket?.readyState
+    }, '[HANDLER-SETUP] Setting up message handlers');
+
     connection.socket.on('message', async (rawMessage) => {
+      this.server.log.info({
+        connectionId
+      }, '[HANDLER-SETUP] Message event handler triggered');
       await this.handleMessage(agentConnection, rawMessage);
     });
 
     connection.socket.on('close', () => {
+      this.server.log.info({ connectionId }, '[HANDLER-SETUP] Close event handler triggered');
       this.handleDisconnection(connectionId);
     });
 
     connection.socket.on('error', (error) => {
+      this.server.log.error({ connectionId, error }, '[HANDLER-SETUP] Error event handler triggered');
       this.handleError(connectionId, error);
     });
+
+    this.server.log.info({
+      connectionId
+    }, '[HANDLER-SETUP] All message handlers attached successfully');
 
     // Store connection temporarily until authentication
     this.connections.set(connectionId, agentConnection);
@@ -114,24 +132,37 @@ export class AgentWebSocketHandler extends EventEmitter {
     try {
       const message: WebSocketMessage = JSON.parse(rawMessage.toString());
 
+      // Log ALL incoming messages for debugging
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        messageType: message.type,
+        messageId: message.id
+      }, '[MESSAGE] Received message from agent');
+
       // Validate message structure
       if (!this.validateMessage(message)) {
+        this.server.log.error({
+          connectionId: connection.connectionId,
+          message
+        }, '[MESSAGE] Message failed validation');
         this.sendError(connection.socket, 'INVALID_MESSAGE', 'Invalid message format');
         return;
       }
 
       // Check if message type is allowed for agents
       if (!isAgentMessage(message.type)) {
+        this.server.log.error({
+          connectionId: connection.connectionId,
+          messageType: message.type
+        }, '[MESSAGE] Message type not allowed for agents');
         this.sendError(connection.socket, 'INVALID_MESSAGE_TYPE', 'Message type not allowed for agents');
         return;
       }
 
-      // Log message for debugging
-      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
-      // this.server.log.debug({
-      //   connectionId: connection.connectionId,
-      //   type: message.type
-      // }, 'Agent message received');
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        messageType: message.type
+      }, '[MESSAGE] Message passed validation, routing to handler');
 
       // Route message based on type
       switch (message.type) {
@@ -139,9 +170,7 @@ export class AgentWebSocketHandler extends EventEmitter {
           await this.handleAgentConnect(connection, message as TypedWebSocketMessage<MessageType.AGENT_CONNECT>);
           break;
 
-        case MessageType.AGENT_HEARTBEAT:
-          await this.handleAgentHeartbeat(connection, message as TypedWebSocketMessage<MessageType.AGENT_HEARTBEAT>);
-          break;
+        // AGENT_HEARTBEAT removed - now using PING/PONG for connection health
 
         case MessageType.AGENT_ERROR:
           await this.handleAgentError(connection, message as TypedWebSocketMessage<MessageType.AGENT_ERROR>);
@@ -171,6 +200,10 @@ export class AgentWebSocketHandler extends EventEmitter {
           await this.handlePing(connection, message);
           break;
 
+        case MessageType.PONG:
+          await this.handlePong(connection, message);
+          break;
+
         default:
           this.sendError(connection.socket, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type: ${message.type}`);
       }
@@ -195,21 +228,53 @@ export class AgentWebSocketHandler extends EventEmitter {
   ): Promise<void> {
     const { agentId, name, agentType, version, hostMachine, capabilities } = message.payload;
 
+    // DIAGNOSTIC: Log AGENT_CONNECT received
+    this.server.log.info({
+      connectionId: connection.connectionId,
+      agentId,
+      name,
+      hasAuthHeader: !!connection.metadata.headers['authorization'],
+      hasQueryToken: !!connection.metadata.query?.token
+    }, '[AGENT-AUTH] Received AGENT_CONNECT message');
+
     try {
       // Authenticate agent using WebSocketAuth
       const token = connection.metadata.headers['authorization']?.replace('Bearer ', '') ||
                    connection.metadata.query?.token as string;
 
       if (!token) {
+        this.server.log.error({
+          connectionId: connection.connectionId,
+          agentId,
+          headers: Object.keys(connection.metadata.headers),
+          query: connection.metadata.query
+        }, '[AGENT-AUTH] No authentication token found in request');
         this.sendError(connection.socket, 'UNAUTHORIZED', 'No authentication token provided');
         return;
       }
 
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId,
+        tokenPrefix: token.substring(0, 20) + '...'
+      }, '[AGENT-AUTH] Token extracted, validating...');
+
       const authContext = await this.services.authService.validateToken(token);
       if (!authContext) {
+        this.server.log.error({
+          connectionId: connection.connectionId,
+          agentId,
+          tokenPrefix: token.substring(0, 20) + '...'
+        }, '[AGENT-AUTH] Token validation returned null/undefined');
         this.sendError(connection.socket, 'UNAUTHORIZED', 'Invalid authentication token');
         return;
       }
+
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId,
+        userId: authContext.userId
+      }, '[AGENT-AUTH] Token validation successful');
 
       // Log successful authentication with userId
       this.server.log.info({
@@ -328,6 +393,16 @@ export class AgentWebSocketHandler extends EventEmitter {
       connection.agentId = resolvedAgentId!;
       connection.isAuthenticated = true;
 
+      // 🔍 DEBUG: Log agent UUID registration
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        cliOriginalId: agentId,
+        resolvedDatabaseUUID: resolvedAgentId,
+        agentName: name || agentId,
+        connectionAgentId: connection.agentId,
+        match: connection.agentId === resolvedAgentId
+      }, '🔍 [AGENT-ROUTING-DEBUG] Agent registered in connection with UUID');
+
       // Register token with TokenManager for automatic refresh
       const tokenInfo = authContext;
       if (tokenInfo && tokenInfo.expiresAt) {
@@ -344,7 +419,7 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Update connection pool
       this.dependencies.connectionPool.updateConnection(connection.connectionId, {
         isAuthenticated: true,
-        agentId
+        agentId: resolvedAgentId!  // Use resolved database UUID, not CLI original ID
       });
 
       // Send success response with connection details
@@ -368,7 +443,13 @@ export class AgentWebSocketHandler extends EventEmitter {
       }, 'Agent authenticated and connected');
 
     } catch (error) {
-      this.server.log.error({ error, agentId }, 'Failed to connect agent');
+      this.server.log.error({
+        error,
+        agentId,
+        connectionId: connection.connectionId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      }, '[AGENT-AUTH] Failed to connect agent - exception thrown');
       this.sendError(connection.socket, 'CONNECTION_FAILED', 'Agent connection failed');
       connection.socket.close();
     }
@@ -384,12 +465,27 @@ export class AgentWebSocketHandler extends EventEmitter {
   ): Promise<void> {
     const { healthMetrics } = message.payload;
 
+    this.server.log.info({
+      connectionId: connection.connectionId,
+      agentId: connection.agentId
+    }, '[HEARTBEAT] Received AGENT_HEARTBEAT message');
+
     try {
       // Use resolved UUID from connection, not string ID from message
       const resolvedAgentId = connection.agentId;
 
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId: resolvedAgentId
+      }, '[HEARTBEAT] Updating heartbeat in database');
+
       // Update agent heartbeat
       await this.services.agentService.updateHeartbeat(resolvedAgentId, healthMetrics);
+
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId: resolvedAgentId
+      }, '[HEARTBEAT] Database updated successfully');
 
       // Update connection heartbeat
       connection.lastPing = Date.now();
@@ -401,9 +497,14 @@ export class AgentWebSocketHandler extends EventEmitter {
         nextPingExpected: Date.now() + 30000 // 30 seconds
       });
 
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        agentId: resolvedAgentId
+      }, '[HEARTBEAT] Sent SERVER_HEARTBEAT response');
+
     } catch (error) {
-      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
-      // this.server.log.error({ error, agentId: connection.agentId }, 'Failed to handle heartbeat');
+      // Re-enabled for heartbeat debugging
+      this.server.log.error({ error, agentId: connection.agentId }, 'Failed to handle heartbeat');
     }
   }
 
@@ -669,7 +770,8 @@ export class AgentWebSocketHandler extends EventEmitter {
   }
 
   /**
-   * Handle ping message
+   * Handle ping message from agent
+   * This is less common - agent asking if server is alive
    */
   private async handlePing(connection: AgentConnection, message: WebSocketMessage): Promise<void> {
     // Send pong response
@@ -677,6 +779,37 @@ export class AgentWebSocketHandler extends EventEmitter {
       timestamp: message.payload.timestamp,
       latency: Date.now() - message.payload.timestamp
     });
+  }
+
+  /**
+   * Handle pong message from agent
+   * Agent is responding to our PING - update database to keep agent alive
+   */
+  private async handlePong(connection: AgentConnection, message: WebSocketMessage): Promise<void> {
+    // Update database last_ping to keep agent alive
+    try {
+      if (connection.agentId) {
+        await this.services.agentService.updateAgent(connection.agentId, {
+          last_ping: new Date()
+        });
+
+        this.server.log.debug({
+          connectionId: connection.connectionId,
+          agentId: connection.agentId
+        }, '[PING/PONG] Updated agent last_ping from PONG response');
+      }
+    } catch (error) {
+      this.server.log.error({
+        error,
+        connectionId: connection.connectionId,
+        agentId: connection.agentId
+      }, 'Failed to update last_ping for agent');
+    }
+
+    // Notify HeartbeatManager that pong was received
+    if (message.payload.timestamp) {
+      this.dependencies.heartbeatManager.recordPong(connection.connectionId, message.payload.timestamp);
+    }
   }
 
   /**

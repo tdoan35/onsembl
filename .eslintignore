@@ -53,6 +53,7 @@ temp/
 test-results/
 playwright-report/
 playwright/.cache/
+.playwright-mcp
 
 # Package manager
 .pnpm-debug.log*

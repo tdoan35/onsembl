@@ -171,14 +171,21 @@ export function setupAgentWebSocketIntegration(): void {
 
     if (agents && Array.isArray(agents)) {
       agents.forEach((agent: any) => {
-        // Map uppercase status from backend to lowercase
+        // Map backend status values to frontend values
         let status: 'online' | 'offline' | 'error' | 'connecting' = 'offline'
 
-        const backendStatus = agent.status?.toUpperCase()
-        if (backendStatus === 'ONLINE') status = 'online'
-        else if (backendStatus === 'OFFLINE') status = 'offline'
-        else if (backendStatus === 'ERROR') status = 'error'
-        else if (backendStatus === 'CONNECTING') status = 'connecting'
+        const backendStatus = agent.status?.toLowerCase()
+        if (backendStatus === 'connected' || backendStatus === 'busy' || backendStatus === 'online') {
+          status = 'online'
+        } else if (backendStatus === 'disconnected' || backendStatus === 'offline') {
+          status = 'offline'
+        } else if (backendStatus === 'error') {
+          status = 'error'
+        } else if (backendStatus === 'connecting') {
+          status = 'connecting'
+        } else {
+          console.warn(`[AgentWebSocketIntegration] Unknown agent status: ${agent.status}, defaulting to offline`)
+        }
 
         store.addAgent({
           id: agent.agentId,

@@ -114,26 +114,57 @@ export class DashboardWebSocketHandler extends EventEmitter {
   private async handleMessage(connection: DashboardConnection, rawMessage: any): Promise<void> {
     let message: WebSocketMessage | undefined;
     try {
+      // 🔍 DEBUG: Log raw message receipt
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        rawMessageType: typeof rawMessage,
+        rawMessageLength: rawMessage.toString().length,
+        timestamp: new Date().toISOString()
+      }, '🔍 [MSG-ROUTING-DEBUG] Raw WebSocket message received from dashboard');
+
       message = JSON.parse(rawMessage.toString());
+
+      // 🔍 DEBUG: Log parsed message
+      this.server.log.info({
+        connectionId: connection.connectionId,
+        messageType: message.type,
+        messageId: message.id,
+        hasPayload: !!message.payload,
+        payloadKeys: message.payload ? Object.keys(message.payload) : []
+      }, '🔍 [MSG-ROUTING-DEBUG] Message parsed successfully');
 
       // Validate message structure
       if (!this.validateMessage(message)) {
+        this.server.log.error({ message }, '🔍 [MSG-ROUTING-DEBUG] Message validation FAILED');
         this.sendError(connection.socket, 'INVALID_MESSAGE', 'Invalid message format');
         return;
       }
 
+      this.server.log.info('🔍 [MSG-ROUTING-DEBUG] Message validation PASSED');
+
       // Check if message type is allowed for dashboard
-      if (!isDashboardMessage(message.type) && ![MessageType.PING, MessageType.PONG].includes(message.type)) {
+      const isDashboardMsg = isDashboardMessage(message.type);
+      const isPingPong = [MessageType.PING, MessageType.PONG].includes(message.type);
+
+      this.server.log.info({
+        messageType: message.type,
+        isDashboardMessage: isDashboardMsg,
+        isPingPong: isPingPong,
+        allowedForDashboard: isDashboardMsg || isPingPong
+      }, '🔍 [MSG-ROUTING-DEBUG] Message type check');
+
+      if (!isDashboardMsg && !isPingPong) {
+        this.server.log.error({
+          messageType: message.type,
+          isDashboardMessage: isDashboardMsg
+        }, '🔍 [MSG-ROUTING-DEBUG] Message type NOT ALLOWED for dashboard - REJECTED');
         this.sendError(connection.socket, 'INVALID_MESSAGE_TYPE', 'Message type not allowed for dashboard');
         return;
       }
 
-      // Log message for debugging
-      // TEMP DISABLED FOR COMMAND FORWARDING DEBUG
-      // this.server.log.debug({
-      //   connectionId: connection.connectionId,
-      //   type: message.type
-      // }, 'Dashboard message received');
+      this.server.log.info({
+        messageType: message.type
+      }, '🔍 [MSG-ROUTING-DEBUG] Message type check PASSED - routing to switch statement');
 
       // Route message based on type
       switch (message.type) {
@@ -726,7 +757,8 @@ export class DashboardWebSocketHandler extends EventEmitter {
       }, 'sendInitialData: Sending agent statuses');
 
       agents.forEach(agent => {
-        if (connection.subscriptions.agents.has(agent.id)) {
+        // Check if subscribed to this specific agent OR subscribed to all agents (*)
+        if (connection.subscriptions.agents.has(agent.id) || connection.subscriptions.agents.has('*')) {
           this.sendMessage(connection.socket, MessageType.AGENT_STATUS, {
             agentId: agent.id,
             status: agent.status,

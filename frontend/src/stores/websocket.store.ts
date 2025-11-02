@@ -61,15 +61,30 @@ export const useWebSocketStore = create<WebSocketState>()(
 
       connect: async () => {
         try {
+          console.log('[WebSocketStore] connect() called, current state:', get().dashboardState);
           set({ lastError: null })
 
           // Connect to dashboard endpoint
           await webSocketService.connect('dashboard')
 
+          // Verify connection state was updated
+          const finalState = webSocketService.getConnectionState('dashboard');
+          console.log('[WebSocketStore] Connection established, verifying state:', {
+            serviceState: finalState,
+            storeState: get().dashboardState
+          });
+
+          // Force sync if states don't match
+          if (finalState === 'connected' && get().dashboardState !== 'connected') {
+            console.warn('[WebSocketStore] State mismatch detected! Force syncing...');
+            set({ dashboardState: 'connected' });
+          }
+
           // NOTE: Dashboard initialization (DASHBOARD_INIT message) is handled by
           // websocket-store-bridge.ts when connection state changes to 'connected'.
           // This prevents duplicate initialization messages.
         } catch (error) {
+          console.error('[WebSocketStore] Connection failed:', error);
           set({ lastError: error as Error })
           throw error
         }
@@ -240,13 +255,24 @@ if (!globalThis.__WEBSOCKET_STORE_LISTENERS_SETUP__) {
   console.log('[WebSocketStore] Setting up WebSocket event listeners (first time)');
 
   webSocketService.onConnectionState('dashboard', (state, error) => {
+    console.log('[WebSocketStore] ⚡ Dashboard connection state changed:', {
+      state,
+      error: error?.message,
+      timestamp: new Date().toISOString(),
+      currentState: useWebSocketStore.getState().dashboardState
+    });
+
     useWebSocketStore.setState({
       dashboardState: state,
       lastError: error || null
-    })
+    });
+
+    console.log('[WebSocketStore] ⚡ Dashboard state updated to:', state);
   })
 
   webSocketService.onConnectionState('agent', (state, error) => {
+    console.log('[WebSocketStore] ⚡ Agent connection state changed:', { state, error: error?.message });
+
     useWebSocketStore.setState({
       agentState: state,
       lastError: error || null

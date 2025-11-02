@@ -57,6 +57,27 @@ export class WebSocketStoreBridge {
   }
 
   /**
+   * Map backend agent status values to frontend values
+   */
+  private mapAgentStatus(backendStatus: string): 'online' | 'offline' | 'error' | 'connecting' {
+    switch (backendStatus) {
+      case 'connected':
+        return 'online';
+      case 'disconnected':
+        return 'offline';
+      case 'busy':
+        return 'online'; // busy agents are still online
+      case 'error':
+        return 'error';
+      case 'connecting':
+        return 'connecting';
+      default:
+        console.warn(`[WebSocketStoreBridge] Unknown agent status: ${backendStatus}, defaulting to offline`);
+        return 'offline';
+    }
+  }
+
+  /**
    * Setup message handlers for WebSocket events
    */
   private setupMessageHandlers(): void {
@@ -64,15 +85,25 @@ export class WebSocketStoreBridge {
     webSocketService.on(MessageType.AGENT_STATUS, (payload: AgentStatusPayload) => {
       const agentStore = useAgentStore.getState();
 
+      // Map backend status to frontend status
+      const mappedStatus = this.mapAgentStatus(payload.status);
+
+      console.log('[WebSocketStoreBridge] 📡 AGENT_STATUS received:', {
+        agentId: payload.agentId,
+        backendStatus: payload.status,
+        mappedStatus,
+        error: payload.error
+      });
+
       // Update agent in store
       agentStore.updateAgent(payload.agentId, {
-        status: payload.status,
+        status: mappedStatus,
         lastPing: new Date().toISOString(),
         error: payload.error
       });
 
       // Handle agent connection/disconnection
-      if (payload.status === 'offline' || payload.status === 'error') {
+      if (mappedStatus === 'offline' || mappedStatus === 'error') {
         // Clear any running commands for this agent
         const commandStore = useCommandStore.getState();
         commandStore.getCommandsByAgent(payload.agentId).forEach(cmd => {

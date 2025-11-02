@@ -374,33 +374,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.currentCommandId = message.commandId;
     this.logger.info('Set currentCommandId:', this.currentCommandId);
 
-    // In interactive mode, check control state
-    if (this.mode === 'interactive') {
-      const state = this.stateManager.getState();
-      const controlMode = state?.controlMode;
-
-      this.logger.info('Interactive mode state:', {
-        mode: this.mode,
-        controlMode,
-        state: state
-      });
-
-      if (controlMode === 'local') {
-        // Queue the command
-        this.inputMultiplexer?.queueCommand({
-          source: 'dashboard',
-          data: message.command,
-          priority: 5,
-          timestamp: Date.now(),
-          id: message.commandId || `cmd-${Date.now()}`
-        });
-
-        this.logger.info('Remote command queued (local control active)');
-        return;
-      }
-    }
-
-    // Process the command
+    // Process remote commands immediately, regardless of control mode
+    // This allows dashboard commands to execute even when the agent is in interactive mode
     this.logger.info('Processing command immediately');
     this.processRemoteCommand(message.command, message.commandId);
   }
@@ -420,11 +395,19 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
     if (this.ptyManager?.isInteractive) {
       // Forward command to the actual agent CLI
-      const commandWithNewline = command.endsWith('\n') ? command : command + '\n';
+      // Windows requires \r\n, Unix uses \n
+      const isWindows = process.platform === 'win32';
+      const lineEnding = isWindows ? '\r\n' : '\n';
+      const commandWithNewline = command.endsWith('\n') || command.endsWith('\r\n')
+        ? command
+        : command + lineEnding;
+
       this.logger.info('Writing to PTY:', {
         originalCommand: command,
         commandWithNewline,
-        willWrite: commandWithNewline
+        willWrite: commandWithNewline,
+        platform: process.platform,
+        lineEnding: lineEnding.replace('\r', '\\r').replace('\n', '\\n')
       });
 
       try {
@@ -437,7 +420,13 @@ export class InteractiveAgentWrapper extends EventEmitter {
       // Handle in headless mode - forward to child process stdin if available
       this.logger.info('Processing remote command in headless mode', { command, commandId });
       if (this.childProcess && this.childProcess.stdin) {
-        const commandWithNewline = command.endsWith('\n') ? command : command + '\n';
+        // Windows requires \r\n, Unix uses \n
+        const isWindows = process.platform === 'win32';
+        const lineEnding = isWindows ? '\r\n' : '\n';
+        const commandWithNewline = command.endsWith('\n') || command.endsWith('\r\n')
+          ? command
+          : command + lineEnding;
+
         try {
           this.childProcess.stdin.write(commandWithNewline);
           this.logger.info('✅ Command written to child process stdin');

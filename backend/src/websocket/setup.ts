@@ -36,17 +36,21 @@ export async function setupWebSocketPlugin(
   // Initialize WebSocket dependencies
   const dependencies = initializeWebSocketDependencies(server, services);
 
+  // Create persistent handler instances (CRITICAL: must persist to avoid GC destroying event handlers)
+  const agentHandler = createAgentHandler(server, services, dependencies);
+  const dashboardHandler = createDashboardHandler(server, services, dependencies);
+
+  server.log.info('Created persistent WebSocket handler instances');
+
   // Register WebSocket routes
   await server.register(async function (server) {
     // Agent WebSocket endpoint
     server.get('/ws/agent', { websocket: true }, async (connection: SocketStream, request: IncomingMessage) => {
-      const agentHandler = createAgentHandler(server, services, dependencies);
       await agentHandler.handleConnection(connection, request);
     });
 
     // Dashboard WebSocket endpoint
     server.get('/ws/dashboard', { websocket: true }, async (connection: SocketStream, request: IncomingMessage) => {
-      const dashboardHandler = createDashboardHandler(server, services, dependencies);
       await dashboardHandler.handleConnection(connection, request);
     });
   });
@@ -82,7 +86,7 @@ function initializeWebSocketDependencies(
   const connectionPool = new ConnectionPool(server, {
     maxConnections: config.wsMaxConnections,
     maxPayload: config.wsMaxPayload,
-    connectionTimeout: 30000, // 30 seconds
+    connectionTimeout: 90000, // 90 seconds (3x PING interval for safety margin)
     cleanupInterval: 60000    // 1 minute
   });
 

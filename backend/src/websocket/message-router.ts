@@ -100,20 +100,38 @@ export class MessageRouter extends EventEmitter {
     }, '[CMD-FWD] Routing message to specific agent');
 
     // Check if agent is in connection pool
-    const connections = this.connectionPool.getAllConnections();
-    const agentConnection = connections.find(([id, conn]) => conn.metadata?.agentId === agentId);
+    const agentConnections = this.connectionPool.getConnectionsByAgentId(agentId);
+
+    // 🔍 DEBUG: Log connection pool lookup details
+    this.server.log.info({
+      lookingForAgentId: agentId,
+      agentIdType: typeof agentId,
+      connectionsFound: agentConnections.size,
+      connectionEntries: Array.from(agentConnections.entries()).map(([id, conn]) => ({
+        key: id,
+        keyType: typeof id,
+        agentId: conn.agentId,
+        agentIdType: typeof conn.agentId,
+        match: conn.agentId === agentId,
+        strictMatch: conn.agentId === agentId
+      }))
+    }, '🔍 [AGENT-ROUTING-DEBUG] Connection pool lookup result');
+
+    const agentConnection = agentConnections.size > 0
+      ? Array.from(agentConnections.entries())[0]
+      : null;
 
     if (!agentConnection) {
       // KEEP FOR COMMAND FORWARDING DEBUG
+      // Get all agent connections for debugging
+      const allAgentConnections = this.connectionPool.getConnectionsByType('agent');
       this.server.log.error(`[CMD-FWD] Agent ${agentId} not found in connection pool. Available agents:`, {
-        availableAgents: connections
-          .filter(([id, conn]) => conn.metadata?.type === 'agent')
-          .map(([id, conn]) => ({
-            connectionId: id,
-            agentId: conn.metadata?.agentId,
-            type: conn.metadata?.type,
-            isAuthenticated: conn.isAuthenticated
-          }))
+        availableAgents: Array.from(allAgentConnections.entries()).map(([id, conn]) => ({
+          connectionId: id,
+          agentId: conn.agentId,
+          type: conn.type,
+          isAuthenticated: conn.isAuthenticated
+        }))
       });
       this.server.log.error('==================== [CMD-FWD] ROUTE TO AGENT FAILED ====================');
       return false;
@@ -123,7 +141,9 @@ export class MessageRouter extends EventEmitter {
     this.server.log.info(`[CMD-FWD] Found agent connection for ${agentId}:`, {
       connectionId: agentConnection[0],
       isAuthenticated: agentConnection[1].isAuthenticated,
-      metadata: agentConnection[1].metadata
+      agentId: agentConnection[1].agentId,
+      type: agentConnection[1].type,
+      userId: agentConnection[1].userId
     });
 
     const queued = this.queueMessage({
@@ -494,8 +514,8 @@ export class MessageRouter extends EventEmitter {
         break;
       case 'specific':
         if (queuedMessage.targetId) {
-          const connection = this.connectionPool.getConnection(queuedMessage.targetId);
-          targetConnections = connection ? new Map([[queuedMessage.targetId, connection]]) : new Map();
+          // targetId is the agentId, not connectionId - use getConnectionsByAgentId
+          targetConnections = this.connectionPool.getConnectionsByAgentId(queuedMessage.targetId);
         } else {
           targetConnections = new Map();
         }

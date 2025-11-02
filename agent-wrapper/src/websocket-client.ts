@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import os from 'os';
 import jwt from 'jsonwebtoken';
+import { pino } from 'pino';
 import { Config } from './config.js';
 import AuthManager from './auth/auth-manager.js';
 import { MessageType, WebSocketMessage, TerminalOutputPayload } from '@onsembl/agent-protocol';
@@ -110,6 +111,7 @@ export class WebSocketClient extends EventEmitter {
   private circuitBreaker: ConnectionCircuitBreaker;
   private lastPongReceived: number = Date.now();
   private authManager: AuthManager | null = null;
+  private logger: pino.Logger;
 
   private onCommand: (message: CommandMessage) => Promise<void>;
   private onError: (error: Error) => void;
@@ -121,6 +123,12 @@ export class WebSocketClient extends EventEmitter {
     this.agentName = options.agentName;
     this.onCommand = options.onCommand;
     this.onError = options.onError;
+
+    // Initialize logger
+    this.logger = pino({
+      name: 'websocket-client',
+      level: process.env['LOG_LEVEL'] || 'info'
+    });
 
     // Always initialize AuthManager to check for stored credentials
     this.authManager = new AuthManager({
@@ -136,7 +144,7 @@ export class WebSocketClient extends EventEmitter {
 
     // Listen to circuit breaker state changes
     this.circuitBreaker.on('state_changed', (state) => {
-      console.log(`[Circuit Breaker] State changed to: ${state}`);
+      this.logger.debug(`[Circuit Breaker] State changed to: ${state}`);
       this.emit('circuit_breaker_state', state);
     });
   }
@@ -158,7 +166,7 @@ export class WebSocketClient extends EventEmitter {
     }
 
     const wsUrl = await this.getWebSocketUrl();
-    console.log(`[Connection] Attempting connection to ${wsUrl}`);
+    this.logger.debug(`[Connection] Attempting connection to ${wsUrl}`);
 
     try {
       const token = await this.buildAuthToken();
@@ -200,7 +208,7 @@ export class WebSocketClient extends EventEmitter {
       }
 
       this.emit('connected');
-      console.log('[Connection] WebSocket connection established successfully');
+      this.logger.debug('[Connection] WebSocket connection established successfully');
 
     } catch (error) {
       // Record failure in circuit breaker
@@ -232,7 +240,7 @@ export class WebSocketClient extends EventEmitter {
     }
 
     this.emit('disconnected');
-    console.log('[Connection] WebSocket connection closed');
+    this.logger.debug('[Connection] WebSocket connection closed');
   }
 
   /**
@@ -241,15 +249,25 @@ export class WebSocketClient extends EventEmitter {
   async sendMessage(message: OutgoingMessage): Promise<void> {
     if (!this.isConnected || !this.ws) {
       // Queue message for later sending
+      this.logger.debug(`[SEND-DEBUG] Message queued (not connected): type=${message.type}`);
       this.messageQueue.push(message);
       return;
     }
 
     try {
       const payload = JSON.stringify(message);
-      this.ws.send(payload);
+      this.logger.debug(`[SEND-DEBUG] Attempting to send message: type=${message.type}, size=${payload.length}, readyState=${this.ws?.readyState}`);
+
+      // Use callback to detect send errors
+      this.ws.send(payload, (error) => {
+        if (error) {
+          console.error(`[SEND-ERROR] Failed to send ${message.type}:`, error);
+        } else {
+          this.logger.debug(`[SEND-SUCCESS] Message sent successfully: type=${message.type}`);
+        }
+      });
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error(`[SEND-EXCEPTION] Exception sending message ${message.type}:`, error);
       this.messageQueue.push(message);
       throw error;
     }
@@ -358,7 +376,7 @@ export class WebSocketClient extends EventEmitter {
     if (!this.ws) return;
 
     this.ws.on('open', () => {
-      console.log('WebSocket connection opened');
+      this.logger.debug('WebSocket connection opened');
     });
 
     this.ws.on('message', async (data: WebSocket.Data) => {
@@ -371,7 +389,7 @@ export class WebSocketClient extends EventEmitter {
     });
 
     this.ws.on('close', (code: number, reason: Buffer) => {
-      console.log(`[Connection] WebSocket closed with code ${code}: ${reason.toString()}`);
+      this.logger.debug(`[Connection] WebSocket closed with code ${code}: ${reason.toString()}`);
       this.isConnected = false;
       this.stopHeartbeat();
       this.emit('disconnected');
@@ -414,8 +432,19 @@ export class WebSocketClient extends EventEmitter {
         break;
 
       case MessageType.PING:
+        // Respond to server PING with PONG
+        await this.sendMessage({
+          type: MessageType.PONG,
+          id: `pong-${Date.now()}`,
+          timestamp: Date.now(),
+          payload: {
+            timestamp: message.payload?.timestamp || Date.now()
+          }
+        });
+        break;
+
       case MessageType.PONG:
-        // Server-level heartbeat messages – handled at socket level.
+        // Server responded to our ping
         break;
 
       case 'error':
@@ -435,7 +464,7 @@ export class WebSocketClient extends EventEmitter {
 
       case MessageType.COMMAND_REQUEST:
         // Handle command requests from dashboard
-        console.log('[WebSocket] Received COMMAND_REQUEST:', message);
+        this.logger.info('[WebSocket] Received COMMAND_REQUEST:', message);
         try {
           const commandPayload = message.payload as any;
           const commandMessage: CommandMessage = {
@@ -474,7 +503,7 @@ export class WebSocketClient extends EventEmitter {
         process.env['ONSEMBL_API_KEY'] = accessToken;
       }
 
-      console.log(`[Token Refresh] Token refreshed successfully, expires in ${expiresIn} seconds`);
+      this.logger.info(`[Token Refresh] Token refreshed successfully, expires in ${expiresIn} seconds`);
       this.emit('token_refreshed', { accessToken, expiresIn });
     }
   }
@@ -508,32 +537,16 @@ export class WebSocketClient extends EventEmitter {
     this.heartbeatTimer = setInterval(async () => {
       if (this.isConnected && this.ws) {
         try {
-          // Send ping to server
+          // Send native WebSocket ping to server
+          // Backend will respond with JSON PING message which we'll answer with PONG
           this.ws.ping();
 
           // Set a timeout for pong response
           this.setHeartbeatTimeout();
 
-          // Also send protocol heartbeat message
-          const heartbeatMessage: WebSocketMessage = {
-            type: MessageType.AGENT_HEARTBEAT,
-            id: `hb-${Date.now()}`,
-            timestamp: Date.now(),
-            payload: {
-              agentId: this.agentId,
-              healthMetrics: {
-                cpuUsage: 0,
-                memoryUsage: 0,
-                uptime: Math.floor(process.uptime() * 1000),
-                commandsProcessed: 0,
-                averageResponseTime: 0,
-              },
-            },
-          };
-
-          await this.sendMessage(heartbeatMessage);
+          this.logger.debug('[Heartbeat] Sent native WebSocket ping');
         } catch (error) {
-          console.error('[Heartbeat] Failed to send heartbeat:', error);
+          console.error('[Heartbeat] Failed to send ping:', error);
           // Connection might be dead, trigger reconnection
           this.handleHeartbeatFailure();
         }
@@ -577,7 +590,7 @@ export class WebSocketClient extends EventEmitter {
   }
 
   private handleUnexpectedDisconnection(): void {
-    console.log('[Reconnection] Unexpected disconnection detected');
+    this.logger.warn('[Reconnection] Unexpected disconnection detected');
 
     // Record failure in circuit breaker
     this.circuitBreaker.recordFailure();
@@ -618,7 +631,7 @@ export class WebSocketClient extends EventEmitter {
       });
 
       this.reconnectionManager.on('reconnection_successful', () => {
-        console.log('[Reconnection] Successfully reconnected');
+        this.logger.info('[Reconnection] Successfully reconnected');
         this.emit('reconnected');
       });
     }
