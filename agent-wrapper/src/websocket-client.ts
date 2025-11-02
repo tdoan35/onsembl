@@ -284,20 +284,24 @@ export class WebSocketClient extends EventEmitter {
 
   /**
    * Send command output
+   * @param commandId - Command ID or undefined for monitoring/CLI output
    */
-  async sendOutput(commandId: string, stream: 'stdout' | 'stderr', data: string, ansiCodes?: string): Promise<void> {
+  async sendOutput(commandId: string | undefined, stream: 'stdout' | 'stderr', data: string, ansiCodes?: string): Promise<void> {
+    // Use commandId if provided, otherwise use agentId for monitoring output routing
+    const effectiveCommandId = commandId || this.agentId;
+
     const payload: TerminalOutputPayload = {
-      commandId,
+      commandId: effectiveCommandId,
       agentId: this.agentId,
       content: data,
       streamType: stream === 'stderr' ? 'STDERR' : 'STDOUT',
       ansiCodes: !!ansiCodes,
-      sequence: this.getNextSequence(commandId)
+      sequence: this.getNextSequence(effectiveCommandId)
     };
 
     const message: WebSocketMessage<TerminalOutputPayload> = {
       type: MessageType.TERMINAL_OUTPUT,
-      id: `${commandId}-${Date.now()}`,
+      id: `${effectiveCommandId}-${Date.now()}`,
       timestamp: Date.now(),
       payload
     };
@@ -428,7 +432,16 @@ export class WebSocketClient extends EventEmitter {
         break;
 
       case MessageType.ACK:
-        // Server acknowledged a prior message; no action needed yet.
+        // Server acknowledged a prior message
+        // If this is an AGENT_CONNECT ACK, update our agentId with the resolved UUID
+        const ackPayload = message.payload as any;
+        if (ackPayload?.agentId && ackPayload.agentId !== this.agentId) {
+          this.logger.info({
+            originalId: this.agentId,
+            resolvedId: ackPayload.agentId
+          }, '[Connection] Server resolved agent ID - updating to use database UUID');
+          this.agentId = ackPayload.agentId;
+        }
         break;
 
       case MessageType.PING:

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { EventEmitter } from 'events';
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { Config } from '../config.js';
 import { WebSocketClient, CommandMessage } from '../websocket-client.js';
 import { PTYManager, checkPtyAvailable } from './pty-manager.js';
@@ -12,6 +15,18 @@ import { ResizeHandler } from './resize-handler.js';
 import { AgentConfigManager } from '../agent-config-manager.js';
 import { pino } from 'pino';
 import stripAnsi from 'strip-ansi';
+
+// Global directory for agent state files
+const ONSEMBL_DIR = join(homedir(), '.onsembl');
+
+// Ensure the directory exists
+if (!existsSync(ONSEMBL_DIR)) {
+  mkdirSync(ONSEMBL_DIR, { recursive: true });
+}
+
+// PID and status files (now in global directory)
+const PID_FILE = join(ONSEMBL_DIR, 'agent.pid');
+const STATUS_FILE = join(ONSEMBL_DIR, 'agent.status');
 
 export interface InteractiveOptions {
   interactive?: boolean | undefined;
@@ -92,6 +107,17 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.agentName = name;
     this.sessionId = `agent-session-${this.agentId}`;
 
+    // Print agent ID prominently to console
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`Starting Onsembl Agent Wrapper (${this.config.agentType})`);
+    console.log(`Agent ID: ${this.agentId}`);
+    if (this.agentName) {
+      console.log(`Agent Name: ${this.agentName}`);
+    }
+    console.log(`Mode: ${this.mode}`);
+    console.log(`${isNew ? 'New agent identity created' : 'Reconnecting with existing identity'}`);
+    console.log(`${'='.repeat(60)}\n`);
+
     if (isNew) {
       this.logger.info(`Created new agent identity: ${id}${name ? ` (${name})` : ''}`);
     } else {
@@ -136,15 +162,26 @@ export class InteractiveAgentWrapper extends EventEmitter {
       }
 
       // Connect to WebSocket if not disabled
+      console.log('[DEBUG] WebSocket check:', {
+        disableWebsocket: this.config.disableWebsocket,
+        noWebsocket: this.options.noWebsocket,
+        willConnect: !this.config.disableWebsocket && !this.options.noWebsocket
+      });
       if (!this.config.disableWebsocket && !this.options.noWebsocket) {
         await this.initializeWebSocket();
       }
+
+      // Write PID file
+      this.writePidFile();
 
       // Set up signal handlers
       this.setupSignalHandlers();
 
       this.logger.info('Agent wrapper started successfully');
       this.stateManager.updateState('agent.status', 'running');
+
+      // Write status file
+      this.updateStatusFile('running');
 
     } catch (error) {
       this.logger.error('Failed to start agent wrapper', error);
@@ -219,8 +256,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
         const ansiCodes = hasAnsi ? 'true' : undefined;
 
         // Use currentCommandId if we're responding to a remote command
-        // Otherwise use the sessionId for general output
-        const outputId = this.currentCommandId || this.sessionId;
+        // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
+        const outputId = this.currentCommandId || undefined;
 
         // Send terminal output to backend
         this.wsClient.sendOutput(outputId, 'stdout', strippedData, ansiCodes);
@@ -297,7 +334,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
       // Send to WebSocket with proper command ID
       if (this.wsClient?.connected) {
         // Use currentCommandId if we're responding to a remote command
-        const outputId = this.currentCommandId || this.sessionId;
+        // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
+        const outputId = this.currentCommandId || undefined;
         this.wsClient.sendOutput(outputId, 'stdout', stripAnsi(data), undefined);
       }
     });
@@ -308,7 +346,9 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
       // Send to WebSocket with proper command ID
       if (this.wsClient?.connected) {
-        const outputId = this.currentCommandId || this.sessionId;
+        // Use currentCommandId if we're responding to a remote command
+        // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
+        const outputId = this.currentCommandId || undefined;
         this.wsClient.sendOutput(outputId, 'stderr', stripAnsi(data), undefined);
       }
     });
@@ -592,6 +632,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.logger.info('Stopping agent wrapper');
     this.isShuttingDown = true;
     this.stateManager.updateState('agent.status', 'stopping');
+    this.updateStatusFile('stopping');
 
     try {
       // Clear input buffer
@@ -640,6 +681,52 @@ export class InteractiveAgentWrapper extends EventEmitter {
     };
   }
 
+  private writePidFile(): void {
+    try {
+      writeFileSync(PID_FILE, process.pid.toString());
+    } catch (error) {
+      this.logger.warn('Failed to write PID file', error);
+    }
+  }
+
+  private removePidFile(): void {
+    if (existsSync(PID_FILE)) {
+      try {
+        unlinkSync(PID_FILE);
+      } catch (error) {
+        this.logger.warn('Failed to remove PID file', error);
+      }
+    }
+  }
+
+  private updateStatusFile(status: string): void {
+    const statusData: Record<string, any> = {
+      status,
+      timestamp: new Date().toISOString(),
+      agentId: this.agentId,
+      agentName: this.agentName || 'N/A',
+      agentType: this.config.agentType,
+      pid: process.pid,
+      mode: this.mode,
+    };
+
+    try {
+      writeFileSync(STATUS_FILE, JSON.stringify(statusData, null, 2));
+    } catch (error) {
+      this.logger.warn('Failed to write status file', error);
+    }
+  }
+
+  private removeStatusFile(): void {
+    if (existsSync(STATUS_FILE)) {
+      try {
+        unlinkSync(STATUS_FILE);
+      } catch (error) {
+        this.logger.warn('Failed to remove status file', error);
+      }
+    }
+  }
+
   private async cleanup(): Promise<void> {
     this.isRunning = false;
     this.ptyManager = null;
@@ -647,6 +734,10 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.inputMultiplexer = null;
     this.resizeHandler = null;
     this.wsClient = null;
+
+    // Remove state files
+    this.removePidFile();
+    this.removeStatusFile();
   }
 }
 

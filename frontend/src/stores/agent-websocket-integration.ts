@@ -4,6 +4,7 @@
  */
 
 import { useAgentStore, AgentType } from './agent-store'
+import { useTerminalStore } from './terminal.store'
 import { webSocketService } from '../services/websocket.service'
 import { MessageType } from '@onsembl/agent-protocol'
 
@@ -159,12 +160,41 @@ export function setupAgentWebSocketIntegration(): void {
     }
   })
 
+  // Handle agent connected - create terminal session immediately
+  webSocketService.on(MessageType.AGENT_CONNECTED, (payload: any) => {
+    const { agentId, agentName } = payload
+    const terminalStore = useTerminalStore.getState()
+
+    // Create terminal session immediately
+    const sessionId = `agent-session-${agentId}`
+
+    // Only create if it doesn't exist
+    if (!terminalStore.sessions.has(sessionId)) {
+      terminalStore.createSession(
+        sessionId,
+        agentId,
+        `Agent ${agentName || agentId} connected`
+      )
+
+      console.log('[AgentWebSocket] Created terminal session for agent:', {
+        agentId,
+        agentName,
+        sessionId
+      })
+    } else {
+      console.log('[AgentWebSocket] Terminal session already exists for agent:', {
+        agentId,
+        sessionId
+      })
+    }
+  })
+
   // Handle initial agent list on dashboard connect
-  webSocketService.on('dashboard:connected' as any, (payload: any) => {
+  webSocketService.on(MessageType.DASHBOARD_CONNECTED, (payload: any) => {
     const { agents } = payload
     const store = useAgentStore.getState()
 
-    console.log('Dashboard connected, received agents:', agents)
+    console.log('[AgentWebSocketIntegration] Dashboard connected, received agents:', agents)
 
     // Clear existing agents
     store.clearAgents()

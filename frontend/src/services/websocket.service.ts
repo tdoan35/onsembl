@@ -452,6 +452,9 @@ export class WebSocketService extends EventTarget {
   private processMessage(message: WebSocketMessage): void {
     const { type, payload } = message;
 
+    // DEBUG: Log all incoming messages to see what we're receiving
+    console.log('[WebSocket] Received message:', { type, payload });
+
     // Handle heartbeat messages
     if (type === MessageType.PING) {
       this.handlePing(message as TypedWebSocketMessage<MessageType.PING>);

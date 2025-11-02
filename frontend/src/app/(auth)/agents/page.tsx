@@ -28,7 +28,7 @@ const TerminalViewer = dynamic(
 );
 
 export default function ActiveAgentsPage() {
-  const { agents, addAgent, refreshAgents } = useAgentStore();
+  const { agents, addAgent, refreshAgents, updateAgentStatus } = useAgentStore();
   const { addNotification } = useUIStore();
   const { createSession, setActiveSession, sessions, addOutput } = useTerminalStore();
   const { sendCommand, dashboardState } = useWebSocketStore();
@@ -63,6 +63,61 @@ export default function ActiveAgentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  // Client-side staleness detection: Sync agent status based on heartbeat freshness
+  // This provides a fallback when WebSocket status updates fail to deliver
+  useEffect(() => {
+    // Backend sends PING every 30s, so we need generous timeouts to account for:
+    // - Network delays (2-5s)
+    // - Database write delays (1-2s)
+    // - Processing overhead (1-2s)
+    // Total worst-case: ~10s per cycle
+    const HEARTBEAT_TIMEOUT = 120000; // 120 seconds = 4× PING interval (prevents false timeouts)
+    const HEARTBEAT_FRESH = 75000;    // 75 seconds = 2.5× PING interval (marks fresh agents online)
+    const CHECK_INTERVAL = 15000;     // Check every 15 seconds (reduced frequency)
+    const CLOCK_SKEW_TOLERANCE = 5000; // 5 seconds tolerance for clock differences
+
+    const stalenessCheckInterval = setInterval(() => {
+      const now = Date.now();
+
+      agents.forEach(agent => {
+        // Skip agents with no ping data (disconnected agents have null lastPing)
+        if (!agent.lastPing) {
+          // If agent shows as online but has no lastPing, mark offline
+          if (agent.status === 'online') {
+            console.log(`[StalenessDetection] Agent ${agent.name || agent.id} shows online but has no lastPing, marking as offline`);
+            updateAgentStatus(agent.id, 'offline');
+          }
+          return;
+        }
+
+        const lastPingTime = new Date(agent.lastPing).getTime();
+        const timeSinceLastPing = now - lastPingTime;
+
+        // Detect clock skew: lastPing shouldn't be in the future
+        if (timeSinceLastPing < -CLOCK_SKEW_TOLERANCE) {
+          console.warn(`[StalenessDetection] Agent ${agent.name || agent.id} has lastPing in the future (clock skew detected), skipping`);
+          return;
+        }
+
+        // Case 1: Agent showing as online but heartbeat is stale → mark offline
+        if (agent.status === 'online' && timeSinceLastPing > HEARTBEAT_TIMEOUT) {
+          console.log(`[StalenessDetection] Agent ${agent.name || agent.id} hasn't pinged in ${Math.round(timeSinceLastPing / 1000)}s, marking as offline`);
+          updateAgentStatus(agent.id, 'offline');
+        }
+
+        // Case 2: Agent showing as offline but heartbeat is fresh → mark online
+        // Note: With the backend fix, disconnected agents will have null lastPing,
+        // so this should only trigger for agents that are actually connected but show as offline
+        else if (agent.status === 'offline' && timeSinceLastPing < HEARTBEAT_FRESH && timeSinceLastPing >= 0) {
+          console.log(`[StalenessDetection] Agent ${agent.name || agent.id} has fresh heartbeat (${Math.round(timeSinceLastPing / 1000)}s ago), marking as online`);
+          updateAgentStatus(agent.id, 'online');
+        }
+      });
+    }, CHECK_INTERVAL);
+
+    return () => clearInterval(stalenessCheckInterval);
+  }, [agents, updateAgentStatus]);
+
   // Manage terminal session when agent is selected/deselected
   useEffect(() => {
     if (!selectedAgentId) {
@@ -73,22 +128,22 @@ export default function ActiveAgentsPage() {
     // Find the selected agent
     const agent = agents.find(a => a.id === selectedAgentId);
     if (!agent) {
-      console.error(`[Terminal] Agent not found: ${selectedAgentId}`);
+      console.warn('[Terminal] Selected agent not found:', selectedAgentId);
       return;
     }
 
-    // Create monitoring session ID using agent's actual ID
-    // The agent wrapper sends terminal output with the agent's full ID (e.g., "mock-mhfjh3z0-vkvw618fo")
+    // Session ID matching agent wrapper convention
     const sessionId = `agent-session-${agent.id}`;
 
-    // Create session if it doesn't exist
+    // Session should already exist (created on AGENT_CONNECTED)
+    // If it doesn't, create it now as fallback
     if (!sessions.has(sessionId)) {
+      console.warn('[Terminal] Session not found, creating fallback:', sessionId);
       createSession(
         sessionId,
-        agent.id, // Use agent ID for terminal output routing
+        agent.id,
         `Monitoring ${agent.name || agent.id}`
       );
-      console.log(`[Terminal] Created monitoring session for agent: ${agent.id} (name: ${agent.name})`);
     }
 
     // Set as active session
@@ -96,8 +151,7 @@ export default function ActiveAgentsPage() {
     console.log(`[Terminal] Switched to session: ${sessionId}`);
 
     // Cleanup: Don't clear session on unmount to preserve history
-    // User can manually clear if needed
-  }, [selectedAgentId, createSession, setActiveSession, sessions, agents, addOutput]);
+  }, [selectedAgentId, setActiveSession, sessions, agents, createSession]);
 
   // Handle agent selection
   const handleAgentSelect = (agentId: string) => {

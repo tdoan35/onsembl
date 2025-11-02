@@ -11,9 +11,11 @@ import { useUIStore } from '@/stores/ui-store';
 import {
   MessageType,
   AgentStatusPayload,
+  AgentConnectedPayload,
   CommandStatusPayload,
   CommandProgressPayload,
   TerminalOutputPayload,
+  TerminalStreamPayload,
   ErrorPayload,
   AgentMetricsPayload,
   CommandRequestPayload,
@@ -116,6 +118,18 @@ export class WebSocketStoreBridge {
           }
         });
       }
+    });
+
+    // Agent connected - eagerly create terminal session
+    webSocketService.on(MessageType.AGENT_CONNECTED, (payload: AgentConnectedPayload) => {
+      console.log('[WebSocketStoreBridge] 📡 AGENT_CONNECTED received:', {
+        agentId: payload.agentId,
+        agentName: payload.agentName,
+        agentType: payload.agentType
+      });
+
+      // The agent-websocket-integration.ts listener will handle terminal session creation
+      // This handler just logs for debugging
     });
 
     // Agent metrics updates
@@ -239,6 +253,34 @@ export class WebSocketStoreBridge {
       }
     });
 
+    // Terminal stream updates (from backend to dashboard)
+    webSocketService.on(MessageType.TERMINAL_STREAM, (payload: TerminalStreamPayload) => {
+      console.log('[TerminalStore] TERMINAL_STREAM received:', payload);
+
+      const terminalStore = useTerminalStore.getState();
+
+      // Add output to terminal
+      terminalStore.addOutput({
+        id: Date.now().toString(),
+        commandId: payload.commandId,
+        agentId: payload.agentId,
+        content: payload.content,
+        type: payload.streamType || 'stdout',
+        timestamp: payload.timestamp || Date.now()
+      });
+
+      // Also append to command output
+      if (payload.commandId) {
+        const commandStore = useCommandStore.getState();
+        const command = commandStore.getCommandById(payload.commandId);
+        if (command) {
+          commandStore.updateCommand(payload.commandId, {
+            output: (command.output || '') + payload.content
+          });
+        }
+      }
+    });
+
     // Error handling
     webSocketService.on(MessageType.ERROR, (payload: ErrorPayload) => {
       const uiStore = useUIStore.getState();
@@ -288,8 +330,8 @@ export class WebSocketStoreBridge {
         webSocketService.initializeDashboard({
           agents: { all: true },
           commands: { all: true },
-          terminal: { all: true },
-          traces: { all: true }
+          terminals: true,
+          traces: true
         });
 
         uiStore.addNotification({

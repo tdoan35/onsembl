@@ -15,6 +15,7 @@ import {
   WebSocketMessage,
   MessageType,
   DashboardInitPayload,
+  DashboardConnectedPayload,
   DashboardSubscribePayload,
   DashboardUnsubscribePayload,
   TypedWebSocketMessage,
@@ -730,10 +731,10 @@ export class DashboardWebSocketHandler extends EventEmitter {
         connectionId: connection.connectionId,
         step: 'send_connected_message',
         agentCount: agentList.length
-      }, 'sendInitialData: Sending dashboard:connected message');
+      }, 'sendInitialData: Sending DASHBOARD_CONNECTED message');
 
-      const dashboardConnectedMessage = {
-        type: 'dashboard:connected',
+      const dashboardConnectedMessage: TypedWebSocketMessage<MessageType.DASHBOARD_CONNECTED> = {
+        type: MessageType.DASHBOARD_CONNECTED,
         id: this.generateMessageId(),
         timestamp: Date.now(),
         payload: {
@@ -747,7 +748,7 @@ export class DashboardWebSocketHandler extends EventEmitter {
       this.server.log.debug({
         connectionId: connection.connectionId,
         step: 'send_connected_message_complete'
-      }, 'sendInitialData: dashboard:connected message sent');
+      }, 'sendInitialData: DASHBOARD_CONNECTED message sent');
 
       // Step 4: Send agent statuses
       this.server.log.debug({
@@ -756,12 +757,25 @@ export class DashboardWebSocketHandler extends EventEmitter {
         subscribedAgents: Array.from(connection.subscriptions.agents)
       }, 'sendInitialData: Sending agent statuses');
 
+      // Get live agent connections from connection pool to determine actual connection status
+      const liveAgentConnections = this.dependencies.connectionPool.getConnectionsByType('agent');
+      const liveAgentIds = new Set<string>();
+
+      for (const [_, conn] of liveAgentConnections) {
+        if (conn.agentId && conn.isAuthenticated) {
+          liveAgentIds.add(conn.agentId);
+        }
+      }
+
       agents.forEach(agent => {
         // Check if subscribed to this specific agent OR subscribed to all agents (*)
         if (connection.subscriptions.agents.has(agent.id) || connection.subscriptions.agents.has('*')) {
+          // Check if agent has an active WebSocket connection
+          const isConnected = liveAgentIds.has(agent.id);
+
           this.sendMessage(connection.socket, MessageType.AGENT_STATUS, {
             agentId: agent.id,
-            status: agent.status,
+            status: isConnected ? 'connected' : (agent.status || 'disconnected'),
             activityState: agent.activityState || 'IDLE',
             healthMetrics: agent.healthMetrics,
             currentCommand: agent.currentCommand,
@@ -834,9 +848,19 @@ export class DashboardWebSocketHandler extends EventEmitter {
           if (id) {
             const agent = await this.services.agentService.getAgent(id);
             if (agent) {
+              // Check if agent has an active WebSocket connection
+              const liveAgents = this.dependencies.connectionPool.getConnectionsByType('agent');
+              let isConnected = false;
+              for (const [_, conn] of liveAgents) {
+                if (conn.agentId === id && conn.isAuthenticated) {
+                  isConnected = true;
+                  break;
+                }
+              }
+
               this.sendMessage(connection.socket, MessageType.AGENT_STATUS, {
                 agentId: agent.id,
-                status: agent.status,
+                status: isConnected ? 'connected' : (agent.status || 'disconnected'),
                 activityState: agent.activityState || 'IDLE',
                 healthMetrics: agent.healthMetrics,
                 currentCommand: agent.currentCommand,

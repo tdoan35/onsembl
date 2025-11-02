@@ -218,6 +218,39 @@ export const ServerHeartbeatPayloadSchema = z.object({
 // Server → Dashboard Message Schemas
 // ============================================================================
 
+export const DashboardConnectedPayloadSchema = z.object({
+  agents: z.array(z.object({
+    agentId: z.string().min(1),
+    name: z.string().optional(),
+    type: AgentTypeSchema.optional(),
+    status: z.string().optional(),
+    version: z.string().optional(),
+    capabilities: z.array(z.any()).optional(),
+    lastHeartbeat: z.string().optional(),
+    metrics: z.object({
+      commandsExecuted: z.number(),
+      uptime: z.number(),
+      memoryUsage: z.number(),
+      cpuUsage: z.number(),
+    }).optional(),
+  })),
+  timestamp: z.number().positive(),
+});
+
+export const AgentConnectedPayloadSchema = z.object({
+  agentId: z.string().uuid(),
+  agentName: z.string().min(1).optional(),
+  agentType: AgentTypeSchema,
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  hostMachine: z.string().min(1),
+  capabilities: z.object({
+    maxTokens: z.number().positive(),
+    supportsInterrupt: z.boolean(),
+    supportsTrace: z.boolean(),
+  }).optional(),
+  timestamp: z.number().positive(),
+});
+
 export const AgentStatusPayloadSchema = z.object({
   agentId: z.string().uuid(),
   status: AgentStatusSchema,
@@ -367,6 +400,8 @@ export const MessageValidationMap = {
   [MessageType.AGENT_CONTROL]: AgentControlPayloadSchema,
   [MessageType.TOKEN_REFRESH]: TokenRefreshPayloadSchema,
   [MessageType.SERVER_HEARTBEAT]: ServerHeartbeatPayloadSchema,
+  [MessageType.DASHBOARD_CONNECTED]: DashboardConnectedPayloadSchema,
+  [MessageType.AGENT_CONNECTED]: AgentConnectedPayloadSchema,
   [MessageType.AGENT_STATUS]: AgentStatusPayloadSchema,
   [MessageType.AGENT_DISCONNECT]: AgentDisconnectPayloadSchema,
   [MessageType.COMMAND_STATUS]: CommandStatusPayloadSchema,

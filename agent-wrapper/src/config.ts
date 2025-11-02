@@ -15,7 +15,7 @@ const ConfigSchema = z
     // Server connection
     serverUrl: z.string().url().default('ws://localhost:8080'),
     apiKey: z.string().min(1).optional(), // Made optional for Claude subscription auth
-    authType: z.enum(['api-key', 'subscription']).default('api-key'),
+    authType: z.enum(['api-key', 'subscription']).default('subscription'),
 
     // Agent configuration
     agentType: z.enum(['claude', 'gemini', 'codex', 'mock']).default('mock'),

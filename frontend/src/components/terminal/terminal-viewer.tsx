@@ -216,11 +216,13 @@ function SimpleTerminal({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        maxHeight: `100%`,
         backgroundColor: '#1a1b26',
         color: '#a9b1d6',
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
         fontSize: '14px',
-        lineHeight: '1.5'
+        lineHeight: '1.5',
+        overflow: 'hidden'
       }}
     >
       {/* Terminal Output Area */}
@@ -230,13 +232,16 @@ function SimpleTerminal({
         style={{
           flex: 1,
           overflowY: 'auto',
+          overflowX: 'hidden',
           padding: '10px',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-all'
+        ,
+          minHeight: 0
         }}
       >
         {/* Debug/Testing Controls */}
-        {onSwitchToXterm && (
+        {/* {onSwitchToXterm && (
           <div style={{ marginBottom: '10px' }}>
             <button
               onClick={onSwitchToXterm}
@@ -253,7 +258,7 @@ function SimpleTerminal({
               Switch to xterm.js (Debug)
             </button>
           </div>
-        )}
+        )} */}
 
         {/* Welcome Message */}
         {terminalLines.length === 0 && (

@@ -2,10 +2,11 @@
 
 import { Command } from 'commander';
 import { EventEmitter } from 'events';
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { homedir } from 'os';
 import { Config, loadConfig, getWebSocketUrl } from './config.js';
 import { WebSocketClient, CommandMessage } from './websocket-client.js';
 import { CommandExecutor, ExecutionResult } from './command-executor.js';
@@ -23,9 +24,17 @@ import APIClient from './api/client.js';
 // Package info
 const packageJson = { name: 'onsembl-agent-wrapper', version: '1.0.0' };
 
-// PID file for process management
-const PID_FILE = join(process.cwd(), '.onsembl-agent.pid');
-const STATUS_FILE = join(process.cwd(), '.onsembl-agent.status');
+// Global directory for agent state files
+const ONSEMBL_DIR = join(homedir(), '.onsembl');
+
+// Ensure the directory exists
+if (!existsSync(ONSEMBL_DIR)) {
+  mkdirSync(ONSEMBL_DIR, { recursive: true });
+}
+
+// PID file for process management (now in global directory)
+const PID_FILE = join(ONSEMBL_DIR, 'agent.pid');
+const STATUS_FILE = join(ONSEMBL_DIR, 'agent.status');
 
 /**
  * Main agent wrapper application
@@ -37,6 +46,7 @@ class AgentWrapper extends EventEmitter {
   private reconnectionManager: ReconnectionManager | null = null;
   private agent: ClaudeAgent | GeminiAgent | CodexAgent | MockAgent | null = null;
   private agentId: string;
+  private agentName: string | undefined;
   private isShuttingDown = false;
 
   constructor(config: Config) {
@@ -44,6 +54,7 @@ class AgentWrapper extends EventEmitter {
     this.config = config;
     // Use the registered agent ID if available, otherwise fall back to random ID
     this.agentId = config.agentId || `${config.agentType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this.agentName = config.agentName;
   }
 
   /**
@@ -334,13 +345,19 @@ class AgentWrapper extends EventEmitter {
   }
 
   private updateStatus(status: string): void {
-    const statusData = {
+    const statusData: Record<string, any> = {
       status,
       timestamp: new Date().toISOString(),
       agentId: this.agentId,
+      agentName: this.agentName || 'N/A',
       agentType: this.config.agentType,
       pid: process.pid,
     };
+
+    // Add UUID if available (for registered agents)
+    if (this.config.agentId) {
+      statusData['uuid'] = this.config.agentId;
+    }
 
     try {
       writeFileSync(STATUS_FILE, JSON.stringify(statusData, null, 2));
@@ -394,7 +411,7 @@ function createCLI(): Command {
     .option('-a, --agent <type>', 'Agent type (claude|gemini|codex|mock)', 'mock')
     .option('-s, --server <url>', 'Server URL', 'ws://localhost:8080')
     .option('-k, --api-key <key>', 'API key for authentication')
-    .option('--auth-type <type>', 'Authentication type (api-key|subscription)', 'api-key')
+    .option('--auth-type <type>', 'Authentication type (api-key|subscription)', 'subscription')
     .option('-w, --working-dir <dir>', 'Working directory', process.cwd())
     .option('-c, --config <file>', 'Configuration file path')
     .option('-i, --interactive', 'Run in interactive mode with terminal passthrough')
@@ -411,7 +428,7 @@ function createCLI(): Command {
           apiKey: options.apiKey,
           authType: options.authType,
           workingDirectory: options.workingDir,
-          disableWebsocket: !options.websocket,
+          disableWebsocket: options.websocket === false,
           showStatusBar: options.statusBar,
         });
 
@@ -441,7 +458,7 @@ function createCLI(): Command {
         const interactiveOptions: InteractiveOptions = {
           interactive: options.interactive || (!options.headless && process.stdin.isTTY),
           headless: options.headless || !process.stdin.isTTY,
-          noWebsocket: !options.websocket,
+          noWebsocket: options.websocket === false,
           statusBar: options.statusBar,
           agentName: options.name,
           agentId: options.agentId,

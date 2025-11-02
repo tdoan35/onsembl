@@ -437,6 +437,21 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Notify other systems
       this.emit('agentConnected', { agentId: resolvedAgentId!, connectionId: connection.connectionId });
 
+      // Broadcast AGENT_CONNECTED to all dashboards
+      this.dependencies.messageRouter.routeToDashboard(
+        MessageType.AGENT_CONNECTED,
+        {
+          agentId: resolvedAgentId!,
+          agentName: name,
+          agentType,
+          version,
+          hostMachine,
+          capabilities,
+          timestamp: Date.now()
+        },
+        8 // High priority
+      );
+
       this.server.log.info({
         agentId: resolvedAgentId!,
         connectionId: connection.connectionId
@@ -659,17 +674,26 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Use resolved UUID from connection instead of message payload
       const resolvedAgentId = connection.agentId;
 
+      // Normalize commandId for monitoring output
+      // If commandId equals agentId, this is monitoring/CLI output - convert to agent-session-{agentId}
+      const normalizedCommandId = payload.commandId === resolvedAgentId
+        ? `agent-session-${resolvedAgentId}`
+        : payload.commandId;
+
       // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.info({
-        commandId: payload.commandId,
+        originalCommandId: payload.commandId,
+        normalizedCommandId,
+        isMonitoringOutput: payload.commandId === resolvedAgentId,
         agentId: resolvedAgentId,
         contentLength: payload.content?.length,
         streamType: payload.streamType
       }, '[CMD-FWD] Received terminal output from agent');
 
-      // Create corrected payload with resolved agent ID
+      // Create corrected payload with resolved agent ID and normalized commandId
       const correctedPayload = {
         ...payload,
+        commandId: normalizedCommandId,
         agentId: resolvedAgentId
       };
 
@@ -678,7 +702,7 @@ export class AgentWebSocketHandler extends EventEmitter {
 
       // T017: Stream to dashboard with proper command tracking
       this.dependencies.messageRouter.streamTerminalOutput({
-        commandId: payload.commandId,
+        commandId: normalizedCommandId,
         agentId: resolvedAgentId,
         content: payload.content,
         streamType: payload.streamType,
@@ -688,7 +712,7 @@ export class AgentWebSocketHandler extends EventEmitter {
 
       // KEEP FOR COMMAND FORWARDING DEBUG
       this.server.log.info({
-        commandId: payload.commandId,
+        commandId: normalizedCommandId,
         agentId: resolvedAgentId
       }, '[CMD-FWD] Streamed terminal output to dashboard');
 
@@ -851,10 +875,11 @@ export class AgentWebSocketHandler extends EventEmitter {
       // Update agent status and cancel executing commands
       if (connection.agentId) {
         try {
-          // Update agent status to OFFLINE
+          // Update agent status to OFFLINE and clear last_ping to prevent stale status
           await this.services.agentService.updateAgent(connection.agentId, {
             status: 'OFFLINE',
-            disconnectedAt: new Date()
+            disconnectedAt: new Date(),
+            last_ping: null  // Clear heartbeat timestamp on disconnect
           });
 
           // Cancel any executing commands

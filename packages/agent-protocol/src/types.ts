@@ -31,6 +31,8 @@ export enum MessageType {
   SERVER_HEARTBEAT = 'SERVER_HEARTBEAT',
 
   // Server → Dashboard
+  DASHBOARD_CONNECTED = 'DASHBOARD_CONNECTED',
+  AGENT_CONNECTED = 'AGENT_CONNECTED',
   AGENT_STATUS = 'AGENT_STATUS',
   AGENT_DISCONNECT = 'AGENT_DISCONNECT',
   COMMAND_STATUS = 'COMMAND_STATUS',
@@ -253,6 +255,39 @@ export interface ServerHeartbeatPayload {
 // Server → Dashboard Message Payloads
 // ============================================================================
 
+export interface DashboardConnectedPayload {
+  agents: Array<{
+    agentId: string;
+    name?: string;
+    type?: AgentType;
+    status?: string;
+    version?: string;
+    capabilities?: any[];
+    lastHeartbeat?: string;
+    metrics?: {
+      commandsExecuted: number;
+      uptime: number;
+      memoryUsage: number;
+      cpuUsage: number;
+    };
+  }>;
+  timestamp: number;
+}
+
+export interface AgentConnectedPayload {
+  agentId: string;
+  agentName?: string;
+  agentType: AgentType;
+  version: string;
+  hostMachine: string;
+  capabilities?: {
+    maxTokens: number;
+    supportsInterrupt: boolean;
+    supportsTrace: boolean;
+  };
+  timestamp: number;
+}
+
 export interface AgentStatusPayload {
   agentId: string;
   status: AgentStatus;
@@ -427,6 +462,8 @@ export function isDashboardMessage(type: MessageType): boolean {
 
 export function isServerToDashboardMessage(type: MessageType): boolean {
   return [
+    MessageType.DASHBOARD_CONNECTED,
+    MessageType.AGENT_CONNECTED,
     MessageType.AGENT_STATUS,
     MessageType.AGENT_DISCONNECT,
     MessageType.COMMAND_STATUS,
@@ -455,6 +492,8 @@ export type MessagePayloadMap = {
   [MessageType.AGENT_CONTROL]: AgentControlPayload;
   [MessageType.TOKEN_REFRESH]: TokenRefreshPayload;
   [MessageType.SERVER_HEARTBEAT]: ServerHeartbeatPayload;
+  [MessageType.DASHBOARD_CONNECTED]: DashboardConnectedPayload;
+  [MessageType.AGENT_CONNECTED]: AgentConnectedPayload;
   [MessageType.AGENT_STATUS]: AgentStatusPayload;
   [MessageType.AGENT_DISCONNECT]: AgentDisconnectPayload;
   [MessageType.COMMAND_STATUS]: CommandStatusPayload;

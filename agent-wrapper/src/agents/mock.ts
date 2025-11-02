@@ -58,8 +58,46 @@ export class MockAgent extends EventEmitter {
     console.log('Starting Mock agent (simulated)');
     this.setStatus('starting');
 
+    // Simulate dotenv output (like real agents)
+    await this.onOutput('stdout', {
+      data: '[dotenv@17.2.3] injecting env (4) from .env\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
+
     // Simulate startup delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Simulate ASCII banner (like real agents)
+    await this.onOutput('stdout', {
+      data: '\n╔═══════════════════════════════════════╗\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
+    await this.onOutput('stdout', {
+      data: '║   Mock Agent v1.0.0 (Simulation)     ║\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
+    await this.onOutput('stdout', {
+      data: '╚═══════════════════════════════════════╝\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Simulate ready prompt (like real agents)
+    await this.onOutput('stdout', {
+      data: '\n✓ Mock agent initialized\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
+    await this.onOutput('stdout', {
+      data: '> Ready to receive commands...\n',
+      ansiCodes: undefined,
+      timestamp: new Date(),
+    });
 
     this.setStatus('ready');
     console.log('Mock agent ready');
