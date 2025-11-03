@@ -294,6 +294,16 @@ export class WebSocketClient extends EventEmitter {
     // Use commandId if provided, otherwise use agentId for monitoring output routing
     const effectiveCommandId = commandId || this.agentId;
 
+    // Debug logging for output routing
+    this.logger.debug('[OUTPUT-SEND]', {
+      providedCommandId: commandId,
+      effectiveCommandId,
+      agentId: this.agentId,
+      isMonitoring: commandId === undefined,
+      streamType: stream,
+      contentLength: data.length
+    });
+
     const payload: TerminalOutputPayload = {
       commandId: effectiveCommandId,
       agentId: this.agentId,

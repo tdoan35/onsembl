@@ -813,14 +813,32 @@ export class AgentWebSocketHandler extends EventEmitter {
     // Update database last_ping to keep agent alive
     try {
       if (connection.agentId) {
-        await this.services.agentService.updateAgent(connection.agentId, {
-          last_ping: new Date()
-        });
+        // Get current agent to check status
+        const agent = await this.services.agentService.getAgent(connection.agentId);
 
-        this.server.log.debug({
-          connectionId: connection.connectionId,
-          agentId: connection.agentId
-        }, '[PING/PONG] Updated agent last_ping from PONG response');
+        // If agent is marked offline but is still connected and responding to PINGs,
+        // update status back to online (this will trigger a broadcast)
+        if (agent && agent.status === 'offline') {
+          this.server.log.info({
+            connectionId: connection.connectionId,
+            agentId: connection.agentId
+          }, '[PING/PONG] Agent was offline but is responding to PINGs - recovering to online');
+
+          await this.services.agentService.updateAgent(connection.agentId, {
+            status: 'online',  // This triggers broadcast
+            last_ping: new Date()
+          });
+        } else {
+          // Agent is already online, just update heartbeat timestamp (no broadcast)
+          await this.services.agentService.updateAgent(connection.agentId, {
+            last_ping: new Date()
+          });
+
+          this.server.log.debug({
+            connectionId: connection.connectionId,
+            agentId: connection.agentId
+          }, '[PING/PONG] Updated agent last_ping from PONG response');
+        }
       }
     } catch (error) {
       this.server.log.error({

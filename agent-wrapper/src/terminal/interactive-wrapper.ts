@@ -61,6 +61,7 @@ export class InteractiveAgentWrapper extends EventEmitter {
   private isShuttingDown: boolean = false;
   private inputBuffer: string = ''; // Buffer for detecting command sequences
   private currentCommandId?: string; // Track current command for output association
+  private lastOutputTime: number = 0; // Track last output time for activity detection
   private childProcess?: any; // Reference to child process in headless mode
 
   constructor(config: Config, options: InteractiveOptions = {}) {
@@ -258,6 +259,21 @@ export class InteractiveAgentWrapper extends EventEmitter {
         // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
         const outputId = this.currentCommandId || undefined;
 
+        // Update last output time for activity tracking
+        this.lastOutputTime = Date.now();
+
+        // Enhanced debug logging for output capture
+        this.logger.debug('[OUTPUT-CAPTURE]', {
+          currentCommandId: this.currentCommandId,
+          outputId,
+          isCommand: !!this.currentCommandId,
+          outputLength: strippedData.length,
+          hasAnsi: !!ansiCodes,
+          wsConnected: this.wsClient.connected,
+          lastOutputTime: new Date(this.lastOutputTime).toISOString(),
+          outputPreview: strippedData.slice(0, 100)
+        });
+
         // Send terminal output to backend
         this.wsClient.sendOutput(outputId, 'stdout', strippedData, ansiCodes);
       }
@@ -335,6 +351,10 @@ export class InteractiveAgentWrapper extends EventEmitter {
         // Use currentCommandId if we're responding to a remote command
         // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
         const outputId = this.currentCommandId || undefined;
+
+        // Update last output time for activity tracking
+        this.lastOutputTime = Date.now();
+
         this.wsClient.sendOutput(outputId, 'stdout', stripAnsi(data), undefined);
       }
     });
@@ -348,6 +368,10 @@ export class InteractiveAgentWrapper extends EventEmitter {
         // Use currentCommandId if we're responding to a remote command
         // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
         const outputId = this.currentCommandId || undefined;
+
+        // Update last output time for activity tracking
+        this.lastOutputTime = Date.now();
+
         this.wsClient.sendOutput(outputId, 'stderr', stripAnsi(data), undefined);
       }
     });
@@ -409,14 +433,33 @@ export class InteractiveAgentWrapper extends EventEmitter {
       timestamp: new Date().toISOString()
     });
 
+    // Clear previous command association before setting new one
+    // This ensures output from long-running commands doesn't bleed into new commands
+    if (this.currentCommandId) {
+      this.logger.info('[COMMAND-LIFECYCLE] Ending previous command association', {
+        previousCommandId: this.currentCommandId,
+        newCommandId: message.commandId,
+        timeSinceLastOutput: Date.now() - this.lastOutputTime
+      });
+    }
+
     // Store the current command ID for output association
     this.currentCommandId = message.commandId;
-    this.logger.info('Set currentCommandId:', this.currentCommandId);
+    this.lastOutputTime = Date.now();
+
+    this.logger.info('[COMMAND-LIFECYCLE] Set currentCommandId:', {
+      commandId: this.currentCommandId,
+      timestamp: new Date().toISOString()
+    });
 
     // Process remote commands immediately, regardless of control mode
     // This allows dashboard commands to execute even when the agent is in interactive mode
     this.logger.info('Processing command immediately');
     await this.processRemoteCommand(message.command, message.commandId);
+
+    // NOTE: We do NOT clear currentCommandId here anymore
+    // It will be cleared when the next remote command arrives
+    // This allows long-running commands to properly capture all their output
   }
 
   private async processRemoteCommand(command: string, commandId?: string): Promise<void> {
