@@ -9,6 +9,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAgentStore } from '@/stores/agent-store';
+import { mapAgentStatus } from '@/utils/agent-status-mapper';
 import type { Agent } from '@/stores/agent-store';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -223,14 +224,8 @@ export function useAgentRealtime(options: UseAgentRealtimeOptions = {}) {
    * Map database record to Agent type
    */
   function mapDatabaseRecordToAgent(record: any): Agent {
-    // Map database status (lowercase) to agent store status
-    let status: Agent['status'] = 'offline';
-    const dbStatus = record.status?.toLowerCase();
-
-    if (dbStatus === 'online') status = 'online';
-    else if (dbStatus === 'offline') status = 'offline';
-    else if (dbStatus === 'error') status = 'error';
-    else if (dbStatus === 'connecting') status = 'connecting';
+    // Use centralized status mapper
+    const status = mapAgentStatus(record.status || 'offline');
 
     // Map database type to agent store type
     let type: Agent['type'] = 'claude';
@@ -247,7 +242,9 @@ export function useAgentRealtime(options: UseAgentRealtimeOptions = {}) {
       status,
       version: record.version || 'unknown',
       capabilities: record.capabilities || [],
-      lastPing: record.last_ping || record.updated_at || new Date().toISOString(),
+      // CRITICAL FIX: Never fabricate timestamps - use NULL if missing
+      // This prevents false "fresh heartbeat" detections that cause flickering
+      lastPing: record.last_ping || null,
       metrics: record.metadata?.metrics || undefined,
       error: record.metadata?.lastError || undefined
     };

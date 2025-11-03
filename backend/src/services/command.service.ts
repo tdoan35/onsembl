@@ -460,6 +460,35 @@ export class CommandService extends EventEmitter {
   }
 
   /**
+   * Gets agent terminal output (all terminal outputs for an agent)
+   * @param agentId Agent UUID
+   * @param filters Optional filters for type, limit, offset, since timestamp
+   * @returns Array of terminal outputs ordered by timestamp
+   */
+  async getAgentTerminalOutput(
+    agentId: string,
+    filters?: {
+      type?: 'stdout' | 'stderr';
+      commandId?: string;
+      limit?: number;
+      offset?: number;
+      since?: string;
+    }
+  ): Promise<any[]> {
+    try {
+      // Get persisted outputs from database
+      const persistedOutputs = await this.terminalOutputModel.findByAgentId(agentId, filters);
+
+      return persistedOutputs;
+    } catch (error) {
+      if (this.fastify.log && typeof this.fastify.log.error === 'function') {
+        this.fastify.log.error({ error, agentId, filters }, 'Failed to get agent terminal output');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Gets queue status for an agent
    */
   async getQueueStatus(agentId?: string): Promise<{

@@ -10,6 +10,7 @@ export interface OutputChunk {
   data: string;
   ansiCodes?: string | undefined;
   timestamp: Date;
+  isBlank?: boolean;
 }
 
 export interface StreamCaptureOptions {
@@ -152,18 +153,21 @@ export class StreamCapture extends EventEmitter {
   private processCompleteLines(streamType: 'stdout' | 'stderr'): void {
     const buffer = streamType === 'stdout' ? this.stdoutBuffer : this.stderrBuffer;
     const data = buffer.toString('utf8');
-    const lines = data.split('\n');
+
+    // Normalize CRLF to LF for consistent handling across platforms
+    const normalized = data.replace(/\r\n/g, '\n');
+    const lines = normalized.split('\n');
 
     // Keep the last incomplete line in the buffer
     if (lines.length > 1) {
       const completeLines = lines.slice(0, -1);
       const incompleteLine = lines[lines.length - 1];
 
-      // Process complete lines
+      // Process all complete lines (including blank lines)
       for (const line of completeLines) {
-        if (line.length > 0) {
-          this.processLine(streamType, line + '\n');
-        }
+        // Detect if line is blank (only whitespace)
+        const isBlank = line.trim().length === 0;
+        this.processLine(streamType, line + '\n', { isBlank });
       }
 
       // Update buffer with remaining incomplete line
@@ -183,14 +187,15 @@ export class StreamCapture extends EventEmitter {
     }
   }
 
-  private processLine(streamType: 'stdout' | 'stderr', line: string): void {
+  private processLine(streamType: 'stdout' | 'stderr', line: string, metadata?: { isBlank: boolean }): void {
     try {
       const { cleanText, ansiCodes } = this.parseAnsiCodes(line);
 
       const chunk: OutputChunk = {
         data: cleanText,
-        ansiCodes: ansiCodes.length > 0 ? ansiCodes.join('') : undefined,
         timestamp: new Date(),
+        ...(ansiCodes.length > 0 && { ansiCodes: ansiCodes.join('') }),
+        ...(metadata?.isBlank !== undefined && { isBlank: metadata.isBlank }),
       };
 
       // Send output asynchronously

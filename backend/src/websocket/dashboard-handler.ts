@@ -779,7 +779,8 @@ export class DashboardWebSocketHandler extends EventEmitter {
             activityState: agent.activityState || 'IDLE',
             healthMetrics: agent.healthMetrics,
             currentCommand: agent.currentCommand,
-            queuedCommands: agent.queuedCommands || 0
+            queuedCommands: agent.queuedCommands || 0,
+            lastPing: agent.last_ping  // Include heartbeat timestamp for staleness detection
           });
         }
       });
@@ -864,7 +865,8 @@ export class DashboardWebSocketHandler extends EventEmitter {
                 activityState: agent.activityState || 'IDLE',
                 healthMetrics: agent.healthMetrics,
                 currentCommand: agent.currentCommand,
-                queuedCommands: agent.queuedCommands || 0
+                queuedCommands: agent.queuedCommands || 0,
+                lastPing: agent.last_ping  // Include heartbeat timestamp for staleness detection
               });
             }
           }

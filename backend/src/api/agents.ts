@@ -96,6 +96,14 @@ const agentListQuerySchema = z.object({
   offset: z.coerce.number().min(0).default(0).optional()
 });
 
+const agentTerminalOutputQuerySchema = z.object({
+  type: z.enum(['stdout', 'stderr']).optional(),
+  commandId: z.string().uuid().optional(),
+  limit: z.coerce.number().min(1).max(10000).default(1000).optional(),
+  offset: z.coerce.number().min(0).default(0).optional(),
+  since: z.string().datetime().optional()
+});
+
 /**
  * Register agent routes
  */
@@ -617,6 +625,100 @@ export async function registerAgentRoutes(
       request.log.error({ error }, 'Failed to restart agent');
       return reply.code(500).send({
         error: error instanceof Error ? error.message : 'Failed to restart agent'
+      });
+    }
+  });
+
+  // Get agent terminal output
+  server.get('/api/agents/:id/terminal-output', {
+    schema: {
+      params: zodToJsonSchema(agentIdParamsSchema),
+      querystring: zodToJsonSchema(agentTerminalOutputQuerySchema),
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            outputs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  command_id: { type: 'string', format: 'uuid' },
+                  agent_id: { type: 'string', format: 'uuid' },
+                  type: { type: 'string', enum: ['stdout', 'stderr', 'system'] },
+                  output: { type: 'string' },
+                  timestamp: { type: 'string', format: 'date-time' },
+                  created_at: { type: 'string', format: 'date-time' }
+                }
+              }
+            },
+            total: { type: 'number' },
+            limit: { type: 'number' },
+            offset: { type: 'number' }
+          }
+        },
+        401: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' }
+          }
+        },
+        404: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' }
+          }
+        }
+      },
+      tags: ['agents'],
+      summary: 'Get agent terminal output',
+      description: 'Retrieve terminal output for a specific agent (includes both command output and agent CLI/monitoring output)'
+    },
+    preHandler: authenticateSupabase
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as z.infer<typeof agentIdParamsSchema>;
+      const { type, commandId, limit = 1000, offset = 0, since } = request.query as z.infer<typeof agentTerminalOutputQuerySchema>;
+      const user = (request as any).user;
+
+      // Check if agent exists and user has access
+      const agent = await agentService.getAgent(id);
+      if (!agent) {
+        return reply.code(404).send({
+          error: 'Agent not found'
+        });
+      }
+
+      // Get terminal output from command service
+      const { commandService } = services;
+      const outputs = await commandService.getAgentTerminalOutput(id, {
+        type,
+        commandId,
+        limit,
+        offset,
+        since
+      });
+
+      // Log audit event
+      await auditService.logEvent(
+        'AGENT_TERMINAL_OUTPUT_RETRIEVED' as any,
+        'AGENT',
+        id,
+        { filters: { type, commandId, since }, pagination: { limit, offset } },
+        request
+      );
+
+      return reply.code(200).send({
+        outputs,
+        total: outputs.length,
+        limit,
+        offset
+      });
+    } catch (error) {
+      request.log.error({ error }, 'Failed to get agent terminal output');
+      return reply.code(500).send({
+        error: error instanceof Error ? error.message : 'Failed to get agent terminal output'
       });
     }
   });

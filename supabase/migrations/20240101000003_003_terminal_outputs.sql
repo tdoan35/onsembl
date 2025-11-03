@@ -2,8 +2,12 @@
 -- Description: Create terminal_outputs table for streaming command output
 -- Created: 2024-01-01
 
--- Create enum for terminal output types
-CREATE TYPE terminal_output_type AS ENUM ('stdout', 'stderr', 'system');
+-- Create enum for terminal output types (safe - handles if already exists)
+DO $$ BEGIN
+    CREATE TYPE terminal_output_type AS ENUM ('stdout', 'stderr', 'system');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Create terminal_outputs table
 CREATE TABLE terminal_outputs (
@@ -11,12 +15,12 @@ CREATE TABLE terminal_outputs (
     command_id UUID NOT NULL REFERENCES commands(id) ON DELETE CASCADE,
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     type terminal_output_type NOT NULL,
-    content TEXT NOT NULL,
+    output TEXT NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Constraints
-    CONSTRAINT terminal_outputs_content_length CHECK (char_length(content) <= 100000),
+    CONSTRAINT terminal_outputs_output_length CHECK (char_length(output) <= 100000),
     CONSTRAINT terminal_outputs_timestamp_logic CHECK (timestamp <= created_at + INTERVAL '1 minute')
 );
 
@@ -25,7 +29,7 @@ COMMENT ON TABLE terminal_outputs IS 'Real-time terminal output from command exe
 COMMENT ON COLUMN terminal_outputs.command_id IS 'Reference to the command producing this output';
 COMMENT ON COLUMN terminal_outputs.agent_id IS 'Reference to the agent executing the command';
 COMMENT ON COLUMN terminal_outputs.type IS 'Type of output: stdout, stderr, or system message';
-COMMENT ON COLUMN terminal_outputs.content IS 'The actual terminal output content';
+COMMENT ON COLUMN terminal_outputs.output IS 'The actual terminal output content';
 COMMENT ON COLUMN terminal_outputs.timestamp IS 'When the output was generated (may differ from created_at)';
 
 -- Create indexes for efficient querying

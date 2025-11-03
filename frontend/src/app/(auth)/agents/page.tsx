@@ -100,18 +100,17 @@ export default function ActiveAgentsPage() {
         }
 
         // Case 1: Agent showing as online but heartbeat is stale → mark offline
+        // This is the ONLY action the staleness detector should take
+        // WebSocket AGENT_STATUS messages are the sole source of "online" status
         if (agent.status === 'online' && timeSinceLastPing > HEARTBEAT_TIMEOUT) {
           console.log(`[StalenessDetection] Agent ${agent.name || agent.id} hasn't pinged in ${Math.round(timeSinceLastPing / 1000)}s, marking as offline`);
           updateAgentStatus(agent.id, 'offline');
         }
 
-        // Case 2: Agent showing as offline but heartbeat is fresh → mark online
-        // Note: With the backend fix, disconnected agents will have null lastPing,
-        // so this should only trigger for agents that are actually connected but show as offline
-        else if (agent.status === 'offline' && timeSinceLastPing < HEARTBEAT_FRESH && timeSinceLastPing >= 0) {
-          console.log(`[StalenessDetection] Agent ${agent.name || agent.id} has fresh heartbeat (${Math.round(timeSinceLastPing / 1000)}s ago), marking as online`);
-          updateAgentStatus(agent.id, 'online');
-        }
+        // Case 2: REMOVED - Never mark agents online from staleness detector
+        // WebSocket AGENT_STATUS is the only source of "online" status.
+        // This prevents race conditions between WebSocket updates and client-side detection.
+        // The previous logic here caused status flickering when combined with timestamp fabrication.
       });
     }, CHECK_INTERVAL);
 

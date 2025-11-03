@@ -6,8 +6,10 @@
 import { FastifyInstance } from 'fastify';
 import { SocketStream } from '@fastify/websocket';
 import { IncomingMessage } from 'http';
+import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
 import { Services } from '../server.js';
+import { Database } from '../types/database.js';
 import { createAgentHandler } from './agent-handler.js';
 import { createDashboardHandler } from './dashboard-handler.js';
 import { ConnectionPool } from './connection-pool.js';
@@ -31,10 +33,11 @@ export interface WebSocketDependencies {
  */
 export async function setupWebSocketPlugin(
   server: FastifyInstance,
-  services: Services
+  services: Services,
+  supabaseClient?: ReturnType<typeof createClient<Database>> | null
 ): Promise<void> {
   // Initialize WebSocket dependencies
-  const dependencies = initializeWebSocketDependencies(server, services);
+  const dependencies = initializeWebSocketDependencies(server, services, supabaseClient);
 
   // Create persistent handler instances (CRITICAL: must persist to avoid GC destroying event handlers)
   const agentHandler = createAgentHandler(server, services, dependencies);
@@ -80,7 +83,8 @@ export async function setupWebSocketPlugin(
  */
 function initializeWebSocketDependencies(
   server: FastifyInstance,
-  services: Services
+  services: Services,
+  supabaseClient?: ReturnType<typeof createClient<Database>> | null
 ): WebSocketDependencies {
   // Initialize connection pool
   const connectionPool = new ConnectionPool(server, {
@@ -104,12 +108,17 @@ function initializeWebSocketDependencies(
     retryAttempts: 3
   });
 
-  // Initialize terminal stream manager
-  const terminalStreamManager = new TerminalStreamManager(server, messageRouter, {
-    bufferSize: 8192,
-    flushIntervalMs: 10, // 10ms for <200ms latency requirement
-    maxBufferedLines: 1000
-  });
+  // Initialize terminal stream manager with database persistence
+  const terminalStreamManager = new TerminalStreamManager(
+    server,
+    messageRouter,
+    {
+      bufferSize: 8192,
+      flushIntervalMs: 10, // 10ms for <200ms latency requirement
+      maxBufferedLines: 1000
+    },
+    supabaseClient || undefined // Pass supabase client for database persistence
+  );
 
   // Initialize heartbeat manager
   const heartbeatManager = new HeartbeatManager(server, connectionPool, {

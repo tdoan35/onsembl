@@ -285,8 +285,12 @@ export class WebSocketClient extends EventEmitter {
   /**
    * Send command output
    * @param commandId - Command ID or undefined for monitoring/CLI output
+   * @param stream - Output stream type
+   * @param data - Output content
+   * @param ansiCodes - ANSI escape codes (optional)
+   * @param isBlank - Whether the line is blank (optional)
    */
-  async sendOutput(commandId: string | undefined, stream: 'stdout' | 'stderr', data: string, ansiCodes?: string): Promise<void> {
+  async sendOutput(commandId: string | undefined, stream: 'stdout' | 'stderr', data: string, ansiCodes?: string, isBlank?: boolean): Promise<void> {
     // Use commandId if provided, otherwise use agentId for monitoring output routing
     const effectiveCommandId = commandId || this.agentId;
 
@@ -295,8 +299,9 @@ export class WebSocketClient extends EventEmitter {
       agentId: this.agentId,
       content: data,
       streamType: stream === 'stderr' ? 'STDERR' : 'STDOUT',
-      ansiCodes: !!ansiCodes,
-      sequence: this.getNextSequence(effectiveCommandId)
+      sequence: this.getNextSequence(effectiveCommandId),
+      ...(ansiCodes && { ansiCodes }),
+      ...(isBlank !== undefined && { isBlank })
     };
 
     const message: WebSocketMessage<TerminalOutputPayload> = {

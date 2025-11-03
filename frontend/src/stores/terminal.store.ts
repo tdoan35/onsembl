@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { TerminalBufferManager, TerminalLine } from '../services/terminal-buffer'
 import { webSocketService } from '../services/websocket.service'
+import { fetchAgentTerminalOutput } from '../services/agent-api.service'
 import { MessageType } from '@onsembl/agent-protocol'
 
 interface TerminalSession {
@@ -27,6 +28,10 @@ interface TerminalState {
   // Output management
   bufferManager: TerminalBufferManager
 
+  // History loading state
+  loadingHistory: Map<string, boolean>
+  historyLoaded: Map<string, boolean>
+
   // UI state
   isScrollLocked: boolean
   searchQuery: string
@@ -36,9 +41,14 @@ interface TerminalState {
   createSession: (commandId: string, agentId: string, command: string) => void
   endSession: (commandId: string, exitCode: number) => void
   setActiveSession: (sessionId: string | null) => void
-  addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean) => void
+  addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean, sequence?: number, isBlank?: boolean) => void
   clearSession: (commandId: string) => void
   clearAllSessions: () => void
+
+  // History loading
+  loadHistory: (agentId: string) => Promise<void>
+  isLoadingHistory: (sessionId: string) => boolean
+  isHistoryLoaded: (sessionId: string) => boolean
 
   // Terminal operations
   getSessionOutput: (commandId: string) => TerminalLine[]
@@ -68,6 +78,8 @@ export const useTerminalStore = create<TerminalState>()(
       sessions: new Map(),
       activeSessionId: null,
       bufferManager,
+      loadingHistory: new Map(),
+      historyLoaded: new Map(),
       isScrollLocked: false,
       searchQuery: '',
       searchResults: [],
@@ -111,8 +123,8 @@ export const useTerminalStore = create<TerminalState>()(
         set({ activeSessionId: sessionId, searchQuery: '', searchResults: [] })
       },
 
-      addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean) => {
-        bufferManager.addOutput(commandId, content, type, ansiCodes, isCommand)
+      addOutput: (commandId: string, content: string, type: 'stdout' | 'stderr', ansiCodes?: string[], isCommand?: boolean, sequence?: number, isBlank?: boolean) => {
+        bufferManager.addOutput(commandId, content, type, ansiCodes, isCommand, sequence, isBlank)
 
         // If this is the active session and scroll is not locked, trigger scroll
         const state = get()
@@ -139,8 +151,87 @@ export const useTerminalStore = create<TerminalState>()(
           sessions: new Map(),
           activeSessionId: null,
           searchQuery: '',
-          searchResults: []
+          searchResults: [],
+          loadingHistory: new Map(),
+          historyLoaded: new Map()
         })
+      },
+
+      loadHistory: async (agentId: string) => {
+        const sessionId = `agent-session-${agentId}`
+        const { loadingHistory, historyLoaded } = get()
+
+        // Skip if already loading or loaded
+        if (loadingHistory.get(sessionId) || historyLoaded.get(sessionId)) {
+          console.log(`[TerminalStore] History already ${loadingHistory.get(sessionId) ? 'loading' : 'loaded'} for session ${sessionId}`)
+          return
+        }
+
+        try {
+          // Mark as loading
+          set(state => {
+            const newLoadingHistory = new Map(state.loadingHistory)
+            newLoadingHistory.set(sessionId, true)
+            return { loadingHistory: newLoadingHistory }
+          })
+
+          console.log(`[TerminalStore] Loading history for agent ${agentId}`)
+
+          // Fetch historical terminal output
+          const response = await fetchAgentTerminalOutput(agentId, {
+            limit: 10000 // Load all available history
+          })
+
+          console.log(`[TerminalStore] Loaded ${response.outputs.length} historical terminal outputs for agent ${agentId}`)
+
+          // Create session if it doesn't exist
+          const sessions = get().sessions
+          if (!sessions.has(sessionId)) {
+            get().createSession(sessionId, agentId, `Monitoring ${agentId}`)
+          }
+
+          // Add historical outputs to buffer (in chronological order)
+          response.outputs.forEach(output => {
+            bufferManager.addOutput(
+              sessionId,
+              output.output,
+              output.type as 'stdout' | 'stderr',
+              undefined,
+              false
+            )
+          })
+
+          // Mark as loaded
+          set(state => {
+            const newLoadingHistory = new Map(state.loadingHistory)
+            const newHistoryLoaded = new Map(state.historyLoaded)
+            newLoadingHistory.set(sessionId, false)
+            newHistoryLoaded.set(sessionId, true)
+            return {
+              loadingHistory: newLoadingHistory,
+              historyLoaded: newHistoryLoaded
+            }
+          })
+
+          console.log(`[TerminalStore] History loaded successfully for session ${sessionId}`)
+        } catch (error) {
+          console.error(`[TerminalStore] Failed to load history for agent ${agentId}:`, error)
+
+          // Mark as not loading
+          set(state => {
+            const newLoadingHistory = new Map(state.loadingHistory)
+            newLoadingHistory.set(sessionId, false)
+            return { loadingHistory: newLoadingHistory }
+          })
+        }
+      },
+
+      isLoadingHistory: (sessionId: string) => {
+        return get().loadingHistory.get(sessionId) || false
+      },
+
+      isHistoryLoaded: (sessionId: string) => {
+        return get().historyLoaded.get(sessionId) || false
       },
 
       getSessionOutput: (commandId: string): TerminalLine[] => {

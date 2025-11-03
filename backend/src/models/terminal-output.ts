@@ -30,7 +30,7 @@ export type TerminalOutputType = 'stdout' | 'stderr' | 'system';
 // Enhanced schema validation with ANSI color code support
 export const TerminalOutputSchema = z.object({
   id: z.string().uuid().optional(),
-  command_id: z.string().uuid(),
+  command_id: z.union([z.string().uuid(), z.null()]), // Accept UUID string or null
   agent_id: z.string().uuid(),
   type: z.enum(['stdout', 'stderr', 'system']),
   content: z.string().max(100000), // 100KB limit as per database constraint
@@ -51,16 +51,20 @@ export interface TerminalOutputRow {
   type: 'stdout' | 'stderr' | 'system';
   timestamp: string;
   created_at: string;
+  sequence: number;      // Added for ordering and deduplication
+  is_blank: boolean;     // Added for blank line metadata
 }
 
 export interface TerminalOutputInsert {
   id?: string;
-  command_id: string;
+  command_id: string | null;
   agent_id: string;
   output: string;
   type: 'stdout' | 'stderr' | 'system';
   timestamp: string;
   created_at?: string;
+  sequence: number;      // Required for deduplication
+  is_blank?: boolean;    // Optional blank line metadata
 }
 
 export interface TerminalOutputUpdate {
@@ -71,6 +75,8 @@ export interface TerminalOutputUpdate {
   type?: 'stdout' | 'stderr' | 'system';
   timestamp?: string;
   created_at?: string;
+  sequence?: number;     // Optional for updates
+  is_blank?: boolean;    // Optional for updates
 }
 
 // Enhanced interfaces for ANSI color code and chunking support
@@ -171,6 +177,8 @@ export class TerminalOutputModel {
         output: validated.content, // Map 'content' to 'output' for database compatibility
         timestamp: validated.timestamp || now,
         created_at: now,
+        sequence: terminalOutput.sequence, // Include sequence for deduplication
+        is_blank: terminalOutput.is_blank // Include blank line metadata
       };
 
       const { data, error } = await (this.supabase as any)
@@ -235,12 +243,14 @@ export class TerminalOutputModel {
         query = query.gt('timestamp', filters.since);
       }
 
-      if (filters?.limit) {
+      // Apply pagination: use range() if offset is provided, otherwise use limit()
+      if (filters?.offset !== undefined) {
+        // range() handles both offset and limit
+        const limit = filters.limit || 50;
+        query = query.range(filters.offset, filters.offset + limit - 1);
+      } else if (filters?.limit) {
+        // Use limit() only when there's no offset
         query = query.limit(filters.limit);
-      }
-
-      if (filters?.offset) {
-        query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
       }
 
       const { data, error } = await query.order('timestamp', { ascending: true });
@@ -260,6 +270,73 @@ export class TerminalOutputModel {
         `Unexpected error finding terminal outputs: ${error}`,
         'UNKNOWN_ERROR',
         commandId
+      );
+    }
+  }
+
+  /**
+   * Find terminal outputs by agent ID with optional filtering
+   * @param agentId Agent UUID
+   * @param filters Optional filters for type, commandId, limit, offset, since timestamp
+   * @returns Array of terminal outputs ordered by timestamp
+   */
+  async findByAgentId(
+    agentId: string,
+    filters?: {
+      type?: TerminalOutputType;
+      commandId?: string;
+      limit?: number;
+      offset?: number;
+      since?: string; // ISO timestamp
+    }
+  ): Promise<TerminalOutputRow[]> {
+    try {
+      let query = this.supabase
+        .from('terminal_outputs')
+        .select('*')
+        .eq('agent_id', agentId);
+
+      if (filters?.type) {
+        query = query.eq('type', filters.type);
+      }
+
+      if (filters?.commandId) {
+        query = query.eq('command_id', filters.commandId);
+      }
+
+      if (filters?.since) {
+        query = query.gt('timestamp', filters.since);
+      }
+
+      // Apply pagination: use range() if offset is provided, otherwise use limit()
+      if (filters?.offset !== undefined) {
+        // range() handles both offset and limit
+        const limit = filters.limit || 50;
+        query = query.range(filters.offset, filters.offset + limit - 1);
+      } else if (filters?.limit) {
+        // Use limit() only when there's no offset
+        query = query.limit(filters.limit);
+      }
+
+      const { data, error } = await query.order('timestamp', { ascending: true });
+
+      if (error) {
+        throw new TerminalOutputError(
+          `Failed to find terminal outputs by agent ID: ${error.message}`,
+          'DATABASE_ERROR',
+          undefined,
+          agentId
+        );
+      }
+
+      return data || [];
+    } catch (error) {
+      if (error instanceof TerminalOutputError) throw error;
+      throw new TerminalOutputError(
+        `Unexpected error finding terminal outputs: ${error}`,
+        'UNKNOWN_ERROR',
+        undefined,
+        agentId
       );
     }
   }
@@ -293,6 +370,8 @@ export class TerminalOutputModel {
           output: validated.content,
           timestamp: validated.timestamp || new Date(Date.now() + index).toISOString(),
           created_at: now,
+          sequence: output.sequence, // Include sequence for deduplication
+          is_blank: output.is_blank  // Include blank line metadata
         };
       });
 

@@ -119,8 +119,9 @@ export interface TerminalOutputPayload {
   agentId: string;
   streamType: StreamType;
   content: string;
-  ansiCodes: boolean;
+  ansiCodes?: string;  // Changed from boolean to string to preserve actual ANSI codes
   sequence: number;
+  isBlank?: boolean;    // Metadata: whether line contains only whitespace
 }
 
 export interface TraceEventPayload {
@@ -332,8 +333,10 @@ export interface TerminalStreamPayload {
   agentId: string;
   content: string;
   streamType: StreamType;
-  ansiCodes: boolean;
+  ansiCodes?: string;  // Changed from boolean to string to preserve actual ANSI codes
   timestamp: number;
+  sequence?: number;    // Added for ordering
+  isBlank?: boolean;    // Metadata: whether line contains only whitespace
 }
 
 export interface TraceStreamPayload {

@@ -55,6 +55,9 @@ export class PTYManager extends EventEmitter {
       rows: this.dimensions.rows,
       cwd: process.cwd(),
       env: { ...process.env, ...(optionEnv || {}) },
+      // On Windows, try using winpty instead of ConPTY for better compatibility
+      // ConPTY has known issues with input handling in some scenarios
+      useConpty: process.platform === 'win32' ? false : undefined,
       ...otherOptions
     };
 

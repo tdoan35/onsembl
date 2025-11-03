@@ -683,37 +683,10 @@ export class AgentService extends EventEmitter {
     // Store channel reference
     this.realtimeChannels.set('agent_status', agentStatusChannel);
 
-    // Subscribe to database changes
-    const dbChangesChannel = this.supabase
-      .channel('agent_db_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'agents',
-        },
-        async (payload) => {
-          this.fastify.log.debug({ payload }, 'Agent database change detected');
-
-          if (payload.eventType === 'UPDATE' && payload.new) {
-            const agent = payload.new as Agent;
-            await this.broadcastAgentStatusChange(agent, 'updated');
-            this.emit('agent:db-update', agent);
-          } else if (payload.eventType === 'INSERT' && payload.new) {
-            const agent = payload.new as Agent;
-            await this.broadcastAgentStatusChange(agent, 'created');
-            this.emit('agent:db-insert', agent);
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            const agent = payload.old as Agent;
-            await this.broadcastAgentStatusChange(agent, 'deleted');
-            this.emit('agent:db-delete', agent);
-          }
-        }
-      );
-
-    // Store channel reference
-    this.realtimeChannels.set('agent_db_changes', dbChangesChannel);
+    // NOTE: postgres_changes listener removed to prevent infinite broadcast loops
+    // Agent status updates are now sent ONLY via direct WebSocket messages
+    // triggered by explicit agent connection/disconnection events and heartbeats.
+    // This eliminates redundant broadcasts and fixes the status flickering issue.
 
     // Subscribe to channels
     agentStatusChannel.subscribe((status) => {
@@ -729,15 +702,6 @@ export class AgentService extends EventEmitter {
       }
     });
 
-    dbChangesChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        this.fastify.log.info('Successfully subscribed to agent database changes');
-      } else if (status === 'CLOSED') {
-        this.fastify.log.warn('Agent database changes channel closed');
-      } else if (status === 'CHANNEL_ERROR') {
-        this.fastify.log.error('Agent database changes channel error');
-      }
-    });
 
     // Set up connection monitoring
     this.setupRealtimeConnectionMonitoring();

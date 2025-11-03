@@ -78,7 +78,7 @@ export const useAgentStore = create<AgentStore>()(
         set((state) => ({
           agents: state.agents.map((agent) =>
             agent.id === agentId
-              ? { ...agent, status, lastPing: new Date().toISOString() }
+              ? { ...agent, status }  // Only update status, preserve lastPing timestamp
               : agent
           ),
         })),

@@ -278,7 +278,7 @@ export async function createServer(): Promise<FastifyInstance> {
 
   // Setup WebSocket handlers
   const { setupWebSocketPlugin } = await import('./websocket/setup.js');
-  await setupWebSocketPlugin(server, services);
+  await setupWebSocketPlugin(server, services, supabaseClient);
 
   // Register health check endpoints from health service
   healthService.registerEndpoints();

@@ -5,7 +5,10 @@
 
 import { FastifyInstance } from 'fastify';
 import { EventEmitter } from 'events';
+import { createClient } from '@supabase/supabase-js';
 import { MessageRouter } from './message-router.js';
+import { TerminalOutputModel, TerminalOutputInsert } from '../models/terminal-output.js';
+import { Database } from '../types/database.js';
 import {
   TerminalOutputPayload,
   TerminalStreamPayload,
@@ -27,6 +30,7 @@ export interface TerminalSession {
   totalBytes: number;
   isActive: boolean;
   startedAt: number;
+  receivedSequences: Set<number>;  // Track received sequences for deduplication
 }
 
 export interface TerminalLine {
@@ -34,7 +38,8 @@ export interface TerminalLine {
   streamType: StreamType;
   timestamp: number;
   sequence: number;
-  ansiCodes: boolean;
+  ansiCodes?: string;    // Changed from boolean to string
+  isBlank?: boolean;     // Added for blank line metadata
 }
 
 export interface StreamStats {
@@ -60,13 +65,23 @@ export class TerminalStreamManager extends EventEmitter {
 
   private latencyHistory: number[] = [];
   private flushHistory: number[] = [];
+  private terminalOutputModel?: TerminalOutputModel;
 
   constructor(
     private server: FastifyInstance,
     private messageRouter: MessageRouter,
-    private config: TerminalStreamConfig
+    private config: TerminalStreamConfig,
+    private supabaseClient?: ReturnType<typeof createClient<Database>>
   ) {
     super();
+
+    // Initialize terminal output model if supabase client is provided
+    if (supabaseClient) {
+      this.terminalOutputModel = new TerminalOutputModel(supabaseClient);
+      this.server.log.info('Terminal output model initialized with database persistence');
+    } else {
+      this.server.log.warn('Terminal output model NOT initialized - no Supabase client provided (output will not be persisted)');
+    }
   }
 
   /**
@@ -115,13 +130,39 @@ export class TerminalStreamManager extends EventEmitter {
       this.sessions.set(sessionKey, session);
     }
 
+    // Deduplication: Check if sequence was already received
+    if (session.receivedSequences.has(payload.sequence)) {
+      this.server.log.warn({
+        commandId: payload.commandId,
+        agentId: payload.agentId,
+        sequence: payload.sequence
+      }, 'Duplicate terminal output sequence detected - skipping');
+      return;  // Skip duplicate
+    }
+
+    // Mark sequence as received
+    session.receivedSequences.add(payload.sequence);
+
+    // Log gap detection (for debugging out-of-order messages)
+    const expectedSequence = session.totalLines;
+    if (payload.sequence !== expectedSequence && expectedSequence > 0) {
+      this.server.log.debug({
+        commandId: payload.commandId,
+        agentId: payload.agentId,
+        expected: expectedSequence,
+        received: payload.sequence,
+        gap: payload.sequence - expectedSequence
+      }, 'Out-of-order terminal output sequence detected');
+    }
+
     // Create terminal line
     const line: TerminalLine = {
       content: payload.content,
       streamType: payload.streamType,
       timestamp: now,
       sequence: payload.sequence,
-      ansiCodes: payload.ansiCodes
+      ansiCodes: payload.ansiCodes,
+      isBlank: payload.isBlank
     };
 
     // Add to buffer
@@ -266,17 +307,35 @@ export class TerminalStreamManager extends EventEmitter {
 
     // Create combined payload for streaming
     const combinedContent = lines.map(line => line.content).join('');
+    // Collect all ANSI codes from lines that have them
+    const ansiCodes = lines
+      .map(line => line.ansiCodes)
+      .filter(codes => codes !== undefined)
+      .join('');
+
     const streamPayload: TerminalStreamPayload = {
       commandId: session.commandId,
       agentId: session.agentId,
       content: combinedContent,
       streamType: lines[0]?.streamType || 'STDOUT',
-      ansiCodes: lines.some(line => line.ansiCodes),
-      timestamp: startTime
+      ansiCodes: ansiCodes || undefined,  // Changed from boolean to string
+      timestamp: startTime,
+      sequence: lines[0]?.sequence,        // Include first sequence for reference
+      isBlank: lines.every(line => line.isBlank)  // All lines blank
     };
 
     // Stream to dashboards via message router
     this.messageRouter.streamTerminalOutput(streamPayload);
+
+    // Persist to database asynchronously (non-blocking)
+    this.persistToDatabase(session, lines).catch(error => {
+      this.server.log.error({
+        commandId: session.commandId,
+        agentId: session.agentId,
+        error: error.message,
+        linesCount: lines.length
+      }, 'Failed to persist terminal output to database');
+    });
 
     // Update session
     session.lastFlush = startTime;
@@ -312,7 +371,8 @@ export class TerminalStreamManager extends EventEmitter {
       totalLines: 0,
       totalBytes: 0,
       isActive: true,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      receivedSequences: new Set<number>()  // Initialize deduplication tracking
     };
 
     this.server.log.debug({ commandId, agentId }, 'Terminal session created');
@@ -498,5 +558,90 @@ export class TerminalStreamManager extends EventEmitter {
     }
 
     return toRemove.length;
+  }
+
+  /**
+   * Persist terminal output lines to database
+   * @param session Terminal session
+   * @param lines Terminal lines to persist
+   */
+  private async persistToDatabase(
+    session: TerminalSession,
+    lines: TerminalLine[]
+  ): Promise<void> {
+    // Skip if no terminal output model is available
+    if (!this.terminalOutputModel) {
+      this.server.log.warn({
+        commandId: session.commandId,
+        agentId: session.agentId,
+        linesCount: lines.length
+      }, 'Terminal output model not available, skipping database persistence');
+      return;
+    }
+
+    if (lines.length === 0) {
+      return;
+    }
+
+    this.server.log.info({
+      commandId: session.commandId,
+      agentId: session.agentId,
+      linesCount: lines.length
+    }, 'Attempting to persist terminal output to database');
+
+    try {
+      // Convert terminal lines to database format
+      const terminalOutputs: Omit<TerminalOutputInsert, 'id' | 'created_at'>[] = lines.map(line => {
+        // Convert StreamType to database type
+        const type: 'stdout' | 'stderr' = line.streamType === 'STDERR' ? 'stderr' : 'stdout';
+
+        // Handle command_id: For agent monitoring output, commandId might be a session key like "agent-session-{uuid}"
+        // Extract the actual agent UUID, or use a null command_id for monitoring output
+        let command_id: string | null = session.commandId;
+
+        // If commandId looks like a monitoring session key, it's not a real command
+        // Set command_id to NULL (monitoring output is not tied to a specific command)
+        if (!command_id || command_id.startsWith('agent-session-')) {
+          // For monitoring output without a command, use NULL
+          command_id = null;
+        }
+
+        return {
+          command_id,
+          agent_id: session.agentId,
+          type,
+          output: line.content,
+          timestamp: new Date(line.timestamp).toISOString(),
+          sequence: line.sequence,         // Include sequence for deduplication
+          is_blank: line.isBlank || false  // Include blank line metadata
+        };
+      });
+
+      this.server.log.debug({
+        commandId: session.commandId,
+        agentId: session.agentId,
+        sampleOutput: terminalOutputs[0]
+      }, 'Calling terminalOutputModel.createBatch with data');
+
+      // Batch insert for performance
+      const result = await this.terminalOutputModel.createBatch(terminalOutputs);
+
+      this.server.log.info({
+        commandId: session.commandId,
+        agentId: session.agentId,
+        linesCount: lines.length,
+        rowsInserted: result.length
+      }, 'Terminal output successfully persisted to database');
+    } catch (error) {
+      this.server.log.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        commandId: session.commandId,
+        agentId: session.agentId
+      }, 'Database persistence failed');
+
+      // Rethrow to be caught by caller
+      throw new Error(`Database persistence failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

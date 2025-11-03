@@ -251,9 +251,8 @@ export class InteractiveAgentWrapper extends EventEmitter {
       if (this.wsClient?.connected) {
         // Strip ANSI codes for WebSocket transmission
         const strippedData = stripAnsi(data);
-        // Check if original data had ANSI codes
-        const hasAnsi = data !== strippedData;
-        const ansiCodes = hasAnsi ? 'true' : undefined;
+        // Extract ANSI codes for separate transmission
+        const ansiCodes = data !== strippedData ? data.replace(strippedData, '') : undefined;
 
         // Use currentCommandId if we're responding to a remote command
         // Otherwise use undefined for monitoring/CLI output (backend will route to agent-session-{agentId})
@@ -384,13 +383,13 @@ export class InteractiveAgentWrapper extends EventEmitter {
     this.inputMultiplexer?.addSource('dashboard', null, {
       priority: 5,
       canInterrupt: false,
-      handler: (data: string) => {
+      handler: async (data: string) => {
         if (this.mode === 'interactive') {
           // Queue the command if terminal is active
           this.logger.info('Remote command queued (terminal has priority)');
         } else {
           // Process immediately in headless mode
-          this.processRemoteCommand(data);
+          await this.processRemoteCommand(data);
         }
       }
     });
@@ -417,10 +416,10 @@ export class InteractiveAgentWrapper extends EventEmitter {
     // Process remote commands immediately, regardless of control mode
     // This allows dashboard commands to execute even when the agent is in interactive mode
     this.logger.info('Processing command immediately');
-    this.processRemoteCommand(message.command, message.commandId);
+    await this.processRemoteCommand(message.command, message.commandId);
   }
 
-  private processRemoteCommand(command: string, commandId?: string): void {
+  private async processRemoteCommand(command: string, commandId?: string): Promise<void> {
     this.logger.info('==================== PROCESS REMOTE COMMAND ====================');
     this.logger.info('Processing command:', {
       command,
@@ -435,23 +434,43 @@ export class InteractiveAgentWrapper extends EventEmitter {
 
     if (this.ptyManager?.isInteractive) {
       // Forward command to the actual agent CLI
-      // Windows requires \r\n, Unix uses \n
+      // Different platforms handle Enter key differently in PTY:
+      // - Unix/Linux/macOS: \r (carriage return)
+      // - Windows ConPTY: Often needs \r\n to properly execute commands
       const isWindows = process.platform === 'win32';
-      const lineEnding = isWindows ? '\r\n' : '\n';
-      const commandWithNewline = command.endsWith('\n') || command.endsWith('\r\n')
-        ? command
-        : command + lineEnding;
+
+      let commandWithEnter: string;
+      if (command.endsWith('\r') || command.endsWith('\n') || command.endsWith('\r\n')) {
+        commandWithEnter = command;
+      } else {
+        // On Windows, ConPTY often requires \r\n for proper command execution
+        // On Unix-like systems, \r is standard
+        commandWithEnter = isWindows ? command + '\r\n' : command + '\r';
+      }
 
       this.logger.info('Writing to PTY:', {
         originalCommand: command,
-        commandWithNewline,
-        willWrite: commandWithNewline,
+        commandWithEnter,
+        willWrite: commandWithEnter,
         platform: process.platform,
-        lineEnding: lineEnding.replace('\r', '\\r').replace('\n', '\\n')
+        isWindows,
+        lineEnding: isWindows ? '\\r\\n (Windows ConPTY)' : '\\r (Unix-like)',
+        commandBytes: Buffer.from(commandWithEnter).toString('hex')
       });
 
       try {
-        this.ptyManager.write(commandWithNewline);
+        // On Windows ConPTY, there are known issues with bulk writes
+        // Try character-by-character writing for better compatibility
+        if (isWindows) {
+          this.logger.info('Using character-by-character write for Windows ConPTY compatibility');
+          for (let i = 0; i < commandWithEnter.length; i++) {
+            this.ptyManager.write(commandWithEnter[i]);
+            // Small delay to ensure characters are processed in order
+            await new Promise(resolve => setTimeout(resolve, 5));
+          }
+        } else {
+          this.ptyManager.write(commandWithEnter);
+        }
         this.logger.info('✅ Command successfully forwarded to agent CLI', { command, commandId });
       } catch (error) {
         this.logger.error('❌ Failed to write to PTY:', error);

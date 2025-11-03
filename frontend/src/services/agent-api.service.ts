@@ -10,6 +10,7 @@
 
 import { apiClient } from './api.service';
 import { Agent, AgentType, AgentStatus } from '@/stores/agent-store';
+import { mapAgentStatus } from '@/utils/agent-status-mapper';
 
 /**
  * Backend API response type (matches backend alignment plan)
@@ -53,20 +54,8 @@ export function transformApiAgent(apiAgent: AgentApiResponse): Agent {
     type = normalizedType;
   }
 
-  // Map status values with fallback
-  let status: AgentStatus = 'offline';
-  const normalizedStatus = apiAgent.status?.toLowerCase();
-
-  // Map database status values to frontend status values
-  if (normalizedStatus === 'online' || normalizedStatus === 'connected') {
-    status = 'online';
-  } else if (normalizedStatus === 'offline' || normalizedStatus === 'disconnected') {
-    status = 'offline';
-  } else if (normalizedStatus === 'error') {
-    status = 'error';
-  } else if (normalizedStatus === 'connecting' || normalizedStatus === 'executing') {
-    status = 'connecting';
-  }
+  // Map status using centralized mapper
+  const status = mapAgentStatus(apiAgent.status || 'offline');
 
   const agent: Agent = {
     id: apiAgent.agent_id,
@@ -75,7 +64,7 @@ export function transformApiAgent(apiAgent: AgentApiResponse): Agent {
     status,
     version: apiAgent.version,
     capabilities: apiAgent.capabilities || [],
-    lastPing: apiAgent.last_heartbeat || new Date().toISOString(),
+    lastPing: apiAgent.last_heartbeat || null,  // Use null instead of fabricating timestamp
   };
 
   // Only add metrics if they exist (optional property)
@@ -150,6 +139,74 @@ export async function deleteAgent(agentId: string): Promise<void> {
     }
   } catch (error) {
     console.error(`Error deleting agent ${agentId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Terminal output types from backend
+ */
+export interface TerminalOutput {
+  id: string;
+  command_id: string;
+  agent_id: string;
+  type: 'stdout' | 'stderr' | 'system';
+  output: string;
+  timestamp: string;
+  created_at: string;
+}
+
+export interface TerminalOutputFilters {
+  type?: 'stdout' | 'stderr';
+  commandId?: string;
+  limit?: number;
+  offset?: number;
+  since?: string;
+}
+
+export interface TerminalOutputResponse {
+  outputs: TerminalOutput[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Fetch terminal output history for an agent
+ *
+ * Retrieves all terminal output for an agent, including both command execution output
+ * and agent CLI/monitoring output from startup.
+ *
+ * @param agentId - Agent identifier
+ * @param filters - Optional filters for type, commandId, limit, offset, since timestamp
+ * @returns Terminal output data with pagination info
+ * @throws Error if agent not found or API call fails
+ */
+export async function fetchAgentTerminalOutput(
+  agentId: string,
+  filters?: TerminalOutputFilters
+): Promise<TerminalOutputResponse> {
+  try {
+    // Build query string from filters
+    const queryParams = new URLSearchParams();
+    if (filters?.type) queryParams.append('type', filters.type);
+    if (filters?.commandId) queryParams.append('commandId', filters.commandId);
+    if (filters?.limit !== undefined) queryParams.append('limit', filters.limit.toString());
+    if (filters?.offset !== undefined) queryParams.append('offset', filters.offset.toString());
+    if (filters?.since) queryParams.append('since', filters.since);
+
+    const queryString = queryParams.toString();
+    const url = `/api/agents/${agentId}/terminal-output${queryString ? `?${queryString}` : ''}`;
+
+    const response = await apiClient.request<TerminalOutputResponse>(url);
+
+    if (!response.success || !response.data) {
+      throw new Error(`Failed to fetch terminal output for agent ${agentId}: Invalid response`);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching terminal output for agent ${agentId}:`, error);
     throw error;
   }
 }

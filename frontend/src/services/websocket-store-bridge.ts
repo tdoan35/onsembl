@@ -8,6 +8,7 @@ import { useAgentStore } from '@/stores/agent-store';
 import { useCommandStore } from '@/stores/command-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
+import { mapAgentStatus } from '@/utils/agent-status-mapper';
 import {
   MessageType,
   AgentStatusPayload,
@@ -59,27 +60,6 @@ export class WebSocketStoreBridge {
   }
 
   /**
-   * Map backend agent status values to frontend values
-   */
-  private mapAgentStatus(backendStatus: string): 'online' | 'offline' | 'error' | 'connecting' {
-    switch (backendStatus) {
-      case 'connected':
-        return 'online';
-      case 'disconnected':
-        return 'offline';
-      case 'busy':
-        return 'online'; // busy agents are still online
-      case 'error':
-        return 'error';
-      case 'connecting':
-        return 'connecting';
-      default:
-        console.warn(`[WebSocketStoreBridge] Unknown agent status: ${backendStatus}, defaulting to offline`);
-        return 'offline';
-    }
-  }
-
-  /**
    * Setup message handlers for WebSocket events
    */
   private setupMessageHandlers(): void {
@@ -87,22 +67,31 @@ export class WebSocketStoreBridge {
     webSocketService.on(MessageType.AGENT_STATUS, (payload: AgentStatusPayload) => {
       const agentStore = useAgentStore.getState();
 
-      // Map backend status to frontend status
-      const mappedStatus = this.mapAgentStatus(payload.status);
+      // Map backend status to frontend status using centralized mapper
+      const mappedStatus = mapAgentStatus(payload.status);
 
       console.log('[WebSocketStoreBridge] 📡 AGENT_STATUS received:', {
         agentId: payload.agentId,
         backendStatus: payload.status,
         mappedStatus,
+        lastPing: (payload as any).lastPing,  // For debugging
         error: payload.error
       });
 
-      // Update agent in store
-      agentStore.updateAgent(payload.agentId, {
+      // Build update object
+      const updates: any = {
         status: mappedStatus,
-        lastPing: new Date().toISOString(),
         error: payload.error
-      });
+      };
+
+      // CRITICAL: Only update lastPing if provided by backend
+      // Never fabricate timestamps - this breaks staleness detection
+      if ((payload as any).lastPing !== undefined) {
+        updates.lastPing = (payload as any).lastPing;
+      }
+
+      // Update agent in store
+      agentStore.updateAgent(payload.agentId, updates);
 
       // Handle agent connection/disconnection
       if (mappedStatus === 'offline' || mappedStatus === 'error') {

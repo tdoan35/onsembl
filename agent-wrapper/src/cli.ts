@@ -189,7 +189,7 @@ class AgentWrapper extends EventEmitter {
         if (this.wsClient && this.wsClient.connected) {
           // Note: This would need a command ID from active command context
           // For now, we'll use a placeholder
-          await this.wsClient.sendOutput('agent-output', stream, chunk.data, chunk.ansiCodes);
+          await this.wsClient.sendOutput('agent-output', stream, chunk.data, chunk.ansiCodes, chunk.isBlank);
         }
       },
       onError: (error: Error) => {
@@ -226,7 +226,7 @@ class AgentWrapper extends EventEmitter {
       config: this.config,
       onOutput: async (commandId: string, stream: 'stdout' | 'stderr', chunk: OutputChunk) => {
         if (this.wsClient && this.wsClient.connected) {
-          await this.wsClient.sendOutput(commandId, stream, chunk.data, chunk.ansiCodes);
+          await this.wsClient.sendOutput(commandId, stream, chunk.data, chunk.ansiCodes, chunk.isBlank);
         }
       },
       onComplete: async (result: ExecutionResult) => {

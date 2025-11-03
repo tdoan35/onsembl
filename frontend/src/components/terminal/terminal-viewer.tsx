@@ -130,8 +130,35 @@ function SimpleTerminal({
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { getActiveSessionOutput, addOutput, activeSessionId } = useTerminalStore();
+  const {
+    getActiveSessionOutput,
+    addOutput,
+    activeSessionId,
+    loadHistory,
+    isLoadingHistory,
+    isHistoryLoaded
+  } = useTerminalStore();
   const { addNotification } = useUIStore();
+
+  // Load history when component mounts or agent changes
+  useEffect(() => {
+    if (agentId) {
+      const sessionId = `agent-session-${agentId}`;
+
+      // Only load if not already loading or loaded
+      if (!isLoadingHistory(sessionId) && !isHistoryLoaded(sessionId)) {
+        console.log(`[SimpleTerminal] Loading history for agent ${agentId}`);
+        loadHistory(agentId).catch(error => {
+          console.error('[SimpleTerminal] Failed to load history:', error);
+          addNotification({
+            title: 'Failed to Load Terminal History',
+            description: error.message || 'Could not load previous terminal output',
+            type: 'error'
+          });
+        });
+      }
+    }
+  }, [agentId, loadHistory, isLoadingHistory, isHistoryLoaded, addNotification]);
 
   // Get terminal output (called on every render to get fresh data)
   const terminalOutput = getActiveSessionOutput();
@@ -260,14 +287,24 @@ function SimpleTerminal({
           </div>
         )} */}
 
-        {/* Welcome Message */}
+        {/* Welcome Message / Loading State */}
         {terminalLines.length === 0 && (
           <div style={{ color: '#73daca' }}>
-            Welcome to Onsembl Agent Terminal
-            <br />
-            {agentId ? `Connected to: ${agentId}` : 'No agent selected'}
-            <br />
-            Type a command and press Enter...
+            {agentId && isLoadingHistory(`agent-session-${agentId}`) ? (
+              <>
+                Loading terminal history...
+                <br />
+                <span style={{ color: '#7aa2f7' }}>Please wait while we fetch previous terminal output</span>
+              </>
+            ) : (
+              <>
+                Welcome to Onsembl Agent Terminal
+                <br />
+                {agentId ? `Connected to: ${agentId}` : 'No agent selected'}
+                <br />
+                Type a command and press Enter...
+              </>
+            )}
           </div>
         )}
 

@@ -182,18 +182,12 @@ export class AgentHeartbeatMonitor extends EventEmitter {
 
       for (const agent of onlineAgents) {
         if (!agent.last_ping) {
-          // Agent has no last_ping timestamp - mark as stale
-          this.server.log.warn({
+          // Agent has no last_ping timestamp - this means it was cleanly disconnected
+          // and set to NULL by the disconnect handler. Skip it.
+          this.server.log.debug({
             agentId: agent.id,
             agentName: agent.name
-          }, 'Agent has no last_ping timestamp, marking as stale');
-
-          staleAgents.push({
-            agentId: agent.id,
-            lastHeartbeat: new Date(agent.created_at),
-            timeSinceHeartbeat: now - new Date(agent.created_at).getTime(),
-            agentName: agent.name
-          });
+          }, 'Agent has NULL last_ping (cleanly disconnected), skipping staleness check');
           continue;
         }
 

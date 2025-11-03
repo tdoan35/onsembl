@@ -9,6 +9,8 @@ export interface TerminalLine {
   type: 'stdout' | 'stderr'
   ansiCodes?: string[]
   isCommand?: boolean  // Add flag to identify commands
+  sequence?: number    // Sequence number for ordering
+  isBlank?: boolean    // Whether line contains only whitespace
 }
 
 export interface TerminalBufferOptions {
@@ -42,7 +44,9 @@ export class TerminalBuffer {
     content: string,
     type: 'stdout' | 'stderr' = 'stdout',
     ansiCodes?: string[],
-    isCommand?: boolean
+    isCommand?: boolean,
+    sequence?: number,
+    isBlank?: boolean
   ): void {
     const lines = content.split('\n')
     const timestamp = Date.now()
@@ -57,7 +61,9 @@ export class TerminalBuffer {
         timestamp,
         type,
         ansiCodes,
-        isCommand
+        isCommand,
+        sequence,
+        isBlank
       }
 
       this.addLine(terminalLine)
